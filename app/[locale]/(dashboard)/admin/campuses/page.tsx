@@ -6,6 +6,7 @@ import {
     mapCampusDocToOverview,
     type CampusOverview,
 } from "@/lib/campuses/campus-overview";
+import { PageTransition } from "@/components/ui/page-transition";
 
 const CONVEX_URL_ERROR = "[CampusesPage] NEXT_PUBLIC_CONVEX_URL environment variable is not set.";
 
@@ -13,7 +14,11 @@ export default async function CampusesPage() {
     const convex = createConvexClient();
     const campuses = await loadCampuses(convex);
 
-    return <CampusesOverview campuses={campuses} />;
+    return (
+        <PageTransition>
+            <CampusesOverview campuses={campuses} />
+        </PageTransition>
+    );
 }
 
 async function loadCampuses(client: ConvexHttpClient): Promise<CampusOverview[]> {

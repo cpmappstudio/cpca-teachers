@@ -83,11 +83,16 @@ export const DynamicBreadcrumb = memo(function DynamicBreadcrumb() {
         // Split path and create segments
         const pathParts = pathWithoutLocale.split('/').filter(Boolean)
 
+        // Filter out 'admin' segment from breadcrumb (Academic Administration)
+        const filteredParts = pathParts.filter(part => part !== 'admin')
+
         // Build breadcrumb path
         let currentPath = ''
-        pathParts.forEach((part, index) => {
-            currentPath += `/${part}`
-            const isLast = index === pathParts.length - 1
+        filteredParts.forEach((part, index) => {
+            // Reconstruct the actual path including admin for navigation
+            const actualPathParts = pathParts.slice(0, pathParts.indexOf(part) + 1)
+            currentPath = '/' + actualPathParts.join('/')
+            const isLast = index === filteredParts.length - 1
 
             // Get route config with efficient lookup
             const config = ROUTE_CONFIG[part]
@@ -110,8 +115,8 @@ export const DynamicBreadcrumb = memo(function DynamicBreadcrumb() {
             <BreadcrumbList>
                 {breadcrumbSegments.map((segment, index) => (
                     <Fragment key={index}>
-                        {index > 0 && <BreadcrumbSeparator className="hidden md:block" />}
-                        <BreadcrumbItem className="hidden md:block">
+                        {index > 0 && <BreadcrumbSeparator />}
+                        <BreadcrumbItem>
                             {segment.isCurrentPage ? (
                                 <BreadcrumbPage>{segment.title}</BreadcrumbPage>
                             ) : (

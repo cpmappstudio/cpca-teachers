@@ -109,3 +109,36 @@ export const getSuperAdminInfo = query({
         };
     },
 });
+
+/**
+ * Obtener usuarios que pueden ser directores de campus
+ * Incluye admins y superadmins activos
+ */
+export const getPotentialDirectors = query({
+    args: {},
+    handler: async (ctx) => {
+        // Obtener admins activos
+        const admins = await ctx.db
+            .query("users")
+            .withIndex("by_role_active", (q) => q.eq("role", "admin").eq("isActive", true))
+            .collect();
+
+        // Obtener superadmins activos
+        const superadmins = await ctx.db
+            .query("users")
+            .withIndex("by_role_active", (q) => q.eq("role", "superadmin").eq("isActive", true))
+            .collect();
+
+        // Combinar ambos arrays
+        const potentialDirectors = [...admins, ...superadmins];
+
+        // Devolver solo la información necesaria para el dropdown
+        return potentialDirectors.map(user => ({
+            _id: user._id,
+            fullName: user.fullName,
+            email: user.email,
+            role: user.role,
+            campusId: user.campusId,
+        }));
+    },
+});
