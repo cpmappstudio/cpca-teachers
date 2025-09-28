@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter, useParams } from "next/navigation"
 import {
     ColumnDef,
     ColumnFiltersState,
@@ -145,6 +146,9 @@ interface CampusTeachersCardProps {
 }
 
 export function CampusTeachersCard({ teachers, campusId }: CampusTeachersCardProps) {
+    const router = useRouter()
+    const params = useParams()
+    const locale = params.locale as string
     const [sorting, setSorting] = React.useState<SortingState>([])
     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
     const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -260,7 +264,14 @@ export function CampusTeachersCard({ teachers, campusId }: CampusTeachersCardPro
                         <TableBody>
                             {table.getRowModel().rows?.length ? (
                                 table.getRowModel().rows.map((row) => (
-                                    <TableRow key={row.id}>
+                                    <TableRow
+                                        key={row.id}
+                                        className="cursor-pointer hover:bg-accent/50 transition-colors"
+                                        onClick={() => {
+                                            const teacherId = row.original._id;
+                                            router.push(`/${locale}/admin/teachers/${teacherId}`);
+                                        }}
+                                    >
                                         {row.getVisibleCells().map((cell) => (
                                             <TableCell
                                                 key={cell.id}
@@ -289,11 +300,11 @@ export function CampusTeachersCard({ teachers, campusId }: CampusTeachersCardPro
                 </div>
 
                 {/* Pagination */}
-                <div className="flex items-center justify-between px-6 py-4">
-                    <div className="text-sm text-muted-foreground">
+                <div className="flex items-center justify-between px-6 py-4 gap-2">
+                    <div className="text-sm text-muted-foreground min-w-0 truncate">
                         Showing {table.getRowModel().rows.length} of {teachers.length} teacher(s)
                     </div>
-                    <div className="space-x-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                         <Button
                             variant="outline"
                             size="sm"

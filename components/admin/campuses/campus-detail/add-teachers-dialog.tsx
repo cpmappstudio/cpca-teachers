@@ -161,31 +161,7 @@ export function AddTeachersDialog({ campusId }: AddTeachersDialogProps) {
             maxWidth="700px"
         >
             <div className="grid gap-6">
-                {/* Selected Teachers Display */}
-                {selectedTeachers.length > 0 && (
-                    <div className="space-y-4">
-                        <h4 className="text-sm font-medium border-b pb-2">Selected Teachers ({selectedTeachers.length})</h4>
-                        <div className="flex flex-wrap gap-2">
-                            {selectedTeachers.map((teacher) => (
-                                <Badge
-                                    key={teacher._id}
-                                    variant="outline"
-                                    className="flex items-center gap-2 px-3 py-1.5 text-sm"
-                                >
-                                    <User className="h-3 w-3" />
-                                    <span>{teacher.fullName}</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleRemoveTeacher(teacher._id)}
-                                        className="ml-1 rounded-full hover:bg-muted p-0.5"
-                                    >
-                                        <X className="h-3 w-3" />
-                                    </button>
-                                </Badge>
-                            ))}
-                        </div>
-                    </div>
-                )}
+
 
                 {/* Teacher Selection */}
                 <div className="space-y-4">
@@ -238,6 +214,31 @@ export function AddTeachersDialog({ campusId }: AddTeachersDialogProps) {
                     </div>
                 </div>
 
+                {/* Selected Teachers Display */}
+                {selectedTeachers.length > 0 && (
+                    <div className="space-y-4">
+                        <h4 className="text-sm font-medium border-b pb-2">Selected Teachers ({selectedTeachers.length})</h4>
+                        <div className="flex flex-wrap gap-2">
+                            {selectedTeachers.map((teacher) => (
+                                <Badge
+                                    key={teacher._id}
+                                    variant="outline"
+                                    className="flex items-center gap-2 px-3 py-1.5 text-sm"
+                                >
+                                    <User className="h-3 w-3" />
+                                    <span>{teacher.fullName}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRemoveTeacher(teacher._id)}
+                                        className="ml-1 rounded-full hover:bg-muted p-0.5"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </Badge>
+                            ))}
+                        </div>
+                    </div>
+                )}
                 {/* Create New Teacher Option */}
                 <div className="space-y-4">
                     <h4 className="text-sm font-medium border-b pb-2">Don't see the teacher you need?</h4>

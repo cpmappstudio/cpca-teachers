@@ -29,8 +29,8 @@ interface EntityDialogProps {
 
     // Footer configuration (optional customization)
     submitLabel?: string
-    cancelLabel?: string
     isSubmitting?: boolean
+    leftActions?: ReactNode // Para botones adicionales a la izquierda
 
     // Size customization (optional)
     maxWidth?: string
@@ -43,8 +43,8 @@ export function EntityDialog({
     children,
     onSubmit,
     submitLabel = "Save changes",
-    cancelLabel = "Cancel",
     isSubmitting = false,
+    leftActions,
     maxWidth = "600px"
 }: EntityDialogProps) {
     return (
@@ -69,23 +69,22 @@ export function EntityDialog({
                     </div>
 
                     {/* Fixed Footer */}
-                    <DialogFooter className="px-6 py-4 border-t bg-background flex-shrink-0 flex flex-col-reverse sm:flex-row gap-2">
-                        <DialogClose asChild>
+                    <DialogFooter className="px-6 py-4 border-t bg-background flex-shrink-0 flex justify-between items-center flex-nowrap">
+                        {/* Left actions (like delete button) */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            {leftActions}
+                        </div>
+
+                        {/* Right actions (submit button) */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
                             <Button
-                                variant="outline"
-                                className="w-full sm:w-auto"
+                                type="submit"
+                                className="min-w-[120px]"
                                 disabled={isSubmitting}
                             >
-                                {cancelLabel}
+                                {isSubmitting ? "Saving..." : submitLabel}
                             </Button>
-                        </DialogClose>
-                        <Button
-                            type="submit"
-                            className="w-full sm:w-auto"
-                            disabled={isSubmitting}
-                        >
-                            {isSubmitting ? "Saving..." : submitLabel}
-                        </Button>
+                        </div>
                     </DialogFooter>
                 </form>
             </DialogContent>

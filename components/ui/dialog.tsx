@@ -95,7 +95,9 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="dialog-footer"
       className={cn(
-        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+        // Always keep footer items in a single row and prevent wrapping so buttons
+        // remain side-by-side even on small screens.
+        "flex gap-2 justify-between items-center flex-nowrap",
         className
       )}
       {...props}

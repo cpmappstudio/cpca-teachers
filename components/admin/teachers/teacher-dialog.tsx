@@ -13,46 +13,42 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { SelectDropdown } from "@/components/ui/select-dropdown"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
-import { Plus, Edit, ChevronDown, User, Upload, Trash2, ImageIcon } from "lucide-react"
+import { Plus, Edit, ChevronDown, User, Upload, Trash2, ImageIcon, Building2 } from "lucide-react"
 import { useState, useRef } from "react"
 import Image from "next/image"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { EntityDialog } from "@/components/ui/entity-dialog"
-import { usStates, campusStatusOptions } from "@/lib/location-data"
-import { getCitiesByState } from "@/lib/cities-data"
 
-interface CampusDialogProps {
-    campus?: Doc<"campuses">
+interface TeacherDialogProps {
+    teacher?: Doc<"users">
     trigger?: React.ReactNode
 }
 
-export function CampusDialog({ campus, trigger }: CampusDialogProps) {
-    const isEditing = !!campus
+const teacherStatusOptions = [
+    { label: "Active", value: "active" },
+    { label: "Inactive", value: "inactive" },
+    { label: "On Leave", value: "on_leave" },
+    { label: "Terminated", value: "terminated" },
+]
 
-    const [selectedDirectorId, setSelectedDirectorId] = useState<Id<"users"> | undefined>(
-        campus?.directorId || undefined
-    )
-    const [selectedState, setSelectedState] = useState<string>(
-        campus?.address?.state || ""
-    )
-    const [selectedCity, setSelectedCity] = useState<string>(
-        campus?.address?.city || ""
+export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
+    const isEditing = !!teacher
+
+    const [selectedCampusId, setSelectedCampusId] = useState<Id<"campuses"> | undefined>(
+        teacher?.campusId || undefined
     )
     const [selectedStatus, setSelectedStatus] = useState<string>(
-        campus?.status || "active"
+        teacher?.status || "active"
     )
     const [selectedImage, setSelectedImage] = useState<File | null>(null)
     const [imagePreview, setImagePreview] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    // Query para obtener usuarios que pueden ser directores (admins y superadmins)
-    const potentialDirectors = useQuery(api.admin.getPotentialDirectors)
-    const selectedDirector = potentialDirectors?.find(director => director._id === selectedDirectorId)
-
-    // Get available cities based on selected state
-    const availableCities = getCitiesByState(selectedState)
+    // Query para obtener campuses disponibles
+    const campuses = useQuery(api.admin.getCampuses) // Assuming this query exists
+    const selectedCampus = campuses?.find(campus => campus._id === selectedCampusId)
 
     // Image handling functions
     const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,39 +80,35 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
         const formData = new FormData(event.currentTarget)
 
         // Añadir los valores seleccionados al formData
-        if (selectedDirectorId) {
-            formData.set("directorId", selectedDirectorId)
+        if (selectedCampusId) {
+            formData.set("campusId", selectedCampusId)
         }
-        formData.set("country", "United States") // Always US
-        formData.set("state", selectedState)
-        formData.set("city", selectedCity)
         formData.set("status", selectedStatus)
+        formData.set("role", "teacher") // Always teacher
 
         // Añadir imagen si se seleccionó una nueva
         if (selectedImage) {
-            formData.set("campusImage", selectedImage)
+            formData.set("avatarImage", selectedImage)
         }
 
         if (isEditing) {
-            // TODO: Implement Convex mutation to update campus
-            console.log("Updating campus with form data:", Object.fromEntries(formData))
+            // TODO: Implement Convex mutation to update teacher
+            console.log("Updating teacher with form data:", Object.fromEntries(formData))
         } else {
-            // TODO: Implement Convex mutation to create campus
-            console.log("Creating campus with form data:", Object.fromEntries(formData))
+            // TODO: Implement Convex mutation to create teacher
+            console.log("Creating teacher with form data:", Object.fromEntries(formData))
         }
 
-        console.log("Selected Director ID:", selectedDirectorId)
-        console.log("Selected State:", selectedState)
-        console.log("Selected City:", selectedCity)
+        console.log("Selected Campus ID:", selectedCampusId)
         console.log("Selected Status:", selectedStatus)
         console.log("Selected Image:", selectedImage?.name || "No image")
     }
 
     const handleDelete = () => {
-        if (campus && window.confirm(`Are you sure you want to delete "${campus.name}"? This action cannot be undone.`)) {
-            // TODO: Implement Convex mutation to delete campus
-            console.log("Deleting campus:", campus._id)
-            alert("Campus deletion would be implemented here")
+        if (teacher && window.confirm(`Are you sure you want to delete "${teacher.fullName}"? This action cannot be undone.`)) {
+            // TODO: Implement Convex mutation to delete teacher
+            console.log("Deleting teacher:", teacher._id)
+            alert("Teacher deletion would be implemented here")
         }
     }
 
@@ -124,26 +116,26 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
     const defaultTrigger = isEditing ? (
         <Button className="gap-2 cursor-pointer">
             <Edit className="h-4 w-4" />
-            Edit campus
+            Edit teacher
         </Button>
     ) : (
         <Button className="bg-sidebar-accent h-9 dark:text-white gap-2">
             <Plus className="h-4 w-4" />
-            <span className="hidden md:inline">Add Campus</span>
+            <span className="hidden md:inline">Add Teacher</span>
         </Button>
     )
 
     return (
         <EntityDialog
             trigger={trigger || defaultTrigger}
-            title={isEditing ? "Edit Campus" : "Create New Campus"}
+            title={isEditing ? "Edit Teacher" : "Create New Teacher"}
             description={
                 isEditing
-                    ? "Make changes to the campus information. Click save when you're done."
-                    : "Add a new campus to the system. Fill in the required information and click create."
+                    ? "Make changes to the teacher information. Click save when you're done."
+                    : "Add a new teacher to the system. Fill in the required information and click create."
             }
             onSubmit={handleSubmit}
-            submitLabel={isEditing ? "Save changes" : "Create Campus"}
+            submitLabel={isEditing ? "Save changes" : "Create Teacher"}
             leftActions={isEditing ? (
                 <Button
                     type="button"
@@ -152,58 +144,72 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                     className="gap-2 bg-rose-100 text-rose-800 hover:bg-rose-200 border-rose-200 dark:bg-rose-900/20 dark:text-rose-200 min-w-[120px] whitespace-nowrap"
                 >
                     <Trash2 className="h-4 w-4" />
-                    Delete Campus
+                    Delete Teacher
                 </Button>
             ) : undefined}
         >
             <div className="grid gap-6">
                 {/* Hidden inputs para los valores seleccionados */}
-                <input type="hidden" name="directorId" value={selectedDirectorId || ""} />
-                <input type="hidden" name="country" value="United States" />
-                <input type="hidden" name="state" value={selectedState} />
-                <input type="hidden" name="city" value={selectedCity} />
+                <input type="hidden" name="campusId" value={selectedCampusId || ""} />
                 <input type="hidden" name="status" value={selectedStatus} />
+                <input type="hidden" name="role" value="teacher" />
 
                 {/* Basic Information */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="grid gap-3">
-                        <Label htmlFor="name">
-                            Campus Name {!isEditing && "*"}
+                        <Label htmlFor="firstName">
+                            First Name {!isEditing && "*"}
                         </Label>
                         <Input
-                            id="name"
-                            name="name"
-                            defaultValue={campus?.name || ""}
-                            placeholder={isEditing ? "" : "e.g., Main Campus, North Campus"}
+                            id="firstName"
+                            name="firstName"
+                            defaultValue={teacher?.firstName || ""}
+                            placeholder={isEditing ? "" : "John"}
                             required
                         />
                     </div>
                     <div className="grid gap-3">
-                        <Label htmlFor="code">Campus Code</Label>
+                        <Label htmlFor="lastName">
+                            Last Name {!isEditing && "*"}
+                        </Label>
                         <Input
-                            id="code"
-                            name="code"
-                            defaultValue={campus?.code || ""}
-                            placeholder="e.g., MAIN, NORTH, SOUTH"
+                            id="lastName"
+                            name="lastName"
+                            defaultValue={teacher?.lastName || ""}
+                            placeholder={isEditing ? "" : "Doe"}
+                            required
                         />
                     </div>
                 </div>
 
-                {/* Description - solo para creación */}
-                {!isEditing && (
-                    <div className="grid gap-3">
-                        <Label htmlFor="description">Description</Label>
-                        <Input
-                            id="description"
-                            name="description"
-                            placeholder="Brief description of the campus"
-                        />
-                    </div>
-                )}
+                <div className="grid gap-3">
+                    <Label htmlFor="email">
+                        Email {!isEditing && "*"}
+                    </Label>
+                    <Input
+                        id="email"
+                        name="email"
+                        type="email"
+                        defaultValue={teacher?.email || ""}
+                        placeholder={isEditing ? "" : "john.doe@alefuniversity.edu"}
+                        required
+                    />
+                </div>
 
-                {/* Campus Image */}
+                <div className="grid gap-3">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                        id="phone"
+                        name="phone"
+                        type="tel"
+                        defaultValue={teacher?.phone || ""}
+                        placeholder={isEditing ? "" : "+1 (555) 123-4567"}
+                    />
+                </div>
+
+                {/* Profile Image */}
                 <div className="space-y-4">
-                    <h4 className="text-sm font-medium border-b pb-2">Campus Image</h4>
+                    <h4 className="text-sm font-medium border-b pb-2">Profile Image</h4>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         {/* Image Preview */}
                         <div className="space-y-3">
@@ -212,18 +218,18 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                                 {imagePreview ? (
                                     <Image
                                         src={imagePreview}
-                                        alt="Campus preview"
+                                        alt="Teacher preview"
                                         fill
                                         className="h-full w-full rounded-lg object-cover"
                                     />
-                                ) : campus?.campusImageStorageId ? (
+                                ) : teacher?.avatarStorageId ? (
                                     <div className="flex h-full w-full items-center justify-center rounded-lg bg-muted">
-                                        <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                                        <User className="h-8 w-8 text-muted-foreground" />
                                         <span className="ml-2 text-sm text-muted-foreground">Current Image</span>
                                     </div>
                                 ) : (
                                     <div className="flex h-full w-full items-center justify-center rounded-lg bg-muted">
-                                        <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                                        <User className="h-8 w-8 text-muted-foreground" />
                                         <span className="ml-2 text-sm text-muted-foreground">No Image</span>
                                     </div>
                                 )}
@@ -234,10 +240,10 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                         <div className="space-y-4 lg:col-span-2">
                             <div className="space-y-3">
                                 <Label>
-                                    {isEditing ? "Upload New Image" : "Upload Campus Image"}
+                                    {isEditing ? "Upload New Image" : "Upload Profile Image"}
                                 </Label>
                                 <p className="text-sm text-muted-foreground">
-                                    Choose a square image that represents your campus. Recommended size: 400x400px or larger.
+                                    Choose a square profile image. Recommended size: 400x400px or larger.
                                 </p>
                             </div>
 
@@ -283,61 +289,63 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                     </div>
                 </div>
 
-                {/* Director Selection */}
+                {/* Campus Assignment */}
                 <div className="space-y-4">
-                    <h4 className="text-sm font-medium border-b pb-2">Director Assignment</h4>
+                    <h4 className="text-sm font-medium border-b pb-2">Campus Assignment</h4>
                     <div className="grid gap-3">
-                        <Label>Campus Director</Label>
+                        <Label>Assigned Campus</Label>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" className="w-full justify-between">
-                                    {selectedDirector ? (
+                                    {selectedCampus ? (
                                         <div className="flex items-center gap-2">
-                                            <User className="h-4 w-4" />
-                                            <span className="font-medium">{selectedDirector.fullName}</span>
+                                            <Building2 className="h-4 w-4" />
+                                            <span className="font-medium">{selectedCampus.name}</span>
                                         </div>
                                     ) : (
-                                        <span className="text-muted-foreground">Select a director</span>
+                                        <span className="text-muted-foreground">Select a campus</span>
                                     )}
                                     <ChevronDown className="h-4 w-4" />
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent className="w-80" align="start">
-                                <DropdownMenuLabel>Available Directors</DropdownMenuLabel>
+                                <DropdownMenuLabel>Available Campuses</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
-                                {potentialDirectors?.length === 0 ? (
+                                {campuses?.length === 0 ? (
                                     <DropdownMenuItem disabled>
-                                        No directors available
+                                        No campuses available
                                     </DropdownMenuItem>
                                 ) : (
                                     <>
                                         <DropdownMenuItem
-                                            onClick={() => setSelectedDirectorId(undefined)}
-                                            className={!selectedDirectorId ? "bg-accent" : ""}
+                                            onClick={() => setSelectedCampusId(undefined)}
+                                            className={!selectedCampusId ? "bg-accent" : ""}
                                         >
                                             <div className="flex items-center gap-2">
-                                                <User className="h-4 w-4" />
-                                                <span>No director assigned</span>
+                                                <Building2 className="h-4 w-4" />
+                                                <span>No campus assigned</span>
                                             </div>
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator />
-                                        {potentialDirectors?.map((director) => (
+                                        {campuses?.map((campus) => (
                                             <DropdownMenuItem
-                                                key={director._id}
-                                                onClick={() => setSelectedDirectorId(director._id)}
-                                                className={selectedDirectorId === director._id ? "bg-accent" : ""}
+                                                key={campus._id}
+                                                onClick={() => setSelectedCampusId(campus._id)}
+                                                className={selectedCampusId === campus._id ? "bg-accent" : ""}
                                             >
                                                 <div className="flex flex-col gap-1">
                                                     <div className="flex items-center gap-2">
-                                                        <User className="h-4 w-4" />
-                                                        <span className="font-medium">{director.fullName}</span>
+                                                        <Building2 className="h-4 w-4" />
+                                                        <span className="font-medium">{campus.name}</span>
                                                         <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                                                            {director.role}
+                                                            {campus.status}
                                                         </span>
                                                     </div>
-                                                    <span className="text-sm text-muted-foreground ml-6">
-                                                        {director.email}
-                                                    </span>
+                                                    {campus.address && (
+                                                        <span className="text-sm text-muted-foreground ml-6">
+                                                            {campus.address.city}, {campus.address.state}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </DropdownMenuItem>
                                         ))}
@@ -345,82 +353,11 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                                 )}
                             </DropdownMenuContent>
                         </DropdownMenu>
-                        {potentialDirectors === undefined && (
+                        {campuses === undefined && (
                             <div className="text-sm text-muted-foreground">
-                                Loading available directors...
+                                Loading available campuses...
                             </div>
                         )}
-                    </div>
-                </div>
-
-                {/* Address */}
-                <div className="space-y-4">
-                    <h4 className="text-sm font-medium border-b pb-2">Address</h4>
-                    <div className="grid gap-3">
-                        <Label htmlFor="street">
-                            {isEditing ? "Street" : "Street Address"}
-                        </Label>
-                        <Input
-                            id="street"
-                            name="street"
-                            defaultValue={campus?.address?.street || ""}
-                            placeholder={isEditing ? "" : "123 University Avenue"}
-                        />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="grid gap-3">
-                            <Label htmlFor="city">City</Label>
-                            <SelectDropdown
-                                options={availableCities}
-                                value={selectedCity}
-                                onValueChange={(value) => setSelectedCity(value)}
-                                placeholder={availableCities.length > 0 ? "Select city..." : "Select state first"}
-                                label={availableCities.length > 0 ? "Available Cities" : undefined}
-                                disabled={availableCities.length === 0}
-                            />
-                            {availableCities.length === 0 && selectedState && (
-                                <p className="text-xs text-muted-foreground">
-                                    No major cities available for selected state
-                                </p>
-                            )}
-                        </div>
-                        <div className="grid gap-3">
-                            <Label htmlFor="state">
-                                State {!isEditing && "*"}
-                            </Label>
-                            <SelectDropdown
-                                options={usStates}
-                                value={selectedState}
-                                onValueChange={(value) => {
-                                    setSelectedState(value)
-                                    // Reset city when state changes
-                                    setSelectedCity("")
-                                }}
-                                placeholder="Select state..."
-                                label="US States"
-                            />
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="grid gap-3">
-                            <Label htmlFor="zipCode">ZIP Code</Label>
-                            <Input
-                                id="zipCode"
-                                name="zipCode"
-                                defaultValue={campus?.address?.zipCode || ""}
-                                placeholder={isEditing ? "" : "12345"}
-                            />
-                        </div>
-                        <div className="grid gap-3">
-                            <Label htmlFor="country">Country</Label>
-                            <Input
-                                id="country"
-                                name="country"
-                                value="United States"
-                                disabled
-                                className="bg-muted"
-                            />
-                        </div>
                     </div>
                 </div>
 
@@ -429,14 +366,14 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                     <h4 className="text-sm font-medium border-b pb-2">Status</h4>
                     <div className="grid gap-3">
                         <Label htmlFor="status">
-                            Campus Status {!isEditing && "*"}
+                            Teacher Status {!isEditing && "*"}
                         </Label>
                         <SelectDropdown
-                            options={campusStatusOptions}
+                            options={teacherStatusOptions}
                             value={selectedStatus}
                             onValueChange={(value) => setSelectedStatus(value)}
                             placeholder="Select status..."
-                            label="Campus Status Options"
+                            label="Teacher Status Options"
                         />
                     </div>
                 </div>
