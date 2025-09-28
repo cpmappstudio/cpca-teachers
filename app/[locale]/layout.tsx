@@ -1,6 +1,3 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "../globals.css";
 import ConvexClientProvider from "@/components/convex-client-provider";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "@/components/theme-provider"
@@ -13,25 +10,7 @@ import { hasLocale } from 'next-intl';
 import { routing } from '@/i18n/routing';
 import { enUS, esES } from '@clerk/localizations';
 
-const geistSans = Geist({
-    variable: "--font-geist-sans",
-    subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-    variable: "--font-geist-mono",
-    subsets: ["latin"],
-});
-
-export const metadata: Metadata = {
-    title: "SRU Alef University",
-    description: "Alef University's student information system (SRU). A Next.js application with a clean and scalable architecture, designed to manage students grades, programs, courses, and transcripts.",
-    icons: {
-        icon: "/alef.ico",
-    },
-};
-
-export default async function RootLayout({
+export default async function LocaleLayout({
     children,
     params,
 }: Readonly<{
@@ -56,32 +35,26 @@ export default async function RootLayout({
     const clerkLocalization = locale === 'es' ? esES : enUS;
 
     return (
-        <html lang={locale} suppressHydrationWarning>
-            <body
-                className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        <ThemeProvider
+            attribute="class"
+            defaultTheme="light"
+            enableSystem
+            disableTransitionOnChange
+        >
+            <ClerkProvider
+                appearance={{
+                    baseTheme: shadcn,
+                }}
+                localization={clerkLocalization}
+                afterSignOutUrl={`/${locale}/sign-in`}
             >
-                <ThemeProvider
-                    attribute="class"
-                    defaultTheme="light"
-                    enableSystem
-                    disableTransitionOnChange
-                >
-                    <ClerkProvider
-                        appearance={{
-                            baseTheme: shadcn,
-                        }}
-                        localization={clerkLocalization}
-                        afterSignOutUrl={`/${locale}/sign-in`}
-                    >
-                        <ConvexClientProvider>
-                            <NextIntlClientProvider messages={messages}>
-                                {children}
-                            </NextIntlClientProvider>
-                        </ConvexClientProvider>
-                    </ClerkProvider>
-                </ThemeProvider>
-            </body>
-        </html>
+                <ConvexClientProvider>
+                    <NextIntlClientProvider messages={messages}>
+                        {children}
+                    </NextIntlClientProvider>
+                </ConvexClientProvider>
+            </ClerkProvider>
+        </ThemeProvider>
     );
 }
 

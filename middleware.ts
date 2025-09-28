@@ -3,8 +3,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import createIntlMiddleware from 'next-intl/middleware'
 import { routing } from './i18n/routing'
 import { getLocaleFromPathname } from './lib/locale-setup'
-import { checkRoleAccess } from './lib/rbac'
-import type { UserRole } from '@/convex/types'
 
 const intlMiddleware = createIntlMiddleware(routing)
 
@@ -12,27 +10,10 @@ const isPublicRoute = createRouteMatcher([
   '/:locale/sign-in(.*)',
   '/:locale/sign-up(.*)',
   '/sign-in(.*)',
-  '/sign-up(.*)',
   '/:locale/pending-role',
   '/pending-role',
   '/:locale',
   '/',
-])
-
-const DEFAULT_PATHS = {
-  student: '/academic',
-  professor: '/teaching',
-  admin: '/admin',
-  superadmin: '/admin',
-} satisfies Record<UserRole, string>
-
-const COMMON_AUTHENTICATED_ROUTES = createRouteMatcher([
-  '/:locale/profile(.*)',
-  '/profile(.*)',
-  '/:locale/settings(.*)',
-  '/settings(.*)',
-  '/:locale/dashboard',
-  '/dashboard',
 ])
 
 export default clerkMiddleware(async (auth, req: NextRequest) => {
@@ -66,32 +47,9 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
       return NextResponse.redirect(signInUrl)
     }
 
-    const userRole = (authObject.sessionClaims?.metadata as { role?: UserRole })?.role
-
-    if (!userRole) {
-      if (!pathname.includes('/pending-role')) {
-        return NextResponse.redirect(new URL(`/${locale}/pending-role`, req.url))
-      }
-      return intlMiddleware(req)
-    }
-
-    if (COMMON_AUTHENTICATED_ROUTES(req)) {
-      return intlMiddleware(req)
-    }
-
-    const deniedRoute = checkRoleAccess(req, userRole)
-
-    if (deniedRoute === 'denied') {
-      const redirectPath = `/${locale}${DEFAULT_PATHS[userRole]}`
-
-      // Prevenir loop de redirección
-      if (!pathname.startsWith(redirectPath)) {
-        return NextResponse.redirect(new URL(redirectPath, req.url))
-      }
-    } else if (deniedRoute === 'unknown') {
-      console.warn(`[Security] Unknown route attempted: ${pathname} by ${userRole}`)
-      return NextResponse.redirect(new URL(`/${locale}${DEFAULT_PATHS[userRole]}`, req.url))
-    }
+    // Para el MVP, permitimos acceso a todas las rutas autenticadas
+    // La seguridad a nivel de página se manejará en cada componente
+    // usando los roles de la base de datos de Convex
 
     return intlMiddleware(req)
 

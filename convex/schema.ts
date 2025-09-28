@@ -1,38 +1,36 @@
 // ################################################################################
 // # File: schema.ts                                                              # 
-// # Authors: Juan Camilo Narváez Tascón (github.com/ulvenforst)                  #
-// # Creation date: 08/17/2025                                                    #
-// # License: Apache License 2.0                                                  #
+// # Project: CPCA Teachers - Teacher Progress Tracking System                    #
+// # Description: Schema optimized for tracking teacher progress across campuses  #
+// # Creation date: 09/22/2025                                                    #
 // ################################################################################
 
 /**
- * ALEF UNIVERSITY: Student Information System (SIS)
- * Schema optimized for American grading system and bimester-based academic periods.
+ * CPCA TEACHERS: Teacher Progress Tracking System
+ * Schema optimized for multi-campus teacher management and lesson tracking.
  * 
  * PERFORMANCE NOTES (Convex Best Practices):
- * - Indexes are designed to avoid full table scans on tables > 1000 documents
+ * - Indexes designed to avoid full table scans on tables > 1000 documents
  * - Compound indexes ordered by selectivity (most selective field first)
  * - No redundant indexes (if we have ["a", "b"], we don't need ["a"])
- * - Maximum 32 indexes per table (we use ~4-5 per table)
- * - Strategic denormalization in enrollments table for dashboard queries
+ * - Strategic denormalization in lesson_progress for dashboard queries
+ * - Maximum 32 indexes per table (we use ~3-6 per table)
  * 
  * QUERY PATTERNS SUPPORTED:
- * - Student dashboard: Progress by category, GPA calculation, current enrollments
- * - Professor dashboard: Sections by period, grade submission, student lists
- * - Admin dashboard: Program management, enrollment statistics, user management
- * - Document generation: Transcripts, certificates with audit trail
+ * - Campus dashboard: List all teachers by campus, progress overview
+ * - Teacher dashboard: View assigned courses, lesson progress, upload evidence
+ * - Admin dashboard: Manage campuses, teachers, curriculums, track overall progress
+ * - Progress tracking: Real-time progress calculation by teacher, course, campus
  * 
  * Tables:
- * 1. users - Students, professors, admins (indexed by role, clerk_id, email)
- * 2. programs - Academic programs (indexed by code, type, language)
- * 3. periods - Bimester periods (indexed by year, status, dates)
- * 4. courses - Course catalog (indexed by code, category, language)
- * 5. program_courses - Many-to-many relationship (indexed by program, course)
- * 6. sections - Course sections (indexed by CRN, period, professor)
- * 7. enrollments - Student enrollments with grades (indexed by student, section, period)
- * 8. program_requirements - Credit requirements (indexed by program, dates)
- * 9. announcements - Section announcements (indexed by section, type)
- * 10. document_logs - Certificate/transcript audit (indexed by user, type, date)
+ * 1. users - Teachers and admins (indexed by role, clerk_id, email)
+ * 2. campuses - School campuses (indexed by status, created date)
+ * 3. grades - Academic grades/levels (indexed by order, status)
+ * 4. curriculums - Course definitions (indexed by status, grade associations)
+ * 5. curriculum_grades - Many-to-many for curriculum-grade relationships
+ * 6. curriculum_lessons - Lesson templates per curriculum (indexed by quarter, order)
+ * 7. teacher_assignments - Teacher-curriculum assignments (indexed by teacher, campus)
+ * 8. lesson_progress - Actual lesson completion tracking (indexed by teacher, status)
  */
 
 import { defineSchema, defineTable } from "convex/server";
@@ -40,7 +38,8 @@ import { v } from "convex/values";
 
 export default defineSchema({
   /**
-   * Users table - Students, Professors, Admins
+   * Users table - Teachers and Admins
+   * Stores all system users with their roles and profiles
    */
   users: defineTable({
     // Authentication
@@ -50,22 +49,75 @@ export default defineSchema({
     // Personal information
     firstName: v.string(),
     lastName: v.string(),
-    secondLastName: v.optional(v.string()), // Common in Latin America
+    fullName: v.string(), // Denormalized for performance
 
-    // Additional fields for certificates
-    dateOfBirth: v.optional(v.number()),
-    nationality: v.optional(v.string()),
-    documentType: v.optional(v.union(
-      v.literal("passport"),
-      v.literal("national_id"),
-      v.literal("driver_license"),
-      v.literal("other")
-    )),
-    documentNumber: v.optional(v.string()),
-
-    // Contact
+    // Profile (stored in Convex Storage)
+    avatarStorageId: v.optional(v.id("_storage")), // Reference to Convex storage for avatar
     phone: v.optional(v.string()),
-    country: v.optional(v.string()),
+
+    // System fields
+    role: v.union(
+      v.literal("teacher"),
+      v.literal("admin"),
+      v.literal("superadmin")
+    ),
+
+    // Campus association (teachers belong to one campus)
+    campusId: v.optional(v.id("campuses")),
+
+    // Status tracking
+    isActive: v.boolean(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("inactive"),
+      v.literal("on_leave"),
+      v.literal("terminated")
+    ),
+
+    // Progress metrics (denormalized for performance)
+    progressMetrics: v.optional(v.object({
+      totalLessons: v.number(),
+      completedLessons: v.number(),
+      progressPercentage: v.number(), // 0-100
+      lastUpdated: v.number(),
+    })),
+
+    // Timestamps
+    createdAt: v.number(),
+    createdBy: v.optional(v.id("users")),
+    updatedAt: v.optional(v.number()),
+    lastLoginAt: v.optional(v.number()),
+
+    // Password handling (if not using Clerk for everything)
+    hashedPassword: v.optional(v.string()),
+  })
+    .index("by_clerk_id", ["clerkId"])
+    .index("by_email", ["email"])
+    .index("by_role_active", ["role", "isActive"])
+    .index("by_campus_active", ["campusId", "isActive"])
+    .index("by_campus_status", ["campusId", "status"]),
+
+  /**
+   * Campuses table
+   * Represents different school locations/branches
+   */
+  campuses: defineTable({
+    name: v.string(),
+    code: v.optional(v.string()), // Unique campus code
+
+    // Images (stored in Convex Storage)
+    campusImageStorageId: v.optional(v.id("_storage")), // Reference to Convex storage for campus image
+
+    // Director information
+    // Keep a reference to the director user record instead of storing the director's
+    // image/document here. Director profile (including avatarStorageId) should live
+    // in the `users` table and be referenced via `directorId`.
+    directorId: v.optional(v.id("users")),
+    directorName: v.optional(v.string()),
+    directorEmail: v.optional(v.string()),
+    directorPhone: v.optional(v.string()),
+
+    // Address
     address: v.optional(v.object({
       street: v.optional(v.string()),
       city: v.optional(v.string()),
@@ -74,519 +126,365 @@ export default defineSchema({
       country: v.optional(v.string()),
     })),
 
-    // System fields
-    role: v.union(
-      v.literal("student"),
-      v.literal("professor"),
-      v.literal("admin"),
-      v.literal("superadmin"),
-    ),
-    isActive: v.boolean(),
-    createdBy: v.optional(v.id("users")),
-    createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
-    lastLoginAt: v.optional(v.number()),
-
-    // Student-specific
-    studentProfile: v.optional(v.object({
-      studentCode: v.string(), // Student ID number
-      programId: v.id("programs"),
-      enrollmentDate: v.number(),
-      expectedGraduationDate: v.optional(v.number()),
-      status: v.union(
-        v.literal("active"),
-        v.literal("inactive"),
-        v.literal("on_leave"),
-        v.literal("graduated"),
-        v.literal("withdrawn")
-      ),
-      // Academic standing
-      academicStanding: v.optional(v.union(
-        v.literal("good_standing"),
-        v.literal("probation"),
-        v.literal("suspension")
-      )),
+    // Metrics (denormalized for dashboard)
+    metrics: v.optional(v.object({
+      totalTeachers: v.number(),
+      activeTeachers: v.number(),
+      averageProgress: v.number(), // 0-100
+      lastUpdated: v.number(),
     })),
-
-    // Professor-specific
-    professorProfile: v.optional(v.object({
-      employeeCode: v.string(),
-      title: v.optional(v.string()), // Dr., Prof., etc.
-      department: v.optional(v.string()),
-      hireDate: v.optional(v.number()),
-    })),
-  })
-    .index("by_clerk_id", ["clerkId"])
-    .index("by_email", ["email"])
-    .index("by_role_active", ["role", "isActive"])
-    .index("by_document", ["documentType", "documentNumber"]),
-
-  /**
-   * Academic programs
-   */
-  programs: defineTable({
-    code: v.string(),
-    nameEs: v.string(),
-    nameEn: v.optional(v.string()),
-    descriptionEs: v.string(),
-    descriptionEn: v.optional(v.string()),
-
-    type: v.union(
-      v.literal("diploma"),
-      v.literal("bachelor"),
-      v.literal("master"),
-      v.literal("doctorate")
-    ),
-
-    degree: v.optional(v.string()), // "Bachelor of Arts", "Master of Science", etc.
-
-    language: v.union(
-      v.literal("es"),
-      v.literal("en"),
-      v.literal("both")
-    ),
-
-    totalCredits: v.number(),
-    durationBimesters: v.number(),
-
-    // Costs (optional for financial module)
-    tuitionPerCredit: v.optional(v.number()),
-
-    isActive: v.boolean(),
-    createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
-  })
-    .index("by_code", ["code"])
-    .index("by_active", ["isActive"]) // For admin dashboard summary
-    .index("by_type_active", ["type", "isActive"])
-    .index("by_language_active", ["language", "isActive"]), // Combined for efficiency
-
-  /**
-   * Academic periods (bimesters)
-   */
-  periods: defineTable({
-    code: v.string(), // "2024-B2"
-    year: v.number(),
-    bimesterNumber: v.number(), // 1-6
-
-    nameEs: v.string(), // "Segundo Bimestre 2024"
-    nameEn: v.optional(v.string()), // "Second Bimester 2024"
-
-    // Period dates
-    startDate: v.number(),
-    endDate: v.number(),
-
-    // Important dates
-    enrollmentStart: v.number(),
-    enrollmentEnd: v.number(),
-    addDropDeadline: v.optional(v.number()),
-    withdrawalDeadline: v.optional(v.number()),
-    gradingStart: v.optional(v.number()),
-    gradingDeadline: v.number(),
-
-    status: v.union(
-      v.literal("planning"),
-      v.literal("enrollment"),
-      v.literal("active"),
-      v.literal("grading"),
-      v.literal("closed")
-    ),
-
-    isCurrentPeriod: v.boolean(),
-
-    createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
-  })
-    .index("by_year_bimester", ["year", "bimesterNumber"])
-    .index("by_status", ["status"])
-    .index("by_current", ["isCurrentPeriod"])
-    .index("by_dates", ["startDate", "endDate"]),
-
-  /**
-   * Course catalog (shared across programs)
-   */
-  courses: defineTable({
-    code: v.string(),
-    nameEs: v.string(),
-    nameEn: v.optional(v.string()),
-    descriptionEs: v.string(),
-    descriptionEn: v.optional(v.string()),
-
-    credits: v.number(),
-
-    // Course level
-    level: v.optional(v.union(
-      v.literal("introductory"),
-      v.literal("intermediate"),
-      v.literal("advanced"),
-      v.literal("graduate")
-    )),
-
-    language: v.union(
-      v.literal("es"),
-      v.literal("en"),
-      v.literal("both")
-    ),
-
-    // Category for requirements
-    category: v.union(
-      v.literal("humanities"),
-      v.literal("core"),
-      v.literal("elective"),
-      v.literal("general")
-    ),
-
-    // Prerequisites (course codes)
-    prerequisites: v.array(v.string()),
-    corequisites: v.optional(v.array(v.string())),
-
-    // Additional metadata
-    syllabus: v.optional(v.string()), // URL or document reference
-
-    isActive: v.boolean(),
-    createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
-  })
-    .index("by_code", ["code"])
-    .index("by_active", ["isActive"]) // For listing all active courses
-    .index("by_category_active", ["category", "isActive"])
-    .index("by_language_active", ["language", "isActive"]) // Combined index
-    .index("by_level_active", ["level", "isActive"]), // For course filtering by level
-
-  /**
-   * Program-Course relationship (many-to-many)
-   * Allows courses to be shared across programs
-   */
-  program_courses: defineTable({
-    programId: v.id("programs"),
-    courseId: v.id("courses"),
-
-    // Override category for this specific program (A course asociated to different programs
-    // may have different categories)
-    categoryOverride: v.optional(v.union(
-      v.literal("humanities"),
-      v.literal("core"),
-      v.literal("elective"),
-      v.literal("general")
-    )),
-
-    // Is this course required for this program?
-    isRequired: v.boolean(),
-
-    isActive: v.boolean(),
-    createdAt: v.number(),
-  })
-    .index("by_course", ["courseId"])
-    .index("by_program_course", ["programId", "courseId"]) // Serves both by_program and by_program_course queries
-    .index("by_program_required", ["programId", "isRequired", "isActive"]), // Added isActive for better filtering
-
-  /**
-   * Course sections
-   */
-  sections: defineTable({
-    courseId: v.id("courses"),
-    periodId: v.id("periods"),
-    groupNumber: v.string(), // "01", "02"
-    crn: v.string(), // Course Reference Number
-
-    professorId: v.id("users"),
-
-    // Capacity management
-    capacity: v.number(),
-    enrolled: v.number(),
-    waitlistCapacity: v.optional(v.number()),
-    waitlisted: v.optional(v.number()),
-
-    // Delivery method
-    deliveryMethod: v.union(
-      v.literal("online_sync"), // Synchronous online
-      v.literal("online_async"), // Asynchronous online
-      v.literal("hybrid"),
-      v.literal("in_person")
-    ),
-
-    // Virtual schedule
-    schedule: v.optional(v.object({
-      sessions: v.array(v.object({
-        day: v.union(
-          v.literal("monday"),
-          v.literal("tuesday"),
-          v.literal("wednesday"),
-          v.literal("thursday"),
-          v.literal("friday"),
-          v.literal("saturday"),
-          v.literal("sunday")
-        ),
-        startTime: v.string(), // "14:00"
-        endTime: v.string(), // "16:00"
-        roomUrl: v.optional(v.string()), // Zoom/Meet link
-      })),
-      timezone: v.string(), // "America/Bogota"
-      notes: v.optional(v.string()),
-    })),
-
-    // Status tracking
-    status: v.union(
-      v.literal("draft"),
-      v.literal("open"),
-      v.literal("closed"),
-      v.literal("active"),
-      v.literal("grading"),
-      v.literal("completed")
-    ),
-
-    gradesSubmitted: v.boolean(),
-    gradesSubmittedAt: v.optional(v.number()),
-
-    isActive: v.boolean(),
-    createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
-  })
-    .index("by_crn", ["crn"])
-    .index("by_course_period", ["courseId", "periodId"])
-    .index("by_period_status_active", ["periodId", "status", "isActive"]) // Combined index
-    .index("by_professor_period", ["professorId", "periodId", "isActive"]), // Added isActive for filtering
-
-  /**
-   * Student enrollments with grades
-   */
-  enrollments: defineTable({
-    // Core references
-    studentId: v.id("users"),
-    sectionId: v.id("sections"),
-
-    // Denormalized for performance
-    periodId: v.id("periods"),
-    courseId: v.id("courses"),
-    professorId: v.id("users"),
-
-    // Enrollment tracking
-    enrolledAt: v.number(),
-    enrolledBy: v.optional(v.id("users")), // Who enrolled the student
 
     // Status
+    isActive: v.boolean(),
     status: v.union(
-      v.literal("enrolled"),
-      v.literal("withdrawn"), // Before deadline
-      v.literal("dropped"), // After deadline
-      v.literal("completed"),
-      v.literal("failed"),
-      v.literal("incomplete"),
-      v.literal("in_progress")
+      v.literal("active"),
+      v.literal("inactive"),
+      v.literal("maintenance")
     ),
 
-    // Status change tracking
-    statusChangedAt: v.optional(v.number()),
-    statusChangedBy: v.optional(v.id("users")),
-    statusChangeReason: v.optional(v.string()),
-
-    // AMERICAN GRADING SYSTEM
-    // Professor enters percentage, system calculates the rest
-    percentageGrade: v.optional(v.number()), // 0-100
-    letterGrade: v.optional(v.string()), // A+, A, A-, B+, etc.
-    gradePoints: v.optional(v.number()), // 4.0 scale
-    qualityPoints: v.optional(v.number()), // gradePoints * credits
-
-    // Grade metadata
-    gradedBy: v.optional(v.id("users")),
-    gradedAt: v.optional(v.number()),
-    gradeNotes: v.optional(v.string()),
-    lastGradeUpdate: v.optional(v.number()),
-
-    // Special flags
-    isRetake: v.boolean(),
-    isAuditing: v.boolean(),
-    countsForGPA: v.boolean(),
-    countsForProgress: v.boolean(),
-
-    // For incomplete grades
-    incompleteDeadline: v.optional(v.number()),
-
+    // Timestamps
     createdAt: v.number(),
+    createdBy: v.id("users"),
     updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.id("users")),
   })
-    .index("by_student_period", ["studentId", "periodId"])
-    .index("by_student_section", ["studentId", "sectionId"])
-    .index("by_section", ["sectionId"])
-    .index("by_student_course", ["studentId", "courseId"])
-    .index("by_status_period", ["status", "periodId"])
-    .index("by_professor_period", ["professorId", "periodId"]),
+    .index("by_active", ["isActive"])
+    .index("by_status", ["status"])
+    .index("by_created", ["createdAt"])
+    .index("by_name", ["name"])
+    .index("by_director", ["directorId"]),
 
   /**
-   * Program requirements for progress tracking
+   * Grades table
+   * Academic levels/grades in the school system
    */
-  program_requirements: defineTable({
-    programId: v.id("programs"),
+  grades: defineTable({
+    name: v.string(), // "1st Grade", "2nd Grade", etc.
+    code: v.string(), // "G1", "G2", etc.
+    level: v.number(), // Numeric level for ordering (1, 2, 3...)
 
-    // Credit distribution
-    requirements: v.object({
-      humanities: v.object({
-        required: v.number(),
-        description: v.optional(v.string()),
-      }),
-      core: v.object({
-        required: v.number(),
-        description: v.optional(v.string()),
-      }),
-      elective: v.object({
-        required: v.number(),
-        minPerCategory: v.optional(v.number()),
-        description: v.optional(v.string()),
-      }),
-      general: v.object({
-        required: v.number(),
-        description: v.optional(v.string()),
-      }),
-      total: v.number(),
-    }),
+    // Category
+    category: v.optional(v.union(
+      v.literal("elementary"),
+      v.literal("middle"),
+      v.literal("high")
+    )),
 
-    // Graduation requirements
-    minGPA: v.number(), // Minimum GPA to graduate
-    minCGPA: v.optional(v.number()), // Minimum cumulative GPA
-    maxBimesters: v.number(),
-    maxYears: v.optional(v.number()),
+    description: v.optional(v.string()),
 
-    // Probation thresholds
-    probationGPA: v.optional(v.number()),
-    suspensionGPA: v.optional(v.number()),
+    // Display order
+    displayOrder: v.number(),
 
-    effectiveDate: v.number(),
-    endDate: v.optional(v.number()),
+    // Status
     isActive: v.boolean(),
 
+    // Timestamps
     createdAt: v.number(),
+    createdBy: v.id("users"),
     updatedAt: v.optional(v.number()),
   })
-    .index("by_program_active", ["programId", "isActive"])
-    .index("by_program_dates", ["programId", "effectiveDate"]),
+    .index("by_active", ["isActive"])
+    .index("by_level_active", ["level", "isActive"])
+    .index("by_display_order", ["displayOrder"])
+    .index("by_category", ["category", "isActive"]),
 
   /**
-   * Section announcements
+   * Curriculums table
+   * Course/subject definitions that can span multiple grades
    */
-  announcements: defineTable({
-    sectionId: v.id("sections"),
-    authorId: v.id("users"),
+  curriculums: defineTable({
+    name: v.string(), // "Mathematics", "Science", etc.
+    code: v.optional(v.string()), // "MATH-101"
+    description: v.optional(v.string()),
 
-    title: v.string(),
-    content: v.string(),
+    // Academic organization
+    numberOfQuarters: v.number(), // 1-4 typically
 
-    // Type/Priority
-    type: v.union(
-      v.literal("general"),
-      v.literal("assignment"),
-      v.literal("exam"),
-      v.literal("schedule"),
-      v.literal("urgent")
+    // Metrics (denormalized)
+    metrics: v.optional(v.object({
+      totalLessons: v.number(),
+      assignedTeachers: v.number(),
+      averageProgress: v.number(),
+      lastUpdated: v.number(),
+    })),
+
+    // Additional metadata (documents stored in Convex Storage when uploaded)
+    syllabusStorageId: v.optional(v.id("_storage")), // Reference to Convex storage for syllabus/document
+    resources: v.optional(v.array(v.object({
+      name: v.string(),
+      url: v.string(),
+      type: v.string(),
+    }))),
+
+    // Status
+    isActive: v.boolean(),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("active"),
+      v.literal("archived"),
+      v.literal("deprecated")
     ),
 
-    // Visibility
-    isPublished: v.boolean(),
-    publishedAt: v.optional(v.number()),
-
-    // Optional expiration
-    expiresAt: v.optional(v.number()),
-
+    // Timestamps
     createdAt: v.number(),
+    createdBy: v.id("users"),
     updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.id("users")),
   })
-    .index("by_section_published", ["sectionId", "isPublished"])
-    .index("by_author", ["authorId"])
-    .index("by_type", ["type"])
+    .index("by_active", ["isActive"])
+    .index("by_status", ["status"])
+    .index("by_name", ["name"])
     .index("by_created", ["createdAt"]),
 
   /**
-   * Document generation audit log
-   * Tracks all certificates, transcripts, and reports generated
+   * Curriculum-Grade relationship (many-to-many)
+   * Links curriculums to the grades they're taught in
    */
-  document_logs: defineTable({
-    // Who requested the document
-    requestedBy: v.id("users"),
-    requestedFor: v.id("users"), // Can be different for admin generating for student
+  curriculum_grades: defineTable({
+    curriculumId: v.id("curriculums"),
+    gradeId: v.id("grades"),
 
-    // Document details
-    documentType: v.union(
-      v.literal("transcript"),
-      v.literal("enrollment_certificate"),
-      v.literal("grade_report"),
-      v.literal("completion_certificate"),
-      v.literal("degree"),
-      v.literal("schedule"),
-      v.literal("other")
-    ),
-
-    // Scope
-    scope: v.optional(v.object({
-      periodId: v.optional(v.id("periods")),
-      programId: v.optional(v.id("programs")),
-      fromDate: v.optional(v.number()),
-      toDate: v.optional(v.number()),
-      includeInProgress: v.optional(v.boolean()),
-    })),
-
-    // Document metadata
-    format: v.union(
-      v.literal("pdf"),
-      v.literal("html"),
-      v.literal("csv"),
-      v.literal("json")
-    ),
-
-    language: v.union(
-      v.literal("es"),
-      v.literal("en")
-    ),
-
-    // Storage reference (could be URL, file ID, etc.)
-    documentUrl: v.optional(v.string()),
-    documentHash: v.optional(v.string()), // For integrity verification
+    // Override settings per grade if needed
+    isRequired: v.boolean(),
 
     // Status
-    status: v.union(
-      v.literal("pending"),
-      v.literal("generating"),
-      v.literal("completed"),
-      v.literal("failed"),
-      v.literal("expired")
-    ),
-
-    errorMessage: v.optional(v.string()),
+    isActive: v.boolean(),
 
     // Timestamps
-    generatedAt: v.number(),
-    expiresAt: v.optional(v.number()),
-
-    // IP tracking for security
-    ipAddress: v.optional(v.string()),
-    userAgent: v.optional(v.string()),
+    createdAt: v.number(),
+    createdBy: v.id("users"),
   })
-    .index("by_requested_by", ["requestedBy", "generatedAt"]) // Added generatedAt for sorting
-    .index("by_requested_for_type", ["requestedFor", "documentType", "status"]) // Combined index
-    .index("by_generated", ["generatedAt"]),
+    .index("by_curriculum", ["curriculumId", "isActive"])
+    .index("by_grade", ["gradeId", "isActive"])
+    .index("by_curriculum_grade", ["curriculumId", "gradeId"]),
+
+  /**
+   * Curriculum lessons table
+   * Template lessons that belong to a curriculum
+   */
+  curriculum_lessons: defineTable({
+    curriculumId: v.id("curriculums"),
+
+    // Lesson details
+    title: v.string(),
+    description: v.optional(v.string()),
+
+    // Quarter assignment
+    quarter: v.number(), // 1, 2, 3, or 4
+
+    // Ordering within quarter
+    orderInQuarter: v.number(),
+
+    // Expected duration
+    expectedDurationMinutes: v.optional(v.number()),
+
+    // Resources
+    resources: v.optional(v.array(v.object({
+      name: v.string(),
+      url: v.string(),
+      type: v.string(),
+      isRequired: v.boolean(),
+    }))),
+
+    // Learning objectives
+    objectives: v.optional(v.array(v.string())),
+
+    // Status
+    isActive: v.boolean(),
+    isMandatory: v.boolean(), // Some lessons might be optional
+
+    // Timestamps
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+    updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.id("users")),
+  })
+    .index("by_curriculum_quarter", ["curriculumId", "quarter", "orderInQuarter"])
+    .index("by_curriculum_active", ["curriculumId", "isActive"])
+    .index("by_quarter", ["quarter", "isActive"]),
+
+  /**
+   * Teacher assignments table
+   * Links teachers to curriculums they're assigned to teach
+   */
+  teacher_assignments: defineTable({
+    teacherId: v.id("users"),
+    curriculumId: v.id("curriculums"),
+    campusId: v.id("campuses"),
+
+    // Grade specification (which grade is this teacher teaching this curriculum for)
+    gradeId: v.optional(v.id("grades")),
+
+    // Academic period
+    academicYear: v.string(), // "2025-2026"
+    startDate: v.number(),
+    endDate: v.optional(v.number()),
+
+    // Assignment details
+    assignmentType: v.union(
+      v.literal("primary"), // Main teacher
+      v.literal("substitute"),
+      v.literal("assistant"),
+      v.literal("co_teacher")
+    ),
+
+    // Progress tracking (denormalized)
+    progressSummary: v.optional(v.object({
+      totalLessons: v.number(),
+      completedLessons: v.number(),
+      progressPercentage: v.number(),
+      lastLessonDate: v.optional(v.number()),
+      lastUpdated: v.number(),
+    })),
+
+    // Status
+    isActive: v.boolean(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("pending"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    ),
+
+    // Timestamps
+    assignedAt: v.number(),
+    assignedBy: v.id("users"),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_teacher_active", ["teacherId", "isActive"])
+    .index("by_curriculum", ["curriculumId", "isActive"])
+    .index("by_campus_curriculum", ["campusId", "curriculumId", "isActive"])
+    .index("by_teacher_campus", ["teacherId", "campusId", "isActive"])
+    .index("by_academic_year", ["academicYear", "status"]),
+
+  /**
+   * Lesson progress table
+   * Tracks actual lesson completion by teachers
+   */
+  lesson_progress: defineTable({
+    // Core references
+    teacherId: v.id("users"),
+    lessonId: v.id("curriculum_lessons"),
+    assignmentId: v.id("teacher_assignments"),
+
+    // Denormalized for performance
+    curriculumId: v.id("curriculums"),
+    campusId: v.id("campuses"),
+    quarter: v.number(),
+
+    // Completion tracking
+    status: v.union(
+      v.literal("not_started"),
+      v.literal("in_progress"),
+      v.literal("completed"),
+      v.literal("skipped"),
+      v.literal("rescheduled")
+    ),
+
+    // Evidence of completion (stored in Convex Storage)
+    evidencePhotoStorageId: v.optional(v.id("_storage")), // Reference to Convex storage for uploaded photo
+    evidenceDocumentStorageId: v.optional(v.id("_storage")), // Reference to Convex storage for uploaded document
+
+    // Teacher's input
+    activitiesPerformed: v.optional(v.string()), // Text description of activities
+    lessonPlan: v.optional(v.string()), // Lesson plan details
+    notes: v.optional(v.string()), // Additional notes
+
+    // Completion details
+    completedAt: v.optional(v.number()),
+    scheduledDate: v.optional(v.number()),
+    actualDurationMinutes: v.optional(v.number()),
+
+    // Student metrics (optional)
+    studentAttendance: v.optional(v.object({
+      present: v.number(),
+      absent: v.number(),
+      total: v.number(),
+    })),
+
+    // Validation
+    isVerified: v.boolean(), // Admin has verified the completion
+    verifiedBy: v.optional(v.id("users")),
+    verifiedAt: v.optional(v.number()),
+    verificationNotes: v.optional(v.string()),
+
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+    lastModifiedBy: v.optional(v.id("users")),
+  })
+    .index("by_teacher_lesson", ["teacherId", "lessonId"])
+    .index("by_assignment_status", ["assignmentId", "status"])
+    .index("by_curriculum_teacher", ["curriculumId", "teacherId", "quarter"])
+    .index("by_campus_date", ["campusId", "completedAt"])
+    .index("by_teacher_quarter_status", ["teacherId", "quarter", "status"])
+    .index("by_verification_status", ["isVerified", "completedAt"]),
+
+  /**
+   * Activity logs table (optional but recommended for audit trail)
+   * Tracks all important actions in the system
+   */
+  activity_logs: defineTable({
+    userId: v.id("users"),
+
+    // Action details
+    action: v.string(), // "created_campus", "updated_lesson", "uploaded_evidence", etc.
+    entityType: v.string(), // "campus", "curriculum", "lesson_progress", etc.
+    entityId: v.string(), // ID of the affected entity
+
+    // Changes made (for updates)
+    changes: v.optional(v.object({
+      before: v.any(),
+      after: v.any(),
+    })),
+
+    // Context
+    metadata: v.optional(v.object({
+      campusId: v.optional(v.id("campuses")),
+      ip: v.optional(v.string()),
+      userAgent: v.optional(v.string()),
+      notes: v.optional(v.string()),
+    })),
+
+    // Timestamp
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId", "createdAt"])
+    .index("by_entity", ["entityType", "entityId"])
+    .index("by_action", ["action", "createdAt"])
+    .index("by_created", ["createdAt"]),
 });
 
 /**
- * CONVEX LIMITS AND PERFORMANCE CONSIDERATIONS:
+ * PERFORMANCE CONSIDERATIONS AND BEST PRACTICES:
  * 
- * 1. Document size: Max 1MB per document (we're well below with our schema)
- * 2. Nesting depth: Max 16 levels (our max is 3 levels)
- * 3. Index limit: Max 32 indexes per table (we use 3-5 per table)
- * 4. Query performance:
- *    - Indexes prevent full table scans on large tables (1000+ docs)
- *    - Compound indexes can serve multiple query patterns
- *    - First field in compound index should be most selective
- * 5. Denormalization trade-offs:
- *    - enrollments table includes periodId, courseId, professorId for fast dashboards
- *    - Reduces query complexity at the cost of storage
+ * 1. Denormalization Strategy:
+ *    - Progress metrics stored in users table for quick teacher overview
+ *    - Campus metrics stored for dashboard performance
+ *    - Assignment progress summary prevents multiple aggregation queries
  * 
- * EXPECTED SCALE:
- * - ~250 active students (from PDF requirements)
- * - ~9,000 historical enrollment records
- * - 6 periods per year
- * - Multiple programs with shared courses
+ * 2. Index Strategy:
+ *    - Compound indexes serve multiple query patterns
+ *    - Most selective fields first in compound indexes
+ *    - Status fields included for filtering active records
+ *    - Date fields in indexes for sorting and reporting
  * 
- * INDEX STRATEGY:
- * - Primary access patterns covered by compound indexes
- * - No redundant indexes (compound indexes serve prefix queries)
- * - Status fields included in indexes for filtering active records
- * - Timestamp fields in indexes for sorting and pagination
+ * 3. Expected Scale:
+ *    - Multiple campuses (10-50)
+ *    - ~100-500 teachers across all campuses
+ *    - ~50-200 curriculums
+ *    - ~1000-5000 lesson templates
+ *    - ~10,000-50,000 lesson progress records per academic year
+ * 
+ * 4. Query Patterns Optimized:
+ *    - Campus dashboard: O(1) with denormalized metrics
+ *    - Teacher progress view: Indexed by teacher and assignment
+ *    - Admin overview: Aggregated metrics prevent full scans
+ *    - Progress calculation: Quarter-based indexing for efficient filtering
+ * 
+ * 5. Security Considerations:
+ *    - Role-based access control through user roles
+ *    - Campus isolation for multi-tenant architecture
+ *    - Activity logging for audit trail
+ *    - Verification system for lesson completion
  */

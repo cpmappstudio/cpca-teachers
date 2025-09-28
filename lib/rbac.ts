@@ -5,17 +5,31 @@ import type { UserRole } from "@/convex/types";
 
 // Rutas específicas por rol
 const roleMatchers = {
-    student: createRouteMatcher(['/:locale/academic(.*)', '/academic(.*)']),
-    professor: createRouteMatcher(['/:locale/teaching(.*)', '/teaching(.*)']),
+    teacher: createRouteMatcher(['/:locale/teaching(.*)', '/teaching(.*)']),
     admin: createRouteMatcher(['/:locale/admin(.*)', '/admin(.*)']),
 } as const;
 
 // Constantes inmutables con type safety completo
 const ROLE_PERMISSIONS = {
-    student: ['student'] as const,
-    professor: ['professor', 'admin', 'superadmin'] as const,
+    teacher: ['teacher', 'admin', 'superadmin'] as const,
     admin: ['admin', 'superadmin'] as const,
 } satisfies Record<keyof typeof roleMatchers, readonly UserRole[]>;
+
+/**
+ * Extract user role from Clerk session claims
+ */
+export function roleFromSessionClaims(sessionClaims: unknown): UserRole | null {
+    if (!sessionClaims) return null;
+
+    const claims = sessionClaims as any;
+    const publicMeta = claims?.publicMetadata;
+    const privateMeta = claims?.privateMetadata;
+    const metadata = claims?.metadata;
+
+    const role = publicMeta?.role ?? privateMeta?.role ?? metadata?.role;
+
+    return (role as UserRole) ?? null;
+}
 
 /**
  * Get current user role from Clerk session claims
@@ -23,18 +37,7 @@ const ROLE_PERMISSIONS = {
 export async function getCurrentUserRole(): Promise<UserRole | null> {
     try {
         const { sessionClaims } = await auth();
-
-        if (!sessionClaims) return null;
-
-        // Clerk stores custom claims in publicMetadata or privateMetadata
-        // Use type assertion for metadata access since Clerk types are dynamic
-        const publicMeta = (sessionClaims as any).publicMetadata;
-        const privateMeta = (sessionClaims as any).privateMetadata;
-        const metadata = (sessionClaims as any).metadata;
-
-        const role = publicMeta?.role || privateMeta?.role || metadata?.role;
-
-        return (role as UserRole) || null;
+        return roleFromSessionClaims(sessionClaims);
     } catch (error) {
         console.error('Error getting user role:', error);
         return null;
@@ -56,17 +59,17 @@ export function canAccessAdmin(userRole: UserRole | null): boolean {
 }
 
 /**
- * Check if user can access professor features  
+ * Check if user can access teaching features
  */
-export function canAccessProfessor(userRole: UserRole | null): boolean {
-    return hasRole(userRole, ['professor', 'admin', 'superadmin']);
+export function canAccessTeaching(userRole: UserRole | null): boolean {
+    return hasRole(userRole, ['teacher', 'admin', 'superadmin']);
 }
 
 /**
- * Check if user is a student
+ * Check if user is a teacher
  */
-export function isStudent(userRole: UserRole | null): boolean {
-    return userRole === 'student';
+export function isTeacher(userRole: UserRole | null): boolean {
+    return userRole === 'teacher';
 }
 
 /**
@@ -85,6 +88,6 @@ export function checkRoleAccess(
         }
     }
 
-    // ⚠️ CRÍTICO: Si no coincide con ningún matcher, es ruta desconocida
+    // ?? CRITICO: Si no coincide con ningún matcher, es ruta desconocida
     return 'unknown';
 }
