@@ -18,21 +18,21 @@ export function UniversityLogo() {
     return (
         <SidebarMenu>
             <SidebarMenuItem>
-                <div className={`flex w-full items-center gap-4 rounded-md pb-2 text-left text-sm ${isCollapsed ? 'px-0' : 'px-1'}`}>
-                    <div className="flex aspect-square size-8 items-center justify-center">
+                <div className={`flex w-full items-center gap-1 rounded-md pb-2 text-left text-sm ${isCollapsed ? 'px-0' : 'px-1'}`}>
+                    <div className="flex aspect-square size-14 items-center justify-center">
                         <Image
-                            src="/alef-transparent.png"
-                            alt="Alef University"
-                            width={36}
-                            height={36}
+                            src="/cpca.png"
+                            alt="cpca logo"
+                            width={56}
+                            height={56}
                             className="object-contain"
                         />
                     </div>
-                    <div className="grid flex-1 text-left text-sm antialiased leading-tight">
-                        <span className="truncate font-serif font-medium text-base">
+                    <div className="grid flex-1 text-left text-sm antialiased leading-tight ">
+                        <span className="truncate font-medium text-base">
                             {t('name')}
                         </span>
-                        <span className="truncate text-xs font-semibold text-sidebar-accent-foreground">
+                        <span className="truncate text-xs font-semibold text-sidebar-accent-foreground tracking-wider">
                             {t('academicRecords')}
                         </span>
                     </div>

@@ -9,7 +9,7 @@
         "system": "Sistema"
     },
     "navigation": {
-        "university": "Alef University",
+        "university": "CENTRAL POINTE CHRISTIAN ACADEMY",
         "dashboard": "Tablero",
         "navigation": "Navegación",
         "playground": "Área de Pruebas",
@@ -147,8 +147,8 @@
         }
     },
     "university": {
-        "name": "Alef University",
-        "academicRecords": "Sistema de Registro Universitario"
+        "name": "CENTRAL POINTE",
+        "academicRecords": "CHRISTIAN ACADEMY"
     },
     "dashboard": {
         "student": {

@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
     Dialog,
     DialogClose,
@@ -53,10 +54,10 @@ export function EntityDialog({
                 {trigger}
             </DialogTrigger>
             <DialogContent
-                className="w-[95vw] max-h-[90vh] flex flex-col p-0 overflow-hidden"
+                className="w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden"
                 style={{ maxWidth }}
             >
-                <form onSubmit={onSubmit} className="flex flex-col h-full min-h-0">
+                <form onSubmit={onSubmit} className="flex flex-col h-full">
                     {/* Fixed Header */}
                     <DialogHeader className="px-6 pt-6 pb-4 border-b bg-background flex-shrink-0">
                         <DialogTitle>{title}</DialogTitle>
@@ -64,8 +65,12 @@ export function EntityDialog({
                     </DialogHeader>
 
                     {/* Scrollable Content */}
-                    <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
-                        {children}
+                    <div className="flex-1 overflow-hidden">
+                        <ScrollArea className="h-full w-full">
+                            <div className="px-6 py-4">
+                                {children}
+                            </div>
+                        </ScrollArea>
                     </div>
 
                     {/* Fixed Footer */}

@@ -13,11 +13,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { SelectDropdown } from "@/components/ui/select-dropdown"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
-import { Plus, Edit, ChevronDown, User, Upload, Trash2, ImageIcon, Building2 } from "lucide-react"
+import { Plus, Edit, ChevronDown, Upload, Trash2, ImageIcon, Building2 } from "lucide-react"
 import { useState, useRef } from "react"
 import Image from "next/image"
-import { useQuery } from "convex/react"
-import { api } from "@/convex/_generated/api"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { EntityDialog } from "@/components/ui/entity-dialog"
 
@@ -25,13 +23,6 @@ interface TeacherDialogProps {
     teacher?: Doc<"users">
     trigger?: React.ReactNode
 }
-
-const teacherStatusOptions = [
-    { label: "Active", value: "active" },
-    { label: "Inactive", value: "inactive" },
-    { label: "On Leave", value: "on_leave" },
-    { label: "Terminated", value: "terminated" },
-]
 
 export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
     const isEditing = !!teacher
@@ -46,9 +37,46 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
     const [imagePreview, setImagePreview] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    // Query para obtener campuses disponibles
-    const campuses = useQuery(api.admin.getCampuses) // Assuming this query exists
-    const selectedCampus = campuses?.find(campus => campus._id === selectedCampusId)
+    // Mock campuses data
+    const availableCampuses = [
+        {
+            _id: "campus_1" as Id<"campuses">,
+            name: "Main Campus",
+            status: "active",
+            address: {
+                city: "New York",
+                state: "NY"
+            }
+        },
+        {
+            _id: "campus_2" as Id<"campuses">,
+            name: "North Campus",
+            status: "active",
+            address: {
+                city: "Albany",
+                state: "NY"
+            }
+        },
+        {
+            _id: "campus_3" as Id<"campuses">,
+            name: "South Campus",
+            status: "inactive",
+            address: {
+                city: "Buffalo",
+                state: "NY"
+            }
+        }
+    ]
+
+    const selectedCampus = availableCampuses.find(campus => campus._id === selectedCampusId)
+
+    // Teacher status options
+    const teacherStatusOptions = [
+        { value: "active", label: "Active" },
+        { value: "inactive", label: "Inactive" },
+        { value: "on_leave", label: "On Leave" },
+        { value: "terminated", label: "Terminated" }
+    ]
 
     // Image handling functions
     const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,11 +112,11 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
             formData.set("campusId", selectedCampusId)
         }
         formData.set("status", selectedStatus)
-        formData.set("role", "teacher") // Always teacher
+        formData.set("role", "teacher") // Always teacher for this dialog
 
         // Añadir imagen si se seleccionó una nueva
         if (selectedImage) {
-            formData.set("avatarImage", selectedImage)
+            formData.set("teacherImage", selectedImage)
         }
 
         if (isEditing) {
@@ -164,7 +192,7 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
                             id="firstName"
                             name="firstName"
                             defaultValue={teacher?.firstName || ""}
-                            placeholder={isEditing ? "" : "John"}
+                            placeholder={isEditing ? "" : "e.g., John, María"}
                             required
                         />
                     </div>
@@ -176,40 +204,57 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
                             id="lastName"
                             name="lastName"
                             defaultValue={teacher?.lastName || ""}
-                            placeholder={isEditing ? "" : "Doe"}
+                            placeholder={isEditing ? "" : "e.g., Smith, García"}
                             required
                         />
                     </div>
                 </div>
 
-                <div className="grid gap-3">
-                    <Label htmlFor="email">
-                        Email {!isEditing && "*"}
-                    </Label>
-                    <Input
-                        id="email"
-                        name="email"
-                        type="email"
-                        defaultValue={teacher?.email || ""}
-                        placeholder={isEditing ? "" : "john.doe@alefuniversity.edu"}
-                        required
-                    />
+                {/* Contact Information */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid gap-3">
+                        <Label htmlFor="email">
+                            Email {!isEditing && "*"}
+                        </Label>
+                        <Input
+                            id="email"
+                            name="email"
+                            type="email"
+                            defaultValue={teacher?.email || ""}
+                            placeholder={isEditing ? "" : "e.g., john.smith@alefuniversity.edu"}
+                            required
+                        />
+                    </div>
+                    <div className="grid gap-3">
+                        <Label htmlFor="phone">Phone</Label>
+                        <Input
+                            id="phone"
+                            name="phone"
+                            type="tel"
+                            defaultValue={teacher?.phone || ""}
+                            placeholder={isEditing ? "" : "e.g., +1 (555) 123-4567"}
+                        />
+                    </div>
                 </div>
 
+                {/* Role - Disabled for teachers */}
                 <div className="grid gap-3">
-                    <Label htmlFor="phone">Phone</Label>
+                    <Label htmlFor="role">Role</Label>
                     <Input
-                        id="phone"
-                        name="phone"
-                        type="tel"
-                        defaultValue={teacher?.phone || ""}
-                        placeholder={isEditing ? "" : "+1 (555) 123-4567"}
+                        id="role"
+                        name="role"
+                        value="Teacher"
+                        disabled
+                        className="bg-muted"
                     />
+                    <p className="text-sm text-muted-foreground">
+                        The role is assigned when the user is created
+                    </p>
                 </div>
 
-                {/* Profile Image */}
+                {/* Teacher Image */}
                 <div className="space-y-4">
-                    <h4 className="text-sm font-medium border-b pb-2">Profile Image</h4>
+                    <h4 className="text-sm font-medium border-b pb-2">Teacher Image</h4>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         {/* Image Preview */}
                         <div className="space-y-3">
@@ -224,12 +269,12 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
                                     />
                                 ) : teacher?.avatarStorageId ? (
                                     <div className="flex h-full w-full items-center justify-center rounded-lg bg-muted">
-                                        <User className="h-8 w-8 text-muted-foreground" />
+                                        <ImageIcon className="h-8 w-8 text-muted-foreground" />
                                         <span className="ml-2 text-sm text-muted-foreground">Current Image</span>
                                     </div>
                                 ) : (
                                     <div className="flex h-full w-full items-center justify-center rounded-lg bg-muted">
-                                        <User className="h-8 w-8 text-muted-foreground" />
+                                        <ImageIcon className="h-8 w-8 text-muted-foreground" />
                                         <span className="ml-2 text-sm text-muted-foreground">No Image</span>
                                     </div>
                                 )}
@@ -240,10 +285,10 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
                         <div className="space-y-4 lg:col-span-2">
                             <div className="space-y-3">
                                 <Label>
-                                    {isEditing ? "Upload New Image" : "Upload Profile Image"}
+                                    {isEditing ? "Upload New Image" : "Upload Teacher Image"}
                                 </Label>
                                 <p className="text-sm text-muted-foreground">
-                                    Choose a square profile image. Recommended size: 400x400px or larger.
+                                    Choose a square image that represents the teacher. Recommended size: 400x400px or larger.
                                 </p>
                             </div>
 
@@ -311,7 +356,7 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
                             <DropdownMenuContent className="w-80" align="start">
                                 <DropdownMenuLabel>Available Campuses</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
-                                {campuses?.length === 0 ? (
+                                {availableCampuses.length === 0 ? (
                                     <DropdownMenuItem disabled>
                                         No campuses available
                                     </DropdownMenuItem>
@@ -327,7 +372,7 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
                                             </div>
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator />
-                                        {campuses?.map((campus) => (
+                                        {availableCampuses.map((campus) => (
                                             <DropdownMenuItem
                                                 key={campus._id}
                                                 onClick={() => setSelectedCampusId(campus._id)}
@@ -341,7 +386,7 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
                                                             {campus.status}
                                                         </span>
                                                     </div>
-                                                    {campus.address && (
+                                                    {campus.address?.city && campus.address?.state && (
                                                         <span className="text-sm text-muted-foreground ml-6">
                                                             {campus.address.city}, {campus.address.state}
                                                         </span>
@@ -353,11 +398,9 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
                                 )}
                             </DropdownMenuContent>
                         </DropdownMenu>
-                        {campuses === undefined && (
-                            <div className="text-sm text-muted-foreground">
-                                Loading available campuses...
-                            </div>
-                        )}
+                        <div className="text-sm text-muted-foreground">
+                            {availableCampuses.length} campus(es) available
+                        </div>
                     </div>
                 </div>
 

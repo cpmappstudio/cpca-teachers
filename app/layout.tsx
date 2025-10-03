@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "CPCA Teachers",
-  description: "Alef University's student information system (SRU). A Next.js application with a clean and scalable architecture, designed to manage students grades, programs, courses, and transcripts.",
+  description: "TODO: Add description",
   icons: {
-    icon: "/alef.ico",
+    icon: "/cpca.ico",
   },
 };
 
