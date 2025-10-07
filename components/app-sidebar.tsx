@@ -4,6 +4,7 @@ import * as React from "react"
 import {
   Building,
   Users,
+  Book,
   BookOpen,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -45,6 +46,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     {
       title: "Curriculums",
       url: "/admin/curriculums",
+      icon: Book,
+      isActive: false,
+      items: [],
+    },
+    {
+      title: "Lessons",
+      url: "/admin/lessons",
       icon: BookOpen,
       isActive: false,
       items: [],

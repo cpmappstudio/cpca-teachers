@@ -44,21 +44,21 @@ export default async function CampusDetailPage({ params }: CampusDetailPageProps
     return (
         <PageTransition>
             <div className="relative flex flex-1 flex-col">
-                <div className="relative z-10 flex flex-1 flex-col gap-6">
+                <div className="relative z-10 flex flex-1 flex-col gap-6 px-2 md:px-4 pb-8">
                     <CampusHeader
                         campus={campus}
                         locale={locale}
                         hasHero={false}
                         addressLabel={addressLabel}
                     />
-                    <div className="grid gap-6 lg:grid-cols-3">
+                    <div className="grid gap-6 lg:grid-cols-1">
                         <CampusOverviewCard campus={campus} addressLabel={addressLabel} />
-                        <CampusMetricsCard
+                        {/* <CampusMetricsCard
                             metrics={campus.metrics}
                             status={campus.status}
                             lastUpdatedLabel={lastUpdatedLabel}
                             className="lg:col-span-2"
-                        />
+                        /> */}
                     </div>
                     <CampusTeachersCard teachers={teachers} campusId={campusId} />
                 </div>

@@ -147,7 +147,7 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
             Edit teacher
         </Button>
     ) : (
-        <Button className="bg-sidebar-accent h-9 dark:text-white gap-2">
+        <Button className="bg-deep-koamaru h-9 dark:text-white gap-2">
             <Plus className="h-4 w-4" />
             <span className="hidden md:inline">Add Teacher</span>
         </Button>

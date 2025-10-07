@@ -13,6 +13,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog"
 import { ReactNode } from "react"
+import { Save } from "lucide-react"
 
 interface EntityDialogProps {
     // Trigger configuration
@@ -87,6 +88,7 @@ export function EntityDialog({
                                 className="min-w-[120px]"
                                 disabled={isSubmitting}
                             >
+                                <Save className="h-4 w-4" />
                                 {isSubmitting ? "Saving..." : submitLabel}
                             </Button>
                         </div>

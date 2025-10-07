@@ -247,7 +247,7 @@ export function AddTeachersDialog({ campusId }: AddTeachersDialogProps) {
                             If the teacher you want to assign isn't in the system yet, you can create a new teacher profile.
                         </p>
                         <Button
-                            type="button"
+                            type="submit"
                             variant="outline"
                             className="gap-2 self-start"
                             onClick={() => {

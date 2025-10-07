@@ -1,6 +1,4 @@
 import { CurriculumsTable } from "./curriculums-table";
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
 
 export default function CurriculumsPage() {
     return (
@@ -12,12 +10,7 @@ export default function CurriculumsPage() {
                         Manage educational programs, courses, and learning objectives
                     </p>
                 </div>
-                <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Curriculum
-                </Button>
             </div>
-
             <CurriculumsTable />
         </div>
     );

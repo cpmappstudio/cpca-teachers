@@ -1,400 +1,605 @@
-"use client"
+"use client";
 
-import * as React from "react"
+import * as React from "react";
+import { useRouter, useParams } from "next/navigation";
 import {
-    ColumnDef,
-    ColumnFiltersState,
-    flexRender,
-    getCoreRowModel,
-    getFilteredRowModel,
-    getPaginationRowModel,
-    getSortedRowModel,
-    SortingState,
-    useReactTable,
-    VisibilityState,
-} from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, MoreHorizontal, Eye, Edit, Trash2 } from "lucide-react"
+  ColumnDef,
+  ColumnFiltersState,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  SortingState,
+  useReactTable,
+  VisibilityState,
+} from "@tanstack/react-table";
+import {
+  ArrowUpDown,
+  ChevronDown,
+  MoreHorizontal,
+  Eye,
+  Edit,
+  Trash2,
+  Filter,
+  Search,
+} from "lucide-react";
 
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-    DropdownMenu,
-    DropdownMenuCheckboxItem,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { TeacherDialog } from "@/components/admin/teachers/teacher-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { UserStatus } from "@/convex/types";
+import { Progress } from "@/components/ui/progress";
 
 // Tipo para los datos de profesores
 export type Teacher = {
-    id: string
-    fullName: string
-    email: string
-    campus: string
-    progressAvg: number
-    status: "active" | "inactive" | "on_leave" | "terminated"
-}
+  id: string;
+  fullName: string;
+  email: string;
+  campus: string;
+  progressAvg: number;
+  status: "active" | "inactive" | "on_leave" | "terminated";
+};
 
 // Datos de ejemplo (luego se reemplazará con datos de Convex)
 const data: Teacher[] = [
-    {
-        id: "1",
-        fullName: "María González",
-        email: "maria.gonzalez@cpca.edu",
-        campus: "DownTown Campus",
-        progressAvg: 85,
-        status: "active",
-    },
-    {
-        id: "2",
-        fullName: "Carlos Rodríguez",
-        email: "carlos.rodriguez@cpca.edu",
-        campus: "Neptune / High School",
-        progressAvg: 92,
-        status: "active",
-    },
-    {
-        id: "3",
-        fullName: "Ana Martínez",
-        email: "ana.martinez@cpca.edu",
-        campus: "Simpson Campus",
-        progressAvg: 78,
-        status: "on_leave",
-    },
-    {
-        id: "4",
-        fullName: "Roberto Silva",
-        email: "roberto.silva@cpca.edu",
-        campus: "Poinciana Campus",
-        progressAvg: 88,
-        status: "active",
-    },
-    {
-        id: "5",
-        fullName: "Laura Herrera",
-        email: "laura.herrera@cpca.edu",
-        campus: "Honduras Campus",
-        progressAvg: 95,
-        status: "active",
-    },
-]
+  {
+    id: "1",
+    fullName: "María González",
+    email: "maria.gonzalez@cpca.edu",
+    campus: "DownTown Campus",
+    progressAvg: 85,
+    status: "active",
+  },
+  {
+    id: "2",
+    fullName: "Carlos Rodríguez",
+    email: "carlos.rodriguez@cpca.edu",
+    campus: "Neptune / High School",
+    progressAvg: 92,
+    status: "active",
+  },
+  {
+    id: "3",
+    fullName: "Ana Martínez",
+    email: "ana.martinez@cpca.edu",
+    campus: "Simpson Campus",
+    progressAvg: 78,
+    status: "on_leave",
+  },
+  {
+    id: "4",
+    fullName: "Roberto Silva",
+    email: "roberto.silva@cpca.edu",
+    campus: "Poinciana Campus",
+    progressAvg: 88,
+    status: "active",
+  },
+  {
+    id: "5",
+    fullName: "Laura Herrera",
+    email: "laura.herrera@cpca.edu",
+    campus: "Honduras Campus",
+    progressAvg: 95,
+    status: "active",
+  },
+];
 
 export const columns: ColumnDef<Teacher>[] = [
-    {
-        id: "select",
-        header: ({ table }) => (
-            <Checkbox
-                checked={
-                    table.getIsAllPageRowsSelected() ||
-                    (table.getIsSomePageRowsSelected() && "indeterminate")
-                }
-                onCheckedChange={(value: boolean) => table.toggleAllPageRowsSelected(!!value)}
-                aria-label="Select all"
-            />
-        ),
-        cell: ({ row }) => (
-            <Checkbox
-                checked={row.getIsSelected()}
-                onCheckedChange={(value: boolean) => row.toggleSelected(!!value)}
-                aria-label="Select row"
-            />
-        ),
-        enableSorting: false,
-        enableHiding: false,
+  {
+    accessorKey: "fullName",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="h-10 px-2 lg:px-4 text-white hover:bg-white/10 hover:text-white"
+        >
+          Teacher
+          <ArrowUpDown className="h-4 w-4 text-white" />
+        </Button>
+      );
     },
-    {
-        accessorKey: "fullName",
-        header: ({ column }) => {
-            return (
-                <Button
-                    variant="ghost"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                >
-                    Full Name
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                </Button>
-            )
-        },
-        cell: ({ row }) => (
-            <div className="font-medium">{row.getValue("fullName")}</div>
-        ),
+    cell: ({ row }) => {
+      const teacher = row.original;
+      return (
+        <div className="space-y-2 py-1">
+          <div className="font-medium text-sm lg:text-base">{row.getValue("fullName")}</div>
+          <div className="flex lg:hidden flex-col gap-1.5 text-xs lg:text-sm text-muted-foreground">
+            <span className="truncate">{teacher.email}</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Badge className="bg-sky-500/15 text-sky-700 border border-sky-200 text-xs px-2 py-0.5">
+                {teacher.campus}
+              </Badge>
+              <TeacherStatusBadge status={teacher.status} />
+            </div>
+          </div>
+        </div>
+      );
     },
-    {
-        accessorKey: "email",
-        header: ({ column }) => {
-            return (
-                <Button
-                    variant="ghost"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                >
-                    Email
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                </Button>
-            )
-        },
-        cell: ({ row }) => <div className="lowercase">{row.getValue("email")}</div>,
-    },
-    {
-        accessorKey: "campus",
-        header: ({ column }) => {
-            return (
-                <Button
-                    variant="ghost"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                >
-                    Campus
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                </Button>
-            )
-        },
-        cell: ({ row }) => (
-            <div className="text-sm">{row.getValue("campus")}</div>
-        ),
-    },
-    {
-        accessorKey: "progressAvg",
-        header: ({ column }) => {
-            return (
-                <Button
-                    variant="ghost"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                >
-                    Progress Avg
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                </Button>
-            )
-        },
-        cell: ({ row }) => {
-            const progress = parseFloat(row.getValue("progressAvg"))
-            return (
-                <div className="flex items-center space-x-2">
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                            className="bg-blue-600 h-2 rounded-full"
-                            style={{ width: `${progress}%` }}
-                        ></div>
-                    </div>
-                    <span className="text-sm font-medium">{progress}%</span>
-                </div>
-            )
-        },
-    },
-    {
-        accessorKey: "status",
-        header: "Status",
-        cell: ({ row }) => {
-            const status = row.getValue("status") as string
-            return (
-                <Badge
-                    variant={
-                        status === "active" ? "default" :
-                            status === "on_leave" ? "secondary" :
-                                status === "inactive" ? "outline" : "destructive"
-                    }
-                >
-                    {status.replace("_", " ")}
-                </Badge>
-            )
-        },
-    },
-    {
-        id: "actions",
-        enableHiding: false,
-        cell: ({ row }) => {
-            const teacher = row.original
 
-            return (
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>
-                            <Eye className="mr-2 h-4 w-4" />
-                            View Progress
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit Teacher
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600">
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete Teacher
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            )
-        },
+    filterFn: (row, id, value) => {
+      const fullName = row.getValue("fullName") as string;
+      const campus = row.getValue("campus") as string;
+      const searchValue = value.toLowerCase();
+      return (
+        fullName.toLowerCase().includes(searchValue) ||
+        campus.toLowerCase().includes(searchValue)
+      );
     },
-]
+  },
+  {
+    accessorKey: "email",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="hidden lg:flex lg:items-center lg:justify-start h-10 px-4 text-white hover:bg-white/10 hover:text-white"
+        >
+          Email
+          <ArrowUpDown className="h-4 w-4 text-white" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => (
+      <div className="lowercase hidden lg:block py-1">
+        {row.getValue("email")}
+      </div>
+    ),
+    meta: {
+      className: "hidden lg:table-cell",
+    },
+  },
+  {
+    accessorKey: "campus",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="hidden lg:flex items-center h-10 px-4 text-white hover:bg-white/10 hover:text-white"
+        >
+          Campus
+          <ArrowUpDown className="h-4 w-4 text-white" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => (
+      <div className="hidden lg:block py-1">{row.getValue("campus")}</div>
+    ),
+    meta: {
+      className: "hidden lg:table-cell",
+    },
+  },
+  {
+    accessorKey: "progressAvg",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="h-10 px-2 lg:px-5 text-white hover:bg-white/10 hover:text-white"
+        >
+          Progress
+          <ArrowUpDown className="h-4 w-4 text-white" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => {
+      const progress = parseFloat(row.getValue("progressAvg"));
+      return (
+        <>
+          {/* Desktop y Tablet: Barra de progreso */}
+          <div className="hidden lg:flex items-center gap-3 py-1">
+            <div className="flex-1 min-w-[100px] bg-gray-200 rounded-full h-2">
+              <Progress
+                value={progress}
+                className="bg-gray-200 [&>div]:bg-deep-koamaru"
+              />
+            </div>
+            <span className="text-sm font-medium whitespace-nowrap">
+              {progress}%
+            </span>
+          </div>
+          {/* Mobile: Badge con el valor */}
+          <div className="lg:hidden py-1">
+            <Badge className="bg-deep-koamaru text-white text-xs px-2 py-0.5">
+              {progress}%
+            </Badge>
+          </div>
+        </>
+      );
+    },
+  },
+  {
+    accessorKey: "status",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="hidden lg:flex items-center h-10 px-5 text-white hover:bg-white/10 hover:text-white"
+        >
+          Status
+          <ArrowUpDown className="h-4 w-4 text-white" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => (
+      <div className="hidden lg:block py-1">
+        <TeacherStatusBadge status={row.original.status} />
+      </div>
+    ),
+    meta: {
+      className: "hidden lg:table-cell",
+    },
+    filterFn: (row, id, value) => {
+      return value.includes(row.getValue(id));
+    },
+  },
+
+  // {
+  //   id: "actions",
+  //   header: ({ column }) => {
+  //     return (
+  //       <Button
+  //         variant="ghost"
+  //         className="hidden lg:flex items-center h-10 px-3"
+  //       >
+  //         Actions
+  //       </Button>
+  //     );
+  //   },
+  //   enableHiding: false,
+  //   cell: ({ row }) => {
+  //     const teacher = row.original;
+
+  //     return (
+  //       <div className="flex items-center justify-left py-1">
+  //         {/* Desktop (lg+): Iconos directos */}
+  //         <div className="hidden lg:flex items-center">
+  //           <Button
+  //             variant="ghost"
+  //             className="h-8 w-8 p-0 hover:bg-accent"
+  //             onClick={() => {
+  //               // TODO: Implementar vista de progreso
+  //               console.log("View progress:", teacher.id);
+  //             }}
+  //           >
+  //             <span className="sr-only">View progress</span>
+  //             <Eye className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+  //           </Button>
+  //           {/* <Button
+  //             variant="ghost"
+  //             className="h-8 w-8 p-0 hover:bg-accent"
+  //             onClick={() => {
+  //               // TODO: Implementar edición
+  //               console.log("Edit teacher:", teacher.id);
+  //             }}
+  //           >
+  //             <span className="sr-only">Edit teacher</span>
+  //             <Edit className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+  //           </Button> */}
+  //           <Button
+  //             variant="ghost"
+  //             className="h-8 w-8 p-0 hover:bg-accent hover:text-destructive"
+  //             onClick={() => {
+  //               // TODO: Implementar eliminación
+  //               console.log("Delete teacher:", teacher.id);
+  //             }}
+  //           >
+  //             <span className="sr-only">Delete teacher</span>
+  //             <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+  //           </Button>
+  //         </div>
+
+  //         {/* Mobile y Tablet (md): Menú desplegable */}
+  //         <div className="lg:hidden">
+  //           <DropdownMenu>
+  //             <DropdownMenuTrigger asChild>
+  //               <Button variant="ghost" className="h-8 w-8 p-0">
+  //                 <span className="sr-only">Open menu</span>
+  //                 <MoreHorizontal className="h-4 w-4" />
+  //               </Button>
+  //             </DropdownMenuTrigger>
+  //             <DropdownMenuContent align="end">
+  //               <DropdownMenuLabel>Actions</DropdownMenuLabel>
+  //               <DropdownMenuItem
+  //                 onClick={() => {
+  //                   // TODO: Implementar vista de progreso
+  //                   console.log("View progress:", teacher.id);
+  //                 }}
+  //               >
+  //                 <Eye className="h-4 w-4" />
+  //                 View Teacher
+  //               </DropdownMenuItem>
+  //               {/* <DropdownMenuItem
+  //                 onClick={() => {
+  //                   // TODO: Implementar edición
+  //                   console.log("Edit teacher:", teacher.id);
+  //                 }}
+  //               >
+  //                 <Edit className="h-4 w-4" />
+  //                 Edit Teacher
+  //               </DropdownMenuItem> */}
+  //               <DropdownMenuSeparator />
+  //               <DropdownMenuItem
+  //                 className="text-red-600"
+  //                 onClick={() => {
+  //                   // TODO: Implementar eliminación
+  //                   console.log("Delete teacher:", teacher.id);
+  //                 }}
+  //               >
+  //                 <Trash2 className="h-4 w-4" />
+  //                 Delete Teacher
+  //               </DropdownMenuItem>
+  //             </DropdownMenuContent>
+  //           </DropdownMenu>
+  //         </div>
+  //       </div>
+  //     );
+  //   },
+  // },
+];
+
+const statusOptions = [
+  { label: "Active", value: "active", color: "bg-green-600" },
+  { label: "Inactive", value: "inactive", color: "bg-gray-600" },
+  { label: "On Leave", value: "on_leave", color: "bg-amber-600" },
+  { label: "Terminated", value: "terminated", color: "bg-rose-600" },
+];
 
 export function TeachersTable() {
-    const [sorting, setSorting] = React.useState<SortingState>([])
-    const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-        []
-    )
-    const [columnVisibility, setColumnVisibility] =
-        React.useState<VisibilityState>({})
-    const [rowSelection, setRowSelection] = React.useState({})
+  const router = useRouter();
+  const params = useParams();
+  const locale = params.locale as string;
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+    [],
+  );
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({});
+  const [rowSelection, setRowSelection] = React.useState({});
+  const [statusFilter, setStatusFilter] = React.useState<UserStatus | "all">(
+    "all",
+  );
 
-    const table = useReactTable({
-        data,
-        columns,
-        onSortingChange: setSorting,
-        onColumnFiltersChange: setColumnFilters,
-        getCoreRowModel: getCoreRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
-        getSortedRowModel: getSortedRowModel(),
-        getFilteredRowModel: getFilteredRowModel(),
-        onColumnVisibilityChange: setColumnVisibility,
-        onRowSelectionChange: setRowSelection,
-        state: {
-            sorting,
-            columnFilters,
-            columnVisibility,
-            rowSelection,
-        },
-    })
+  const table = useReactTable({
+    data,
+    columns,
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+    },
+  });
 
-    return (
-        <div className="w-full">
-            <div className="flex items-center justify-between py-4">
-                <div className="flex items-center space-x-2">
-                    <Input
-                        placeholder="Filter by name..."
-                        value={(table.getColumn("fullName")?.getFilterValue() as string) ?? ""}
-                        onChange={(event) =>
-                            table.getColumn("fullName")?.setFilterValue(event.target.value)
-                        }
-                        className="max-w-sm"
-                    />
-                    <Input
-                        placeholder="Filter by campus..."
-                        value={(table.getColumn("campus")?.getFilterValue() as string) ?? ""}
-                        onChange={(event) =>
-                            table.getColumn("campus")?.setFilterValue(event.target.value)
-                        }
-                        className="max-w-sm"
-                    />
-                </div>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="outline">
-                            Columns <ChevronDown className="ml-2 h-4 w-4" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        {table
-                            .getAllColumns()
-                            .filter((column) => column.getCanHide())
-                            .map((column) => {
-                                return (
-                                    <DropdownMenuCheckboxItem
-                                        key={column.id}
-                                        className="capitalize"
-                                        checked={column.getIsVisible()}
-                                        onCheckedChange={(value) =>
-                                            column.toggleVisibility(!!value)
-                                        }
-                                    >
-                                        {column.id}
-                                    </DropdownMenuCheckboxItem>
-                                )
-                            })}
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            </div>
-            <div className="overflow-hidden rounded-md border">
-                <Table>
-                    <TableHeader>
-                        {table.getHeaderGroups().map((headerGroup) => (
-                            <TableRow key={headerGroup.id}>
-                                {headerGroup.headers.map((header) => {
-                                    return (
-                                        <TableHead key={header.id}>
-                                            {header.isPlaceholder
-                                                ? null
-                                                : flexRender(
-                                                    header.column.columnDef.header,
-                                                    header.getContext()
-                                                )}
-                                        </TableHead>
-                                    )
-                                })}
-                            </TableRow>
-                        ))}
-                    </TableHeader>
-                    <TableBody>
-                        {table.getRowModel().rows?.length ? (
-                            table.getRowModel().rows.map((row) => (
-                                <TableRow
-                                    key={row.id}
-                                    data-state={row.getIsSelected() && "selected"}
-                                >
-                                    {row.getVisibleCells().map((cell) => (
-                                        <TableCell key={cell.id}>
-                                            {flexRender(
-                                                cell.column.columnDef.cell,
-                                                cell.getContext()
-                                            )}
-                                        </TableCell>
-                                    ))}
-                                </TableRow>
-                            ))
-                        ) : (
-                            <TableRow>
-                                <TableCell
-                                    colSpan={columns.length}
-                                    className="h-24 text-center"
-                                >
-                                    No results.
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </div>
-            <div className="flex items-center justify-end space-x-2 py-4">
-                <div className="text-muted-foreground flex-1 text-sm">
-                    {table.getFilteredSelectedRowModel().rows.length} of{" "}
-                    {table.getFilteredRowModel().rows.length} row(s) selected.
-                </div>
-                <div className="space-x-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => table.previousPage()}
-                        disabled={!table.getCanPreviousPage()}
-                    >
-                        Previous
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => table.nextPage()}
-                        disabled={!table.getCanNextPage()}
-                    >
-                        Next
-                    </Button>
-                </div>
-            </div>
+  // Apply status filter to the table
+  React.useEffect(() => {
+    if (statusFilter === "all") {
+      table.getColumn("status")?.setFilterValue(undefined);
+    } else {
+      table.getColumn("status")?.setFilterValue([statusFilter]);
+    }
+  }, [statusFilter, table]);
+
+  return (
+    <div className="w-full">
+      {/* Filters */}
+      <div className="flex items-center justify-between gap-4 py-5">
+        <div className="flex flex-1 items-center gap-4">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={
+                (table.getColumn("fullName")?.getFilterValue() as string) ?? ""
+              }
+              onChange={(event) =>
+                table.getColumn("fullName")?.setFilterValue(event.target.value)
+              }
+              placeholder="Search teachers by name or campus"
+              aria-label="Search teachers"
+              className="pl-10 pr-4 rounded-l bg-card h-10"
+            />
+          </div>
         </div>
-    )
+        <div className="flex items-center gap-3">
+          {/* Botón Clear all - visible solo cuando hay filtros activos */}
+          {(statusFilter !== "all" || 
+            (table.getColumn("fullName")?.getFilterValue() as string)?.length > 0) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setStatusFilter("all");
+                table.getColumn("fullName")?.setFilterValue("");
+              }}
+              className="h-10 px-3"
+            >
+              Clear all
+            </Button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="lg" className="h-10 px-3 bg-card">
+                <Filter className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end">
+              <DropdownMenuLabel className="px-3 py-2.5">
+                Filter by:
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <div className="px-3 py-3">
+                <label className="text-sm font-medium text-foreground">
+                  Status
+                </label>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(value) =>
+                    setStatusFilter(value as UserStatus | "all")
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Teachers</SelectItem>
+                    {statusOptions.map((status) => (
+                      <SelectItem key={status.value} value={status.value}>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`w-2 h-2 rounded-full ${status.color}`}
+                          ></div>
+                          {status.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <TeacherDialog />
+        </div>
+      </div>
+      <div className="overflow-hidden rounded-md border">
+        <Table>
+          <TableHeader className="bg-deep-koamaru text-white">
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id} className="border-b hover:bg-deep-koamaru">
+                {headerGroup.headers.map((header) => {
+                  return (
+                    <TableHead key={header.id} className="py-3 px-0 lg:px-5">
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                    </TableHead>
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                  className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
+                  onClick={() => {
+                    const teacherId = row.original.id;
+                    router.push(`/${locale}/admin/teachers/${teacherId}`);
+                  }}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id} className="py-4 px-2 lg:px-5">
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-32 text-center py-8"
+                >
+                  No results.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="flex items-center justify-between gap-4 py-5">
+        <div className="text-sm text-muted-foreground">
+          Showing {table.getRowModel().rows.length} of {data.length} teacher(s)
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+            className="h-9 px-4"
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+            className="h-9 px-4"
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TeacherStatusBadge({ status }: { status: UserStatus }) {
+  const styles: Record<UserStatus, string> = {
+    active: "bg-emerald-500/10 text-emerald-700",
+    inactive: "bg-gray-500/15 text-gray-700",
+    on_leave: "bg-amber-500/15 text-amber-700",
+    terminated: "bg-rose-500/20 text-rose-700",
+  };
+
+  const capitalize = (str: string) =>
+    str.charAt(0).toUpperCase() + str.slice(1);
+
+  return (
+    <Badge
+      className={`rounded-full px-3 py-0.5 text-xs font-medium inline-flex ${styles[status] ?? styles.inactive}`}
+    >
+      {capitalize(status.replace("_", " "))}
+    </Badge>
+  );
 }

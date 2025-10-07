@@ -46,22 +46,19 @@ export function TeacherHeader({ teacherId }: TeacherHeaderProps) {
         hashedPassword: undefined,
     };
 
-    const hasHero = false;
-    const textColor = hasHero ? "text-white" : "text-foreground";
-    const descriptionColor = hasHero ? "text-sm text-white/90" : "text-sm text-muted-foreground";
     const subtitle = `${mockTeacher.role} profile and progress overview`;
 
     return (
-        <div className="mx-2 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-1">
-                <h1 className={`text-3xl font-semibold tracking-tight ${textColor}`}>
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between px-2 md:px-0">
+            <div className="space-y-1.5">
+                <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">
                     {mockTeacher.fullName}
                 </h1>
-                <p className={`${descriptionColor} font-semibold capitalize`}>
+                <p className="text-sm text-muted-foreground capitalize leading-relaxed">
                     {subtitle}
                 </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 pt-1">
                 <Button variant="outline" className="gap-2" asChild>
                     <Link href={`/${locale}/admin/teachers`}>
                         <ArrowLeft className="h-4 w-4" />

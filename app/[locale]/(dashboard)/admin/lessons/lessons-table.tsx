@@ -14,13 +14,11 @@ import {
     useReactTable,
     VisibilityState,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, MoreHorizontal, Eye, Edit, Trash2, BookOpen, Filter, Search } from "lucide-react"
+import { ArrowUpDown, Filter, Search, BookOpen, Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
     DropdownMenu,
-    DropdownMenuCheckboxItem,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
@@ -44,112 +42,130 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { CurriculumDialog } from "@/components/admin/curriculums/curriculum-dialog"
+import { LessonsDialog } from "@/components/admin/lessons/lessons-dialog"
 
-// Tipo para los datos de curriculums
-export type Curriculum = {
+// Tipo para los datos de lessons
+export type Lesson = {
     id: string
-    name: string
-    grade: "Pre-K" | "K" | "1st" | "2nd" | "3rd" | "4th" | "5th" | "6th" | "7th" | "8th" | "9th" | "10th" | "11th" | "12th"
-    lessonsCount: number
-    status: "active" | "inactive" | "draft" | "archived"
-    quarters: number
+    curriculumID: string
+    title: string
+    quarter: 1 | 2 | 3 | 4
+    orderInQuarter: number
+    isActive: boolean
+    isMandatory: boolean
 }
 
 // Datos de ejemplo (luego se reemplazará con datos de Convex)
-const data: Curriculum[] = [
+const data: Lesson[] = [
     {
-        id: "MATH-10-001",
-        name: "Mathematics Grade 10",
-        grade: "10th",
-        lessonsCount: 45,
-        status: "active",
-        quarters: 4,
+        id: "LESSON-001",
+        curriculumID: "MATH-10-001",
+        title: "Introduction to Algebra",
+        quarter: 1,
+        orderInQuarter: 1,
+        isActive: true,
+        isMandatory: true,
     },
     {
-        id: "SCI-09-001",
-        name: "General Science",
-        grade: "9th",
-        lessonsCount: 38,
-        status: "active",
-        quarters: 4,
+        id: "LESSON-002",
+        curriculumID: "MATH-10-001",
+        title: "Linear Equations",
+        quarter: 1,
+        orderInQuarter: 2,
+        isActive: true,
+        isMandatory: true,
     },
     {
-        id: "ENG-11-001",
-        name: "English Literature",
-        grade: "11th",
-        lessonsCount: 52,
-        status: "active",
-        quarters: 4,
+        id: "LESSON-003",
+        curriculumID: "MATH-10-001",
+        title: "Quadratic Functions",
+        quarter: 1,
+        orderInQuarter: 3,
+        isActive: true,
+        isMandatory: false,
     },
     {
-        id: "HIST-12-001",
-        name: "World History",
-        grade: "12th",
-        lessonsCount: 40,
-        status: "draft",
-        quarters: 4,
+        id: "LESSON-004",
+        curriculumID: "SCI-09-001",
+        title: "Scientific Method",
+        quarter: 1,
+        orderInQuarter: 1,
+        isActive: true,
+        isMandatory: true,
     },
     {
-        id: "ART-08-001",
-        name: "Visual Arts",
-        grade: "8th",
-        lessonsCount: 30,
-        status: "active",
-        quarters: 2,
+        id: "LESSON-005",
+        curriculumID: "SCI-09-001",
+        title: "Cell Biology",
+        quarter: 1,
+        orderInQuarter: 2,
+        isActive: true,
+        isMandatory: true,
     },
     {
-        id: "PE-09-001",
-        name: "Physical Education",
-        grade: "9th",
-        lessonsCount: 25,
-        status: "inactive",
-        quarters: 4,
+        id: "LESSON-006",
+        curriculumID: "ENG-11-001",
+        title: "Shakespeare's Sonnets",
+        quarter: 2,
+        orderInQuarter: 1,
+        isActive: true,
+        isMandatory: false,
     },
     {
-        id: "CHEM-11-001",
-        name: "Chemistry Advanced",
-        grade: "11th",
-        lessonsCount: 48,
-        status: "active",
-        quarters: 4,
+        id: "LESSON-007",
+        curriculumID: "HIST-12-001",
+        title: "World War I",
+        quarter: 2,
+        orderInQuarter: 2,
+        isActive: false,
+        isMandatory: true,
+    },
+    {
+        id: "LESSON-008",
+        curriculumID: "MATH-10-001",
+        title: "Geometry Fundamentals",
+        quarter: 2,
+        orderInQuarter: 1,
+        isActive: true,
+        isMandatory: true,
+    },
+    {
+        id: "LESSON-009",
+        curriculumID: "CHEM-11-001",
+        title: "Atomic Structure",
+        quarter: 1,
+        orderInQuarter: 1,
+        isActive: true,
+        isMandatory: true,
+    },
+    {
+        id: "LESSON-010",
+        curriculumID: "CHEM-11-001",
+        title: "Chemical Bonding",
+        quarter: 1,
+        orderInQuarter: 2,
+        isActive: true,
+        isMandatory: false,
     },
 ]
 
-const statusOptions = [
-    { label: "Active", value: "active", color: "bg-green-600" },
-    { label: "Inactive", value: "inactive", color: "bg-gray-600" },
-    { label: "Draft", value: "draft", color: "bg-amber-600" },
-    { label: "Archived", value: "archived", color: "bg-rose-600" },
+const quarterOptions = [
+    { label: "Quarter 1", value: "1" },
+    { label: "Quarter 2", value: "2" },
+    { label: "Quarter 3", value: "3" },
+    { label: "Quarter 4", value: "4" },
 ]
 
+// Extend the meta type for custom className
+declare module '@tanstack/react-table' {
+    interface ColumnMeta<TData, TValue> {
+        className?: string
+    }
+}
 
-
-export const columns: ColumnDef<Curriculum>[] = [
-    // {
-    //     id: "select",
-    //     header: ({ table }) => (
-    //         <Checkbox
-    //             checked={
-    //                 table.getIsAllPageRowsSelected() ||
-    //                 (table.getIsSomePageRowsSelected() && "indeterminate")
-    //             }
-    //             onCheckedChange={(value: boolean) => table.toggleAllPageRowsSelected(!!value)}
-    //             aria-label="Select all"
-    //         />
-    //     ),
-    //     cell: ({ row }) => (
-    //         <Checkbox
-    //             checked={row.getIsSelected()}
-    //             onCheckedChange={(value: boolean) => row.toggleSelected(!!value)}
-    //             aria-label="Select row"
-    //         />
-    //     ),
-    //     enableSorting: false,
-    //     enableHiding: false,
-    // },
+export const columns: ColumnDef<Lesson>[] = [
     {
-        accessorKey: "id",
+        accessorKey: "curriculumID",
         header: ({ column }) => {
             return (
                 <Button
@@ -157,20 +173,20 @@ export const columns: ColumnDef<Curriculum>[] = [
                     onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                     className="hidden lg:flex lg:items-center h-10 px-4 text-white hover:bg-white/10 hover:text-white"
                 >
-                    Code
+                    Curriculum
                     <ArrowUpDown className="h-4 w-4 text-white" />
                 </Button>
             )
         },
         cell: ({ row }) => (
-            <div className="text-sm hidden lg:block py-1">{row.getValue("id")}</div>
+            <div className="text-sm hidden lg:block py-1">{row.getValue("curriculumID")}</div>
         ),
         meta: {
             className: "hidden lg:table-cell",
         },
     },
     {
-        accessorKey: "name",
+        accessorKey: "title",
         header: ({ column }) => {
             return (
                 <Button
@@ -178,40 +194,40 @@ export const columns: ColumnDef<Curriculum>[] = [
                     onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                     className="h-10 px-2 lg:px-4 text-white hover:bg-white/10 hover:text-white"
                 >
-                    Course
+                    Lesson
                     <ArrowUpDown className="h-4 w-4 text-white" />
                 </Button>
             )
         },
         cell: ({ row }) => {
-            const curriculum = row.original
+            const lesson = row.original
             return (
                 <div className="space-y-2 py-1">
-                    <div className="font-medium text-sm lg:text-base">{row.getValue("name")}</div>
+                    <div className="font-medium text-sm lg:text-base">{row.getValue("title")}</div>
                     <div className="flex lg:hidden flex-col gap-1.5 text-xs lg:text-sm text-muted-foreground">
-                        <span className="text-xs">{curriculum.id}</span>
+                        <span className="text-xs">{lesson.curriculumID}</span>
                         <div className="flex items-center gap-1.5 flex-wrap">
-                            <Badge className="bg-sky-500/15 text-sky-700 border border-sky-200 text-xs px-2 py-0.5">
-                                {curriculum.grade}
+                            <Badge className="bg-blue-500/15 text-blue-700 border border-blue-200 text-xs px-2 py-0.5">
+                                Q{lesson.quarter} (#{lesson.orderInQuarter})
                             </Badge>
-                            <CurriculumStatusBadge status={curriculum.status} />
+                            <LessonStatusBadge isActive={lesson.isActive} />
                         </div>
                     </div>
                 </div>
             )
         },
         filterFn: (row, id, value) => {
-            const name = row.getValue("name") as string
-            const code = row.getValue("id") as string
+            const title = row.getValue("title") as string
+            const curriculumID = row.getValue("curriculumID") as string
             const searchValue = value.toLowerCase()
             return (
-                name.toLowerCase().includes(searchValue) ||
-                code.toLowerCase().includes(searchValue)
+                title.toLowerCase().includes(searchValue) ||
+                curriculumID.toLowerCase().includes(searchValue)
             )
         },
     },
     {
-        accessorKey: "grade",
+        accessorKey: "quarter",
         header: ({ column }) => {
             return (
                 <Button
@@ -219,48 +235,29 @@ export const columns: ColumnDef<Curriculum>[] = [
                     onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                     className="hidden lg:flex items-center h-10 px-4 text-white hover:bg-white/10 hover:text-white"
                 >
-                    Grade
-                    <ArrowUpDown className="h-4 w-4 text-white" />
-                </Button>
-            )
-        },
-        cell: ({ row }) => (
-            <div className="text-sm hidden lg:block py-1">{row.getValue("grade")}</div>
-        ),
-        meta: {
-            className: "hidden lg:table-cell",
-        },
-              filterFn: (row, id, value) => {
-            return value.includes(row.getValue(id))
-        },
-    },
-    {
-        accessorKey: "lessonsCount",
-        header: ({ column }) => {
-            return (
-                <Button
-                    variant="ghost"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                    className="h-10 px-2 lg:px-5 text-white hover:bg-white/10 hover:text-white"
-                >
-                    Lessons
+                    Quarter (Order)
                     <ArrowUpDown className="h-4 w-4 text-white" />
                 </Button>
             )
         },
         cell: ({ row }) => {
-            const lessons = parseInt(row.getValue("lessonsCount"))
-            const quarters = row.original.quarters
+            const lesson = row.original
             return (
-                <div className="flex items-center gap-2 py-1">
-                    <span>{lessons}</span>
-                    <span className="text-xs text-muted-foreground">({quarters}Q)</span>
+                <div className="text-sm hidden lg:block py-1">
+                    Q{lesson.quarter} (#{lesson.orderInQuarter})
                 </div>
             )
         },
+        meta: {
+            className: "hidden lg:table-cell",
+        },
+        filterFn: (row, id, value) => {
+            const quarterValue = row.getValue(id) as number
+            return value.includes(quarterValue.toString())
+        },
     },
     {
-        accessorKey: "status",
+        accessorKey: "isActive",
         header: ({ column }) => {
             return (
                 <Button
@@ -275,57 +272,57 @@ export const columns: ColumnDef<Curriculum>[] = [
         },
         cell: ({ row }) => (
             <div className="hidden lg:block py-1">
-                <CurriculumStatusBadge status={row.original.status} />
+                <LessonStatusBadge isActive={row.original.isActive} />
             </div>
         ),
         meta: {
             className: "hidden lg:table-cell",
         },
         filterFn: (row, id, value) => {
-            return value.includes(row.getValue(id))
+            if (value === "all") return true
+            const isActive = row.getValue(id) as boolean
+            return value === "active" ? isActive : !isActive
         },
     },
-    // {
-    //     id: "actions",
-    //     enableHiding: false,
-    //     cell: ({ row }) => {
-    //         const curriculum = row.original
-
-    //         return (
-    //             <DropdownMenu>
-    //                 <DropdownMenuTrigger asChild>
-    //                     <Button variant="ghost" className="h-8 w-8 p-0">
-    //                         <span className="sr-only">Open menu</span>
-    //                         <MoreHorizontal className="h-4 w-4" />
-    //                     </Button>
-    //                 </DropdownMenuTrigger>
-    //                 <DropdownMenuContent align="end">
-    //                     <DropdownMenuLabel>Actions</DropdownMenuLabel>
-    //                     <DropdownMenuItem>
-    //                         <Eye className="mr-2 h-4 w-4" />
-    //                         View Details
-    //                     </DropdownMenuItem>
-    //                     <DropdownMenuItem>
-    //                         <Edit className="mr-2 h-4 w-4" />
-    //                         Edit Curriculum
-    //                     </DropdownMenuItem>
-    //                     <DropdownMenuItem>
-    //                         <BookOpen className="mr-2 h-4 w-4" />
-    //                         Manage Lessons
-    //                     </DropdownMenuItem>
-    //                     <DropdownMenuSeparator />
-    //                     <DropdownMenuItem className="text-red-600">
-    //                         <Trash2 className="mr-2 h-4 w-4" />
-    //                         Delete Curriculum
-    //                     </DropdownMenuItem>
-    //                 </DropdownMenuContent>
-    //             </DropdownMenu>
-    //         )
-    //     },
-    // },
+    {
+        accessorKey: "isMandatory",
+        header: ({ column }) => {
+            return (
+                <Button
+                    variant="ghost"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                    className="h-10 px-2 lg:px-5 text-white hover:bg-white/10 hover:text-white"
+                >
+                    Mandatory
+                    <ArrowUpDown className="h-4 w-4 text-white" />
+                </Button>
+            )
+        },
+        cell: ({ row }) => {
+            const isMandatory = row.getValue("isMandatory") as boolean
+            return (
+                <div className="flex items-center justify-center py-1">
+                    {isMandatory ? (
+                        <Badge className="bg-orange-500/15 text-orange-700 border border-orange-200 text-xs px-2 py-0.5">
+                            Required
+                        </Badge>
+                    ) : (
+                        <Badge className="bg-gray-500/15 text-gray-700 border border-gray-200 text-xs px-2 py-0.5">
+                            Optional
+                        </Badge>
+                    )}
+                </div>
+            )
+        },
+        filterFn: (row, id, value) => {
+            if (value === "all") return true
+            const isMandatory = row.getValue(id) as boolean
+            return value === "mandatory" ? isMandatory : !isMandatory
+        },
+    },
 ]
 
-export function CurriculumsTable() {
+export function LessonsTable() {
     const router = useRouter()
     const params = useParams()
     const locale = params.locale as string
@@ -336,10 +333,9 @@ export function CurriculumsTable() {
     const [columnVisibility, setColumnVisibility] =
         React.useState<VisibilityState>({})
     const [rowSelection, setRowSelection] = React.useState({})
-    const [statusFilter, setStatusFilter] = React.useState<"active" | "inactive" | "draft" | "archived" | "all">(
-        "all"
-    )
-    const [gradeFilter, setGradeFilter] = React.useState<Curriculum["grade"] | "all">("all")
+    const [statusFilter, setStatusFilter] = React.useState<"active" | "inactive" | "all">("all")
+    const [quarterFilter, setQuarterFilter] = React.useState<"1" | "2" | "3" | "4" | "all">("all")
+    const [mandatoryFilter, setMandatoryFilter] = React.useState<"mandatory" | "optional" | "all">("all")
 
     const table = useReactTable({
         data,
@@ -363,20 +359,29 @@ export function CurriculumsTable() {
     // Apply status filter to the table
     React.useEffect(() => {
         if (statusFilter === "all") {
-            table.getColumn("status")?.setFilterValue(undefined)
+            table.getColumn("isActive")?.setFilterValue(undefined)
         } else {
-            table.getColumn("status")?.setFilterValue([statusFilter])
+            table.getColumn("isActive")?.setFilterValue(statusFilter)
         }
     }, [statusFilter, table])
 
-    // Apply grade filter to the table
+    // Apply quarter filter to the table
     React.useEffect(() => {
-        if (gradeFilter === "all") {
-            table.getColumn("grade")?.setFilterValue(undefined)
+        if (quarterFilter === "all") {
+            table.getColumn("quarter")?.setFilterValue(undefined)
         } else {
-            table.getColumn("grade")?.setFilterValue([gradeFilter])
+            table.getColumn("quarter")?.setFilterValue([quarterFilter])
         }
-    }, [gradeFilter, table])
+    }, [quarterFilter, table])
+
+    // Apply mandatory filter to the table
+    React.useEffect(() => {
+        if (mandatoryFilter === "all") {
+            table.getColumn("isMandatory")?.setFilterValue(undefined)
+        } else {
+            table.getColumn("isMandatory")?.setFilterValue(mandatoryFilter)
+        }
+    }, [mandatoryFilter, table])
 
     return (
         <div className="w-full">
@@ -387,13 +392,13 @@ export function CurriculumsTable() {
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             value={
-                                (table.getColumn("name")?.getFilterValue() as string) ?? ""
+                                (table.getColumn("title")?.getFilterValue() as string) ?? ""
                             }
                             onChange={(event) =>
-                                table.getColumn("name")?.setFilterValue(event.target.value)
+                                table.getColumn("title")?.setFilterValue(event.target.value)
                             }
-                            placeholder="Search by course name or code"
-                            aria-label="Search curriculums"
+                            placeholder="Search by lesson title or curriculum"
+                            aria-label="Search lessons"
                             className="pl-10 pr-4 rounded-l bg-card h-10"
                         />
                     </div>
@@ -401,15 +406,17 @@ export function CurriculumsTable() {
                 <div className="flex items-center gap-3">
                     {/* Botón Clear all - visible solo cuando hay filtros activos */}
                     {(statusFilter !== "all" || 
-                      gradeFilter !== "all" ||
-                      (table.getColumn("name")?.getFilterValue() as string)?.length > 0) && (
+                      quarterFilter !== "all" ||
+                      mandatoryFilter !== "all" ||
+                      (table.getColumn("title")?.getFilterValue() as string)?.length > 0) && (
                         <Button
                             variant="outline"
                             size="sm"
                             onClick={() => {
                                 setStatusFilter("all");
-                                setGradeFilter("all");
-                                table.getColumn("name")?.setFilterValue("");
+                                setQuarterFilter("all");
+                                setMandatoryFilter("all");
+                                table.getColumn("title")?.setFilterValue("");
                             }}
                             className="h-10 px-3"
                         >
@@ -430,33 +437,24 @@ export function CurriculumsTable() {
                             <div className="px-3 py-3 space-y-4">
                                 <div>
                                     <label className="text-sm font-medium text-foreground">
-                                        Grade
+                                        Quarter
                                     </label>
                                     <Select
-                                        value={gradeFilter}
+                                        value={quarterFilter}
                                         onValueChange={(value) =>
-                                            setGradeFilter(value as Curriculum["grade"] | "all")
+                                            setQuarterFilter(value as "1" | "2" | "3" | "4" | "all")
                                         }
                                     >
                                         <SelectTrigger className="w-full">
-                                            <SelectValue placeholder="All Curriculums" />
+                                            <SelectValue placeholder="All Quarters" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">All Curriculums</SelectItem>
-                                            <SelectItem value="Pre-K">Pre-K</SelectItem>
-                                            <SelectItem value="K">K</SelectItem>
-                                            <SelectItem value="1st">1st</SelectItem>
-                                            <SelectItem value="2nd">2nd</SelectItem>
-                                            <SelectItem value="3rd">3rd</SelectItem>
-                                            <SelectItem value="4th">4th</SelectItem>
-                                            <SelectItem value="5th">5th</SelectItem>
-                                            <SelectItem value="6th">6th</SelectItem>
-                                            <SelectItem value="7th">7th</SelectItem>
-                                            <SelectItem value="8th">8th</SelectItem>
-                                            <SelectItem value="9th">9th</SelectItem>
-                                            <SelectItem value="10th">10th</SelectItem>
-                                            <SelectItem value="11th">11th</SelectItem>
-                                            <SelectItem value="12th">12th</SelectItem>
+                                            <SelectItem value="all">All Quarters</SelectItem>
+                                            {quarterOptions.map((quarter) => (
+                                                <SelectItem key={quarter.value} value={quarter.value}>
+                                                    {quarter.label}
+                                                </SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -467,24 +465,56 @@ export function CurriculumsTable() {
                                     <Select
                                         value={statusFilter}
                                         onValueChange={(value) =>
-                                            setStatusFilter(value as "active" | "inactive" | "draft" | "archived" | "all")
+                                            setStatusFilter(value as "active" | "inactive" | "all")
                                         }
                                     >
                                         <SelectTrigger className="w-full">
                                             <SelectValue placeholder="Select status" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">All Curriculums</SelectItem>
-                                            {statusOptions.map((status) => (
-                                                <SelectItem key={status.value} value={status.value}>
-                                                    <div className="flex items-center gap-2">
-                                                        <div
-                                                            className={`w-2 h-2 rounded-full ${status.color}`}
-                                                        ></div>
-                                                        {status.label}
-                                                    </div>
-                                                </SelectItem>
-                                            ))}
+                                            <SelectItem value="all">All Lessons</SelectItem>
+                                            <SelectItem value="active">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-green-600"></div>
+                                                    Active
+                                                </div>
+                                            </SelectItem>
+                                            <SelectItem value="inactive">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-gray-600"></div>
+                                                    Inactive
+                                                </div>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-foreground">
+                                        Type
+                                    </label>
+                                    <Select
+                                        value={mandatoryFilter}
+                                        onValueChange={(value) =>
+                                            setMandatoryFilter(value as "mandatory" | "optional" | "all")
+                                        }
+                                    >
+                                        <SelectTrigger className="w-full">
+                                            <SelectValue placeholder="Select type" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Types</SelectItem>
+                                            <SelectItem value="mandatory">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-orange-600"></div>
+                                                    Mandatory
+                                                </div>
+                                            </SelectItem>
+                                            <SelectItem value="optional">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-gray-600"></div>
+                                                    Optional
+                                                </div>
+                                            </SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -492,7 +522,7 @@ export function CurriculumsTable() {
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
-                <CurriculumDialog/>
+                <LessonsDialog/>
             </div>
             <div className="overflow-hidden rounded-md border">
                 <Table>
@@ -525,12 +555,12 @@ export function CurriculumsTable() {
                                     data-state={row.getIsSelected() && "selected"}
                                     className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
                                     onClick={() => {
-                                        const curriculumId = row.original.id;
-                                        router.push(`/${locale}/admin/curriculums/${curriculumId}`);
+                                        const lessonId = row.original.id
+                                        router.push(`/${locale}/admin/lessons/${lessonId}`)
                                     }}
                                 >
                                     {row.getVisibleCells().map((cell) => (
-                                        <TableCell 
+                                        <TableCell
                                             key={cell.id}
                                             className={`py-4 px-2 lg:px-5 ${cell.column.columnDef.meta?.className || ""}`}
                                         >
@@ -557,7 +587,7 @@ export function CurriculumsTable() {
             </div>
             <div className="flex items-center justify-between gap-4 py-4">
                 <div className="text-sm text-muted-foreground">
-                    Showing {table.getRowModel().rows.length} of {data.length} curriculum(s)
+                    Showing {table.getRowModel().rows.length} of {data.length} lesson(s)
                 </div>
                 <div className="space-x-2">
                     <Button
@@ -582,22 +612,14 @@ export function CurriculumsTable() {
     )
 }
 
-function CurriculumStatusBadge({ status }: { status: "active" | "inactive" | "draft" | "archived" }) {
-    const styles: Record<string, string> = {
-        active: "bg-emerald-500/10 text-emerald-700",
-        inactive: "bg-gray-500/15 text-gray-700",
-        draft: "bg-amber-500/15 text-amber-700",
-        archived: "bg-rose-500/20 text-rose-700",
-    }
-
-    const capitalize = (str: string) =>
-        str.charAt(0).toUpperCase() + str.slice(1)
+function LessonStatusBadge({ isActive }: { isActive: boolean }) {
+    const styles = isActive
+        ? "bg-emerald-500/10 text-emerald-700"
+        : "bg-gray-500/15 text-gray-700"
 
     return (
-        <Badge
-            className={`rounded-full px-3 py-0.5 text-xs font-medium inline-flex ${styles[status] ?? styles.inactive}`}
-        >
-            {capitalize(status)}
+        <Badge className={`rounded-full px-3 py-0.5 text-xs font-medium inline-flex ${styles}`}>
+            {isActive ? "Active" : "Inactive"}
         </Badge>
     )
 }
