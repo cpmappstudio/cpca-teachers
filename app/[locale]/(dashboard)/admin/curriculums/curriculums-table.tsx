@@ -230,7 +230,7 @@ export const columns: ColumnDef<Curriculum>[] = [
         meta: {
             className: "hidden lg:table-cell",
         },
-              filterFn: (row, id, value) => {
+        filterFn: (row, id, value) => {
             return value.includes(row.getValue(id))
         },
     },
@@ -400,22 +400,22 @@ export function CurriculumsTable() {
                 </div>
                 <div className="flex items-center gap-3">
                     {/* Botón Clear all - visible solo cuando hay filtros activos */}
-                    {(statusFilter !== "all" || 
-                      gradeFilter !== "all" ||
-                      (table.getColumn("name")?.getFilterValue() as string)?.length > 0) && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                                setStatusFilter("all");
-                                setGradeFilter("all");
-                                table.getColumn("name")?.setFilterValue("");
-                            }}
-                            className="h-10 px-3"
-                        >
-                            Clear all
-                        </Button>
-                    )}
+                    {(statusFilter !== "all" ||
+                        gradeFilter !== "all" ||
+                        (table.getColumn("name")?.getFilterValue() as string)?.length > 0) && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    setStatusFilter("all");
+                                    setGradeFilter("all");
+                                    table.getColumn("name")?.setFilterValue("");
+                                }}
+                                className="h-10 px-3"
+                            >
+                                Clear all
+                            </Button>
+                        )}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" size="lg" className="h-10 px-3 bg-card">
@@ -492,7 +492,7 @@ export function CurriculumsTable() {
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
-                <CurriculumDialog/>
+                <CurriculumDialog />
             </div>
             <div className="overflow-hidden rounded-md border">
                 <Table>
@@ -501,7 +501,7 @@ export function CurriculumsTable() {
                             <TableRow key={headerGroup.id} className="border-b hover:bg-deep-koamaru">
                                 {headerGroup.headers.map((header) => {
                                     return (
-                                        <TableHead 
+                                        <TableHead
                                             key={header.id}
                                             className={`py-3 px-0 lg:px-5 ${header.column.columnDef.meta?.className || ""}`}
                                         >
@@ -526,11 +526,11 @@ export function CurriculumsTable() {
                                     className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
                                     onClick={() => {
                                         const curriculumId = row.original.id;
-                                        router.push(`/${locale}/admin/curriculums/${curriculumId}`);
+                                        router.push(`/${locale}/curriculums/${curriculumId}`);
                                     }}
                                 >
                                     {row.getVisibleCells().map((cell) => (
-                                        <TableCell 
+                                        <TableCell
                                             key={cell.id}
                                             className={`py-4 px-2 lg:px-5 ${cell.column.columnDef.meta?.className || ""}`}
                                         >

@@ -7,15 +7,33 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { useParams } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import { CurriculumDialog } from "../curriculum-dialog";
+import type { UserRole } from "@/convex/types";
 
 interface CurriculumHeaderProps {
     curriculumId: string;
 }
 
+// Helper function to extract role from user object (client-safe)
+function getUserRole(user: any): UserRole | null {
+    if (!user) return null
+
+    const publicMeta = user.publicMetadata
+    const privateMeta = user.privateMetadata
+    const unsafeMeta = user.unsafeMetadata
+
+    const role = publicMeta?.role ?? privateMeta?.role ?? unsafeMeta?.role
+
+    return (role as UserRole) ?? null
+}
+
 export function CurriculumHeader({ curriculumId }: CurriculumHeaderProps) {
     const params = useParams();
     const locale = params.locale as string;
+    const { user } = useUser();
+
+    const userRole = getUserRole(user);
 
     // TODO: Create query to get curriculum by ID
     // For now, using mock data
@@ -36,6 +54,11 @@ export function CurriculumHeader({ curriculumId }: CurriculumHeaderProps) {
     const descriptionColor = hasHero ? "text-sm text-white/90" : "text-sm text-muted-foreground";
     const subtitle = `${mockCurriculum.code} • ${mockCurriculum.grade} Grade`;
 
+    // Determine back URL based on user role
+    const backUrl = userRole === 'teacher'
+        ? `/${locale}/teaching`
+        : `/${locale}/admin/curriculums`;
+
     return (
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between px-2 md:px-0">
             <div className="space-y-1.5">
@@ -46,7 +69,7 @@ export function CurriculumHeader({ curriculumId }: CurriculumHeaderProps) {
             </div>
             <div className="flex items-center gap-3 pt-1">
                 <Button variant="outline" className="gap-2" asChild>
-                    <Link href={`/${locale}/admin/curriculums`}>
+                    <Link href={backUrl}>
                         <ArrowLeft className="h-4 w-4" />
                         Back to curriculums
                     </Link>

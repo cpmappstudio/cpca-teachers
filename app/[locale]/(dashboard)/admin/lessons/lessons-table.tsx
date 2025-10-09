@@ -405,24 +405,24 @@ export function LessonsTable() {
                 </div>
                 <div className="flex items-center gap-3">
                     {/* Botón Clear all - visible solo cuando hay filtros activos */}
-                    {(statusFilter !== "all" || 
-                      quarterFilter !== "all" ||
-                      mandatoryFilter !== "all" ||
-                      (table.getColumn("title")?.getFilterValue() as string)?.length > 0) && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                                setStatusFilter("all");
-                                setQuarterFilter("all");
-                                setMandatoryFilter("all");
-                                table.getColumn("title")?.setFilterValue("");
-                            }}
-                            className="h-10 px-3"
-                        >
-                            Clear all
-                        </Button>
-                    )}
+                    {(statusFilter !== "all" ||
+                        quarterFilter !== "all" ||
+                        mandatoryFilter !== "all" ||
+                        (table.getColumn("title")?.getFilterValue() as string)?.length > 0) && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    setStatusFilter("all");
+                                    setQuarterFilter("all");
+                                    setMandatoryFilter("all");
+                                    table.getColumn("title")?.setFilterValue("");
+                                }}
+                                className="h-10 px-3"
+                            >
+                                Clear all
+                            </Button>
+                        )}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" size="lg" className="h-10 px-3 bg-card">
@@ -522,7 +522,7 @@ export function LessonsTable() {
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
-                <LessonsDialog/>
+                <LessonsDialog />
             </div>
             <div className="overflow-hidden rounded-md border">
                 <Table>
@@ -531,7 +531,7 @@ export function LessonsTable() {
                             <TableRow key={headerGroup.id} className="border-b hover:bg-deep-koamaru">
                                 {headerGroup.headers.map((header) => {
                                     return (
-                                        <TableHead 
+                                        <TableHead
                                             key={header.id}
                                             className={`py-3 px-0 lg:px-5 ${header.column.columnDef.meta?.className || ""}`}
                                         >
@@ -556,7 +556,7 @@ export function LessonsTable() {
                                     className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
                                     onClick={() => {
                                         const lessonId = row.original.id
-                                        router.push(`/${locale}/admin/lessons/${lessonId}`)
+                                        router.push(`/${locale}/lessons/${lessonId}`)
                                     }}
                                 >
                                     {row.getVisibleCells().map((cell) => (
