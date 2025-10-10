@@ -31,9 +31,6 @@ export default function CurriculumPage({ params }: CurriculumPageProps) {
                     </Suspense>
                 </div>
             </div>
-
-            {/* Additional sections can be added here */}
-            {/* For example: Lessons, Teachers assigned, etc. */}
         </div>
     )
 }

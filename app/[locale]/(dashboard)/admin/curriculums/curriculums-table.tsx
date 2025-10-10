@@ -45,82 +45,21 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { CurriculumDialog } from "@/components/admin/curriculums/curriculum-dialog"
+import { useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
+import type { Doc } from "@/convex/_generated/dataModel"
 
-// Tipo para los datos de curriculums
-export type Curriculum = {
-    id: string
-    name: string
-    grade: "Pre-K" | "K" | "1st" | "2nd" | "3rd" | "4th" | "5th" | "6th" | "7th" | "8th" | "9th" | "10th" | "11th" | "12th"
-    lessonsCount: number
-    status: "active" | "inactive" | "draft" | "archived"
-    quarters: number
+// Tipo para los datos de curriculums basado en el schema de Convex
+export type Curriculum = Doc<"curriculums"> & {
+    // Campos calculados/derivados para la tabla
+    lessonsCount?: number
 }
-
-// Datos de ejemplo (luego se reemplazará con datos de Convex)
-const data: Curriculum[] = [
-    {
-        id: "MATH-10-001",
-        name: "Mathematics Grade 10",
-        grade: "10th",
-        lessonsCount: 45,
-        status: "active",
-        quarters: 4,
-    },
-    {
-        id: "SCI-09-001",
-        name: "General Science",
-        grade: "9th",
-        lessonsCount: 38,
-        status: "active",
-        quarters: 4,
-    },
-    {
-        id: "ENG-11-001",
-        name: "English Literature",
-        grade: "11th",
-        lessonsCount: 52,
-        status: "active",
-        quarters: 4,
-    },
-    {
-        id: "HIST-12-001",
-        name: "World History",
-        grade: "12th",
-        lessonsCount: 40,
-        status: "draft",
-        quarters: 4,
-    },
-    {
-        id: "ART-08-001",
-        name: "Visual Arts",
-        grade: "8th",
-        lessonsCount: 30,
-        status: "active",
-        quarters: 2,
-    },
-    {
-        id: "PE-09-001",
-        name: "Physical Education",
-        grade: "9th",
-        lessonsCount: 25,
-        status: "inactive",
-        quarters: 4,
-    },
-    {
-        id: "CHEM-11-001",
-        name: "Chemistry Advanced",
-        grade: "11th",
-        lessonsCount: 48,
-        status: "active",
-        quarters: 4,
-    },
-]
 
 const statusOptions = [
     { label: "Active", value: "active", color: "bg-green-600" },
-    { label: "Inactive", value: "inactive", color: "bg-gray-600" },
     { label: "Draft", value: "draft", color: "bg-amber-600" },
     { label: "Archived", value: "archived", color: "bg-rose-600" },
+    { label: "Deprecated", value: "deprecated", color: "bg-gray-600" },
 ]
 
 
@@ -149,7 +88,7 @@ export const columns: ColumnDef<Curriculum>[] = [
     //     enableHiding: false,
     // },
     {
-        accessorKey: "id",
+        accessorKey: "code",
         header: ({ column }) => {
             return (
                 <Button
@@ -163,7 +102,7 @@ export const columns: ColumnDef<Curriculum>[] = [
             )
         },
         cell: ({ row }) => (
-            <div className="text-sm hidden lg:block py-1">{row.getValue("id")}</div>
+            <div className="text-sm hidden lg:block py-1">{row.getValue("code") || "N/A"}</div>
         ),
         meta: {
             className: "hidden lg:table-cell",
@@ -189,11 +128,8 @@ export const columns: ColumnDef<Curriculum>[] = [
                 <div className="space-y-2 py-1">
                     <div className="font-medium text-sm lg:text-base">{row.getValue("name")}</div>
                     <div className="flex lg:hidden flex-col gap-1.5 text-xs lg:text-sm text-muted-foreground">
-                        <span className="text-xs">{curriculum.id}</span>
+                        <span className="text-xs">{curriculum.code || "N/A"}</span>
                         <div className="flex items-center gap-1.5 flex-wrap">
-                            <Badge className="bg-sky-500/15 text-sky-700 border border-sky-200 text-xs px-2 py-0.5">
-                                {curriculum.grade}
-                            </Badge>
                             <CurriculumStatusBadge status={curriculum.status} />
                         </div>
                     </div>
@@ -202,40 +138,16 @@ export const columns: ColumnDef<Curriculum>[] = [
         },
         filterFn: (row, id, value) => {
             const name = row.getValue("name") as string
-            const code = row.getValue("id") as string
+            const code = row.getValue("code") as string | undefined
             const searchValue = value.toLowerCase()
             return (
                 name.toLowerCase().includes(searchValue) ||
-                code.toLowerCase().includes(searchValue)
+                (code?.toLowerCase().includes(searchValue) ?? false)
             )
         },
     },
     {
-        accessorKey: "grade",
-        header: ({ column }) => {
-            return (
-                <Button
-                    variant="ghost"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                    className="hidden lg:flex items-center h-10 px-4 text-white hover:bg-white/10 hover:text-white"
-                >
-                    Grade
-                    <ArrowUpDown className="h-4 w-4 text-white" />
-                </Button>
-            )
-        },
-        cell: ({ row }) => (
-            <div className="text-sm hidden lg:block py-1">{row.getValue("grade")}</div>
-        ),
-        meta: {
-            className: "hidden lg:table-cell",
-        },
-        filterFn: (row, id, value) => {
-            return value.includes(row.getValue(id))
-        },
-    },
-    {
-        accessorKey: "lessonsCount",
+        accessorKey: "numberOfQuarters",
         header: ({ column }) => {
             return (
                 <Button
@@ -243,18 +155,20 @@ export const columns: ColumnDef<Curriculum>[] = [
                     onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                     className="h-10 px-2 lg:px-5 text-white hover:bg-white/10 hover:text-white"
                 >
-                    Lessons
+                    Quarters
                     <ArrowUpDown className="h-4 w-4 text-white" />
                 </Button>
             )
         },
         cell: ({ row }) => {
-            const lessons = parseInt(row.getValue("lessonsCount"))
-            const quarters = row.original.quarters
+            const quarters = row.getValue("numberOfQuarters") as number
+            const lessons = row.original.lessonsCount ?? 0
             return (
                 <div className="flex items-center gap-2 py-1">
-                    <span>{lessons}</span>
-                    <span className="text-xs text-muted-foreground">({quarters}Q)</span>
+                    <span>{quarters}Q</span>
+                    {lessons > 0 && (
+                        <span className="text-xs text-muted-foreground">({lessons} lessons)</span>
+                    )}
                 </div>
             )
         },
@@ -329,6 +243,10 @@ export function CurriculumsTable() {
     const router = useRouter()
     const params = useParams()
     const locale = params.locale as string
+
+    // Obtener curriculums desde Convex
+    const curriculums = useQuery(api.curriculums.getCurriculums, {})
+    
     const [sorting, setSorting] = React.useState<SortingState>([])
     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
         []
@@ -336,10 +254,12 @@ export function CurriculumsTable() {
     const [columnVisibility, setColumnVisibility] =
         React.useState<VisibilityState>({})
     const [rowSelection, setRowSelection] = React.useState({})
-    const [statusFilter, setStatusFilter] = React.useState<"active" | "inactive" | "draft" | "archived" | "all">(
+    const [statusFilter, setStatusFilter] = React.useState<"draft" | "active" | "archived" | "deprecated" | "all">(
         "all"
     )
-    const [gradeFilter, setGradeFilter] = React.useState<Curriculum["grade"] | "all">("all")
+
+    // Usar los datos de Convex o un array vacío mientras se cargan
+    const data = curriculums ?? []
 
     const table = useReactTable({
         data,
@@ -369,15 +289,6 @@ export function CurriculumsTable() {
         }
     }, [statusFilter, table])
 
-    // Apply grade filter to the table
-    React.useEffect(() => {
-        if (gradeFilter === "all") {
-            table.getColumn("grade")?.setFilterValue(undefined)
-        } else {
-            table.getColumn("grade")?.setFilterValue([gradeFilter])
-        }
-    }, [gradeFilter, table])
-
     return (
         <div className="w-full">
             {/* Filters */}
@@ -401,14 +312,12 @@ export function CurriculumsTable() {
                 <div className="flex items-center gap-3">
                     {/* Botón Clear all - visible solo cuando hay filtros activos */}
                     {(statusFilter !== "all" ||
-                        gradeFilter !== "all" ||
                         (table.getColumn("name")?.getFilterValue() as string)?.length > 0) && (
                             <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
                                     setStatusFilter("all");
-                                    setGradeFilter("all");
                                     table.getColumn("name")?.setFilterValue("");
                                 }}
                                 className="h-10 px-3"
@@ -430,44 +339,12 @@ export function CurriculumsTable() {
                             <div className="px-3 py-3 space-y-4">
                                 <div>
                                     <label className="text-sm font-medium text-foreground">
-                                        Grade
-                                    </label>
-                                    <Select
-                                        value={gradeFilter}
-                                        onValueChange={(value) =>
-                                            setGradeFilter(value as Curriculum["grade"] | "all")
-                                        }
-                                    >
-                                        <SelectTrigger className="w-full">
-                                            <SelectValue placeholder="All Curriculums" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">All Curriculums</SelectItem>
-                                            <SelectItem value="Pre-K">Pre-K</SelectItem>
-                                            <SelectItem value="K">K</SelectItem>
-                                            <SelectItem value="1st">1st</SelectItem>
-                                            <SelectItem value="2nd">2nd</SelectItem>
-                                            <SelectItem value="3rd">3rd</SelectItem>
-                                            <SelectItem value="4th">4th</SelectItem>
-                                            <SelectItem value="5th">5th</SelectItem>
-                                            <SelectItem value="6th">6th</SelectItem>
-                                            <SelectItem value="7th">7th</SelectItem>
-                                            <SelectItem value="8th">8th</SelectItem>
-                                            <SelectItem value="9th">9th</SelectItem>
-                                            <SelectItem value="10th">10th</SelectItem>
-                                            <SelectItem value="11th">11th</SelectItem>
-                                            <SelectItem value="12th">12th</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium text-foreground">
                                         Status
                                     </label>
                                     <Select
                                         value={statusFilter}
                                         onValueChange={(value) =>
-                                            setStatusFilter(value as "active" | "inactive" | "draft" | "archived" | "all")
+                                            setStatusFilter(value as "active" | "draft" | "archived" | "deprecated" | "all")
                                         }
                                     >
                                         <SelectTrigger className="w-full">
@@ -525,7 +402,7 @@ export function CurriculumsTable() {
                                     data-state={row.getIsSelected() && "selected"}
                                     className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
                                     onClick={() => {
-                                        const curriculumId = row.original.id;
+                                        const curriculumId = row.original._id;
                                         router.push(`/${locale}/curriculums/${curriculumId}`);
                                     }}
                                 >
@@ -582,12 +459,12 @@ export function CurriculumsTable() {
     )
 }
 
-function CurriculumStatusBadge({ status }: { status: "active" | "inactive" | "draft" | "archived" }) {
+function CurriculumStatusBadge({ status }: { status: "active" | "draft" | "archived" | "deprecated" }) {
     const styles: Record<string, string> = {
         active: "bg-emerald-500/10 text-emerald-700",
-        inactive: "bg-gray-500/15 text-gray-700",
         draft: "bg-amber-500/15 text-amber-700",
         archived: "bg-rose-500/20 text-rose-700",
+        deprecated: "bg-gray-500/15 text-gray-700",
     }
 
     const capitalize = (str: string) =>
@@ -595,7 +472,7 @@ function CurriculumStatusBadge({ status }: { status: "active" | "inactive" | "dr
 
     return (
         <Badge
-            className={`rounded-full px-3 py-0.5 text-xs font-medium inline-flex ${styles[status] ?? styles.inactive}`}
+            className={`rounded-full px-3 py-0.5 text-xs font-medium inline-flex ${styles[status] ?? styles.draft}`}
         >
             {capitalize(status)}
         </Badge>

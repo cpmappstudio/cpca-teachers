@@ -35,24 +35,28 @@ export function CurriculumHeader({ curriculumId }: CurriculumHeaderProps) {
 
     const userRole = getUserRole(user);
 
-    // TODO: Create query to get curriculum by ID
-    // For now, using mock data
-    const mockCurriculum = {
-        id: curriculumId,
-        name: "Mathematics Grade 10",
-        code: "MATH-10-001",
-        description: "Advanced mathematics curriculum for 10th grade students, covering algebra, geometry, and trigonometry.",
-        grade: "10th" as const,
-        status: "active" as const,
-        numberOfQuarters: 4,
-        syllabus: "Complete syllabus covering all essential topics for grade 10 mathematics",
-        lessonsCount: 45,
-    };
+    // Get curriculum data from Convex
+    const curriculum = useQuery(
+        api.curriculums.getCurriculum,
+        { curriculumId: curriculumId as Id<"curriculums"> }
+    );
+
+    // Show loading state while fetching data
+    if (!curriculum) {
+        return (
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between px-2 md:px-0">
+                <div className="space-y-1.5">
+                    <div className="h-8 w-64 bg-muted animate-pulse rounded" />
+                    <div className="h-4 w-48 bg-muted animate-pulse rounded" />
+                </div>
+            </div>
+        );
+    }
 
     const hasHero = false;
     const textColor = hasHero ? "text-white" : "text-foreground";
     const descriptionColor = hasHero ? "text-sm text-white/90" : "text-sm text-muted-foreground";
-    const subtitle = `${mockCurriculum.code} • ${mockCurriculum.grade} Grade`;
+    const subtitle = curriculum.code ? `${curriculum.code} • ${curriculum.numberOfQuarters} Quarters` : `${curriculum.numberOfQuarters} Quarters`;
 
     // Determine back URL based on user role
     const backUrl = userRole === 'teacher'
@@ -63,7 +67,7 @@ export function CurriculumHeader({ curriculumId }: CurriculumHeaderProps) {
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between px-2 md:px-0">
             <div className="space-y-1.5">
                 <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${textColor}`}>
-                    {mockCurriculum.name}
+                    {curriculum.name}
                 </h1>
                 <p className={`${descriptionColor} leading-relaxed`}>{subtitle}</p>
             </div>
@@ -74,7 +78,7 @@ export function CurriculumHeader({ curriculumId }: CurriculumHeaderProps) {
                         Back to curriculums
                     </Link>
                 </Button>
-                <CurriculumDialog curriculum={mockCurriculum} />
+                <CurriculumDialog curriculum={curriculum} />
             </div>
         </div>
     );

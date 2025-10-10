@@ -8,82 +8,215 @@ import { SelectDropdown } from "@/components/ui/select-dropdown"
 import { Plus, Edit, Trash2, BookOpen } from "lucide-react"
 import { useState } from "react"
 import { EntityDialog } from "@/components/ui/entity-dialog"
+import { useMutation, useQuery } from "convex/react"
+import { useUser } from "@clerk/nextjs"
+import { useRouter, useParams } from "next/navigation"
+import { api } from "@/convex/_generated/api"
+import type { Doc, Id } from "@/convex/_generated/dataModel"
 
 interface CurriculumDialogProps {
-    curriculum?: {
-        id: string
-        name: string
-        code?: string
-        description?: string
-        grade: "Pre-K" | "K" | "1st" | "2nd" | "3rd" | "4th" | "5th" | "6th" | "7th" | "8th" | "9th" | "10th" | "11th" | "12th"
-        numberOfQuarters?: number
-        syllabus?: string
-        status: "active" | "inactive" | "draft" | "archived"
-    }
+    curriculum?: Doc<"curriculums">
     trigger?: React.ReactNode
 }
 
 export function CurriculumDialog({ curriculum, trigger }: CurriculumDialogProps) {
     const isEditing = !!curriculum
+    const router = useRouter()
+    const params = useParams()
+    const locale = params.locale as string
 
-    const [selectedGrade, setSelectedGrade] = useState<string>(
-        curriculum?.grade || "Pre-K"
+    // Clerk user
+    const { user: clerkUser } = useUser()
+
+    // Get current Convex user
+    const currentUser = useQuery(
+        api.users.getCurrentUser,
+        clerkUser?.id ? { clerkId: clerkUser.id } : "skip"
     )
+
+    // Mutations
+    const createCurriculumMutation = useMutation(api.curriculums.createCurriculum)
+    const updateCurriculumMutation = useMutation(api.curriculums.updateCurriculum)
+    const deleteCurriculumMutation = useMutation(api.curriculums.deleteCurriculum)
+
+    // Dialog state
+    const [isOpen, setIsOpen] = useState(false)
+
+    // Loading state
+    const [isSubmitting, setIsSubmitting] = useState(false)
+
     const [selectedStatus, setSelectedStatus] = useState<string>(
         curriculum?.status || "draft"
     )
 
-    // Grade options
-    const gradeOptions = [
-        { value: "Pre-K", label: "Pre-K" },
-        { value: "K", label: "K" },
-        { value: "1st", label: "1st Grade" },
-        { value: "2nd", label: "2nd Grade" },
-        { value: "3rd", label: "3rd Grade" },
-        { value: "4th", label: "4th Grade" },
-        { value: "5th", label: "5th Grade" },
-        { value: "6th", label: "6th Grade" },
-        { value: "7th", label: "7th Grade" },
-        { value: "8th", label: "8th Grade" },
-        { value: "9th", label: "9th Grade" },
-        { value: "10th", label: "10th Grade" },
-        { value: "11th", label: "11th Grade" },
-        { value: "12th", label: "12th Grade" }
-    ]
-
     // Curriculum status options
     const curriculumStatusOptions = [
         { value: "active", label: "Active" },
-        { value: "inactive", label: "Inactive" },
         { value: "draft", label: "Draft" },
-        { value: "archived", label: "Archived" }
+        { value: "archived", label: "Archived" },
+        { value: "deprecated", label: "Deprecated" }
     ]
 
-    const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault()
-        const formData = new FormData(event.currentTarget)
 
-        // Añadir los valores seleccionados al formData
-        formData.set("grade", selectedGrade)
-        formData.set("status", selectedStatus)
+        // Guardar referencia al formulario ANTES de cualquier operación asíncrona
+        const form = event.currentTarget
 
-        if (isEditing) {
-            // TODO: Implement Convex mutation to update curriculum
-            console.log("Updating curriculum with form data:", Object.fromEntries(formData))
-        } else {
-            // TODO: Implement Convex mutation to create curriculum
-            console.log("Creating curriculum with form data:", Object.fromEntries(formData))
+        // Validar que tengamos el usuario actual
+        if (!currentUser?._id) {
+            alert("Error: User not authenticated. Please sign in again.")
+            return
         }
 
-        console.log("Selected Grade:", selectedGrade)
-        console.log("Selected Status:", selectedStatus)
+        const formData = new FormData(form)
+
+        // Obtener datos del formulario
+        const name = formData.get("name") as string
+        const code = formData.get("code") as string | null
+        const description = formData.get("description") as string | null
+        const numberOfQuarters = formData.get("numberOfQuarters") as string | null
+
+        // Validación básica
+        if (!name?.trim()) {
+            alert("Validation Error: Curriculum name is required.")
+            return
+        }
+
+        if (!code?.trim()) {
+            alert("Validation Error: Curriculum code is required.")
+            return
+        }
+
+        setIsSubmitting(true)
+
+        try {
+            if (isEditing) {
+                // Actualizar curriculum existente
+                if (!curriculum?._id) {
+                    alert("Error: Curriculum ID not found.")
+                    return
+                }
+
+                const updates: {
+                    name?: string
+                    code?: string
+                    description?: string
+                    numberOfQuarters?: number
+                    status?: "draft" | "active" | "archived" | "deprecated"
+                } = {}
+
+                // Solo incluir campos que han cambiado
+                if (name.trim() !== curriculum.name) {
+                    updates.name = name.trim()
+                }
+
+                if (code?.trim() !== curriculum.code) {
+                    updates.code = code?.trim() || undefined
+                }
+
+                if (description?.trim() !== (curriculum.description || "")) {
+                    updates.description = description?.trim() || undefined
+                }
+
+                const newQuarters = numberOfQuarters ? parseInt(numberOfQuarters) : 4
+                if (newQuarters !== curriculum.numberOfQuarters) {
+                    updates.numberOfQuarters = newQuarters
+                }
+
+                if (selectedStatus !== curriculum.status) {
+                    updates.status = selectedStatus as "draft" | "active" | "archived" | "deprecated"
+                }
+
+                // Solo hacer la actualización si hay cambios
+                if (Object.keys(updates).length > 0) {
+                    await updateCurriculumMutation({
+                        curriculumId: curriculum._id,
+                        updates,
+                        updatedBy: currentUser._id,
+                    })
+
+                    alert(`Success! Curriculum "${name}" has been updated successfully.`)
+                    console.log("Curriculum updated:", curriculum._id)
+
+                    // Cerrar el dialog automáticamente después del éxito
+                    setIsOpen(false)
+
+                    // Recargar la página para mostrar los cambios
+                    router.refresh()
+                } else {
+                    alert("No changes detected.")
+                    setIsSubmitting(false)
+                    return
+                }
+            } else {
+                // Crear curriculum
+                const curriculumData: {
+                    name: string
+                    code?: string
+                    description?: string
+                    numberOfQuarters: number
+                    createdBy: Id<"users">
+                } = {
+                    name: name.trim(),
+                    code: code.trim(),
+                    numberOfQuarters: numberOfQuarters ? parseInt(numberOfQuarters) : 4,
+                    createdBy: currentUser._id,
+                }
+
+                // Descripción opcional
+                if (description?.trim()) {
+                    curriculumData.description = description.trim()
+                }
+
+                const curriculumId = await createCurriculumMutation(curriculumData)
+
+                alert(`Success! Curriculum "${name}" has been created successfully.`)
+                console.log("Curriculum created with ID:", curriculumId)
+
+                // Resetear formulario
+                form.reset()
+                setSelectedStatus("draft")
+
+                // Cerrar el dialog automáticamente después del éxito
+                setIsOpen(false)
+
+                // Recargar la página para mostrar el nuevo curriculum
+                router.refresh()
+            }
+        } catch (error) {
+            console.error("Error saving curriculum:", error)
+            const errorMessage = error instanceof Error ? error.message : "Failed to save curriculum. Please try again."
+            alert(`Error: ${errorMessage}`)
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
-    const handleDelete = () => {
-        if (curriculum && window.confirm(`Are you sure you want to delete "${curriculum.name}"? This action cannot be undone.`)) {
-            // TODO: Implement Convex mutation to delete curriculum
-            console.log("Deleting curriculum:", curriculum.id)
-            alert("Curriculum deletion would be implemented here")
+    const handleDelete = async () => {
+        if (!curriculum) return
+
+        if (window.confirm(`Are you sure you want to delete "${curriculum.name}"? This action cannot be undone.`)) {
+            try {
+                setIsSubmitting(true)
+                await deleteCurriculumMutation({ curriculumId: curriculum._id })
+                
+                alert(`Success! Curriculum "${curriculum.name}" has been deleted.`)
+                console.log("Curriculum deleted:", curriculum._id)
+
+                // Cerrar el dialog
+                setIsOpen(false)
+
+                // Redirigir a la página de listado de curriculums con el locale correcto
+                router.push(`/${locale}/admin/curriculums`)
+                router.refresh()
+            } catch (error) {
+                console.error("Error deleting curriculum:", error)
+                const errorMessage = error instanceof Error ? error.message : "Failed to delete curriculum. Please try again."
+                alert(`Error: ${errorMessage}`)
+            } finally {
+                setIsSubmitting(false)
+            }
         }
     }
 
@@ -111,6 +244,9 @@ export function CurriculumDialog({ curriculum, trigger }: CurriculumDialogProps)
             }
             onSubmit={handleSubmit}
             submitLabel={isEditing ? "Save changes" : "Create Curriculum"}
+            isSubmitting={isSubmitting}
+            open={isOpen}
+            onOpenChange={setIsOpen}
             leftActions={isEditing ? (
                 <Button
                     type="button"
@@ -124,10 +260,6 @@ export function CurriculumDialog({ curriculum, trigger }: CurriculumDialogProps)
             ) : undefined}
         >
             <div className="grid gap-6">
-                {/* Hidden inputs para los valores seleccionados */}
-                <input type="hidden" name="grade" value={selectedGrade} />
-                <input type="hidden" name="status" value={selectedStatus} />
-
                 {/* Basic Information */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="grid gap-3">
@@ -169,51 +301,18 @@ export function CurriculumDialog({ curriculum, trigger }: CurriculumDialogProps)
                     />
                 </div>
 
-                {/* Grade and Quarters */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="grid gap-3">
-                        <Label htmlFor="grade">
-                            Grade {!isEditing && "*"}
-                        </Label>
-                        <SelectDropdown
-                            options={gradeOptions}
-                            value={selectedGrade}
-                            onValueChange={(value) => setSelectedGrade(value)}
-                            placeholder="Select grade..."
-                            label="Grade Options"
-                        />
-                    </div>
-                    <div className="grid gap-3">
-                        <Label htmlFor="numberOfQuarters">Number of Quarters</Label>
-                        <Input
-                            id="numberOfQuarters"
-                            name="numberOfQuarters"
-                            type="number"
-                            min="1"
-                            max="4"
-                            defaultValue={curriculum?.numberOfQuarters || 4}
-                            placeholder={isEditing ? "" : "e.g., 4"}
-                        />
-                    </div>
-                </div>
-
-                {/* Syllabus */}
-                <div className="space-y-4">
-                    <h4 className="text-sm font-medium border-b pb-2">Syllabus</h4>
-                    <div className="grid gap-3">
-                        <Label htmlFor="syllabus">Syllabus Content</Label>
-                        <Textarea
-                            id="syllabus"
-                            name="syllabus"
-                            defaultValue={curriculum?.syllabus || ""}
-                            placeholder={isEditing ? "" : "Enter the complete syllabus content, including topics, objectives, and learning outcomes..."}
-                            rows={8}
-                            className="resize-none font-mono text-sm"
-                        />
-                        <p className="text-sm text-muted-foreground">
-                            Include all relevant topics, learning objectives, and assessment criteria
-                        </p>
-                    </div>
+                {/* Number of Quarters */}
+                <div className="grid gap-3">
+                    <Label htmlFor="numberOfQuarters">Number of Quarters</Label>
+                    <Input
+                        id="numberOfQuarters"
+                        name="numberOfQuarters"
+                        type="number"
+                        min="1"
+                        max="4"
+                        defaultValue={curriculum?.numberOfQuarters || 4}
+                        placeholder={isEditing ? "" : "e.g., 4"}
+                    />
                 </div>
 
                 {/* Status */}
