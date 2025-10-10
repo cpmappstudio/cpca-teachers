@@ -14,7 +14,7 @@ import {
     useReactTable,
     VisibilityState,
 } from "@tanstack/react-table"
-import { ArrowUpDown, Filter, Search } from "lucide-react"
+import { ArrowUpDown, Filter, Search, Upload } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -47,6 +47,7 @@ import {
     AccordionItem,
     AccordionTrigger,
 } from "@/components/ui/accordion"
+import { TeacherDialog } from "@/components/teaching/upload-lesson-dialog"
 
 // Tipos
 export type Curriculum = {
@@ -222,6 +223,15 @@ const lessonColumns: ColumnDef<Lesson>[] = [
                                 Q{lesson.quarter} (#{lesson.orderInQuarter})
                             </Badge>
                             <LessonStatusBadge isActive={lesson.isActive} />
+                            {lesson.isMandatory ? (
+                                <Badge className="bg-orange-500/15 text-orange-700 border border-orange-200 text-xs px-2 py-0.5">
+                                    Required
+                                </Badge>
+                            ) : (
+                                <Badge className="bg-gray-500/15 text-gray-700 border border-gray-200 text-xs px-2 py-0.5">
+                                    Optional
+                                </Badge>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -298,7 +308,7 @@ const lessonColumns: ColumnDef<Lesson>[] = [
                 <Button
                     variant="ghost"
                     onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                    className="h-10 px-2 lg:px-5 text-white hover:bg-white/10 hover:text-white"
+                    className="hidden lg:flex items-center h-10 px-2 lg:px-5 text-white hover:bg-white/10 hover:text-white"
                 >
                     Mandatory
                     <ArrowUpDown className="h-4 w-4 text-white" />
@@ -308,7 +318,7 @@ const lessonColumns: ColumnDef<Lesson>[] = [
         cell: ({ row }) => {
             const isMandatory = row.getValue("isMandatory") as boolean
             return (
-                <div className="flex items-center justify-center py-1">
+                <div className="hidden lg:flex items-center justify-center py-1">
                     {isMandatory ? (
                         <Badge className="bg-orange-500/15 text-orange-700 border border-orange-200 text-xs px-2 py-0.5">
                             Required
@@ -321,10 +331,42 @@ const lessonColumns: ColumnDef<Lesson>[] = [
                 </div>
             )
         },
+        meta: {
+            className: "hidden lg:table-cell",
+        },
         filterFn: (row, id, value) => {
             if (value === "all") return true
             const isMandatory = row.getValue(id) as boolean
             return value === "mandatory" ? isMandatory : !isMandatory
+        },
+    },
+    {
+        id: "actions",
+        cell: ({ row }) => {
+            const lesson = row.original
+            return (
+                <div 
+                    className="flex items-center justify-center gap-2 py-1"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <TeacherDialog
+                        lesson={{
+                            id: lesson.id,
+                            title: lesson.title,
+                        }}
+                        trigger={
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 hover:bg-primary/10"
+                                title="Upload lesson proof"
+                            >
+                                <Upload className="h-4 w-4" />
+                            </Button>
+                        }
+                    />
+                </div>
+            )
         },
     },
 ]
