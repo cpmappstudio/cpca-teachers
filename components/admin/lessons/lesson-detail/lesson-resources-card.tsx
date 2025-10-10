@@ -3,17 +3,37 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { FilePlus2, Link2 } from "lucide-react"
+import { useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 
 interface LessonResourcesCardProps {
   lessonId: string
 }
 
 export function LessonResourcesCard({ lessonId }: LessonResourcesCardProps) {
-  const mockResources = [
-    { name: "Teacher Guide", url: "https://example.com/guide.pdf", type: "document", isRequired: true },
-    { name: "Overview Video", url: "https://example.com/video", type: "video", isRequired: false },
-    { name: "Reference Article", url: "https://example.com/article", type: "link", isRequired: false },
-  ]
+  // Get lesson data from Convex
+  const lesson = useQuery(
+    api.lessons.getLesson,
+    { lessonId: lessonId as Id<"curriculum_lessons"> }
+  )
+
+  // Show loading state while fetching data
+  if (!lesson) {
+    return (
+      <Card className="w-full h-full overflow-hidden">
+        <CardHeader className="pb-4">
+          <div className="h-5 w-32 bg-muted animate-pulse rounded" />
+          <div className="h-4 w-48 bg-muted animate-pulse rounded" />
+        </CardHeader>
+        <CardContent className="space-y-4 px-4 md:px-6 pt-0 pb-4">
+          <div className="h-16 bg-muted animate-pulse rounded" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const resources = lesson.resources || []
 
   return (
     <Card className="w-full h-full overflow-hidden">
@@ -22,11 +42,11 @@ export function LessonResourcesCard({ lessonId }: LessonResourcesCardProps) {
         <CardDescription className="text-sm">Supporting materials linked to this lesson.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 px-4 md:px-6 pt-0 pb-4">
-        {mockResources.length === 0 && (
+        {resources.length === 0 && (
           <p className="text-sm text-muted-foreground">No resources added.</p>
         )}
-  <ul className="space-y-3">
-          {mockResources.map((res, index) => (
+        <ul className="space-y-3">
+          {resources.map((res, index) => (
             <li key={index} className="rounded-md border p-3 bg-muted/30 space-y-1">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex flex-col">

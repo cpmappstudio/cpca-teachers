@@ -9,34 +9,51 @@ import { SelectDropdown } from "@/components/ui/select-dropdown"
 import { EntityDialog } from "@/components/ui/entity-dialog"
 import { Plus, Edit, Trash2, BookOpen, Link2, ListChecks, FilePlus2 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
+import { useMutation, useQuery } from "convex/react"
+import { useUser } from "@clerk/nextjs"
+import { useRouter, useParams } from "next/navigation"
+import { api } from "@/convex/_generated/api"
+import type { Doc, Id } from "@/convex/_generated/dataModel"
 
 interface LessonDialogProps {
-  lesson?: {
-    id: string
-    curriculumId: string
-    title: string
-    description?: string
-    quarter: number
-    orderInQuarter: number
-    expectedDurationMinutes?: number
-    resources?: { name: string; url: string; type: string; isRequired: boolean }[]
-    objectives?: string[]
-    isActive: boolean
-    isMandatory: boolean
-  }
+  lesson?: Doc<"curriculum_lessons">
   trigger?: React.ReactNode
-  curriculumOptions?: { value: string; label: string }[]
 }
 
-export function LessonsDialog({ lesson, trigger, curriculumOptions }: LessonDialogProps) {
+export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
   const isEditing = !!lesson
+  const router = useRouter()
+  const params = useParams()
+  const locale = params.locale as string
 
-  // Mocks iniciales
-  const mockCurriculumOptions = curriculumOptions || [
-    { value: "curr-001", label: "Mathematics Grade 10" },
-    { value: "curr-002", label: "Science Grade 9" },
-    { value: "curr-003", label: "History Grade 8" },
-  ]
+  // Clerk user
+  const { user: clerkUser } = useUser()
+
+  // Get current Convex user
+  const currentUser = useQuery(
+    api.users.getCurrentUser,
+    clerkUser?.id ? { clerkId: clerkUser.id } : "skip"
+  )
+
+  // Get curriculums from database
+  const curriculums = useQuery(api.curriculums.getCurriculums, { isActive: true })
+
+  // Mutations
+  const createLessonMutation = useMutation(api.lessons.createLesson)
+  const updateLessonMutation = useMutation(api.lessons.updateLesson)
+  const deleteLessonMutation = useMutation(api.lessons.deleteLesson)
+
+  // Dialog state
+  const [isOpen, setIsOpen] = useState(false)
+
+  // Loading state
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Transform curriculums to options format
+  const curriculumOptions = curriculums?.map(curriculum => ({
+    value: curriculum._id,
+    label: `${curriculum.name}${curriculum.code ? ` (${curriculum.code})` : ''}`
+  })) || []
 
   const quarterOptions = [
     { value: "1", label: "Quarter 1" },
@@ -53,7 +70,7 @@ export function LessonsDialog({ lesson, trigger, curriculumOptions }: LessonDial
   ]
 
   const [selectedCurriculum, setSelectedCurriculum] = useState<string>(
-    lesson?.curriculumId || mockCurriculumOptions[0].value
+    lesson?.curriculumId || ""
   )
   const [selectedQuarter, setSelectedQuarter] = useState<string>(
     lesson?.quarter?.toString() || "1"
@@ -63,21 +80,14 @@ export function LessonsDialog({ lesson, trigger, curriculumOptions }: LessonDial
 
   // List states
   const [objectives, setObjectives] = useState<string[]>(
-    lesson?.objectives || ["Understand lesson basics"]
+    lesson?.objectives || []
   )
   const [newObjective, setNewObjective] = useState("")
 
   const [resources, setResources] = useState<
     { name: string; url: string; type: string; isRequired: boolean }[]
   >(
-    lesson?.resources || [
-      {
-        name: "Teacher Guide",
-        url: "https://example.com/guide.pdf",
-        type: "document",
-        isRequired: true,
-      },
-    ]
+    lesson?.resources || []
   )
 
   const [editingResourceIndex, setEditingResourceIndex] = useState<number | null>(null)
@@ -88,33 +98,235 @@ export function LessonsDialog({ lesson, trigger, curriculumOptions }: LessonDial
     isRequired: true,
   })
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const formData = new FormData(event.currentTarget)
 
-    formData.set("curriculumId", selectedCurriculum)
-    formData.set("quarter", selectedQuarter)
-    formData.set("isActive", isActive ? "true" : "false")
-    formData.set("isMandatory", isMandatory ? "true" : "false")
-    formData.set("objectives", JSON.stringify(objectives))
-    formData.set("resources", JSON.stringify(resources))
+    // Guardar referencia al formulario ANTES de cualquier operación asíncrona
+    const form = event.currentTarget
 
-    if (isEditing) {
-      console.log("Updating lesson with form data:", Object.fromEntries(formData))
-    } else {
-      console.log("Creating lesson with form data:", Object.fromEntries(formData))
+    // Validar que tengamos el usuario actual
+    if (!currentUser?._id) {
+      alert("Error: User not authenticated. Please sign in again.")
+      return
+    }
+
+    const formData = new FormData(form)
+
+    // Obtener datos del formulario
+    const curriculumId = formData.get("curriculumId") as string
+    const title = formData.get("title") as string
+    const description = formData.get("description") as string | null
+    const quarter = formData.get("quarter") as string
+    const orderInQuarter = formData.get("orderInQuarter") as string
+    const expectedDurationMinutes = formData.get("expectedDurationMinutes") as string | null
+
+    // Validación básica
+    if (!curriculumId?.trim()) {
+      alert("Validation Error: Curriculum is required.")
+      return
+    }
+
+    if (!title?.trim()) {
+      alert("Validation Error: Lesson title is required.")
+      return
+    }
+
+    if (!quarter) {
+      alert("Validation Error: Quarter is required.")
+      return
+    }
+
+    if (!orderInQuarter) {
+      alert("Validation Error: Order in quarter is required.")
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      if (isEditing) {
+        // Actualizar lesson existente
+        if (!lesson?._id) {
+          alert("Error: Lesson ID not found.")
+          return
+        }
+
+        const updates: {
+          title?: string
+          description?: string
+          quarter?: number
+          orderInQuarter?: number
+          expectedDurationMinutes?: number
+          resources?: { name: string; url: string; type: string; isRequired: boolean }[]
+          objectives?: string[]
+          isActive?: boolean
+          isMandatory?: boolean
+        } = {}
+
+        // Solo incluir campos que han cambiado
+        if (title.trim() !== lesson.title) {
+          updates.title = title.trim()
+        }
+
+        if (description?.trim() !== (lesson.description || "")) {
+          updates.description = description?.trim() || undefined
+        }
+
+        const newQuarter = parseInt(quarter)
+        if (newQuarter !== lesson.quarter) {
+          updates.quarter = newQuarter
+        }
+
+        const newOrder = parseInt(orderInQuarter)
+        if (newOrder !== lesson.orderInQuarter) {
+          updates.orderInQuarter = newOrder
+        }
+
+        const newDuration = expectedDurationMinutes ? parseInt(expectedDurationMinutes) : undefined
+        if (newDuration !== lesson.expectedDurationMinutes) {
+          updates.expectedDurationMinutes = newDuration
+        }
+
+        // Comparar resources (stringify para comparación profunda)
+        if (JSON.stringify(resources) !== JSON.stringify(lesson.resources || [])) {
+          updates.resources = resources.length > 0 ? resources : undefined
+        }
+
+        // Comparar objectives
+        if (JSON.stringify(objectives) !== JSON.stringify(lesson.objectives || [])) {
+          updates.objectives = objectives.length > 0 ? objectives : undefined
+        }
+
+        if (isActive !== lesson.isActive) {
+          updates.isActive = isActive
+        }
+
+        if (isMandatory !== lesson.isMandatory) {
+          updates.isMandatory = isMandatory
+        }
+
+        // Solo hacer la actualización si hay cambios
+        if (Object.keys(updates).length > 0) {
+          await updateLessonMutation({
+            lessonId: lesson._id,
+            updates,
+            updatedBy: currentUser._id,
+          })
+
+          alert(`Success! Lesson "${title}" has been updated successfully.`)
+          console.log("Lesson updated:", lesson._id)
+
+          // Cerrar el dialog automáticamente después del éxito
+          setIsOpen(false)
+
+          // Recargar la página para mostrar los cambios
+          router.refresh()
+        } else {
+          alert("No changes detected.")
+          setIsSubmitting(false)
+          return
+        }
+      } else {
+        // Crear lesson
+        const lessonData: {
+          curriculumId: Id<"curriculums">
+          title: string
+          description?: string
+          quarter: number
+          orderInQuarter: number
+          expectedDurationMinutes?: number
+          resources?: { name: string; url: string; type: string; isRequired: boolean }[]
+          objectives?: string[]
+          isMandatory?: boolean
+          createdBy: Id<"users">
+        } = {
+          curriculumId: curriculumId as Id<"curriculums">,
+          title: title.trim(),
+          quarter: parseInt(quarter),
+          orderInQuarter: parseInt(orderInQuarter),
+          createdBy: currentUser._id,
+        }
+
+        // Descripción opcional
+        if (description?.trim()) {
+          lessonData.description = description.trim()
+        }
+
+        // Duración esperada opcional
+        if (expectedDurationMinutes?.trim()) {
+          lessonData.expectedDurationMinutes = parseInt(expectedDurationMinutes)
+        }
+
+        // Resources opcionales
+        if (resources.length > 0) {
+          lessonData.resources = resources
+        }
+
+        // Objectives opcionales
+        if (objectives.length > 0) {
+          lessonData.objectives = objectives
+        }
+
+        // isMandatory
+        lessonData.isMandatory = isMandatory
+
+        const lessonId = await createLessonMutation(lessonData)
+
+        alert(`Success! Lesson "${title}" has been created successfully.`)
+        console.log("Lesson created with ID:", lessonId)
+
+        // Resetear formulario
+        form.reset()
+        setSelectedCurriculum("")
+        setSelectedQuarter("1")
+        setIsActive(true)
+        setIsMandatory(true)
+        setObjectives([])
+        setResources([])
+
+        // Cerrar el dialog automáticamente después del éxito
+        setIsOpen(false)
+
+        // Recargar la página para mostrar el nuevo lesson
+        router.refresh()
+      }
+    } catch (error) {
+      console.error("Error saving lesson:", error)
+      const errorMessage = error instanceof Error ? error.message : "Failed to save lesson. Please try again."
+      alert(`Error: ${errorMessage}`)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
+    if (!lesson) return
+
     if (
-      lesson &&
       window.confirm(
         `Are you sure you want to delete lesson "${lesson.title}"? This action cannot be undone.`
       )
     ) {
-      console.log("Deleting lesson:", lesson.id)
-      alert("Lesson deletion would be implemented here")
+      try {
+        setIsSubmitting(true)
+        await deleteLessonMutation({ lessonId: lesson._id })
+
+        alert(`Success! Lesson "${lesson.title}" has been deleted.`)
+        console.log("Lesson deleted:", lesson._id)
+
+        // Cerrar el dialog
+        setIsOpen(false)
+
+        // Redirigir a la página de listado de lessons con el locale correcto
+        router.push(`/${locale}/admin/lessons`)
+        router.refresh()
+      } catch (error) {
+        console.error("Error deleting lesson:", error)
+        const errorMessage = error instanceof Error ? error.message : "Failed to delete lesson. Please try again."
+        alert(`Error: ${errorMessage}`)
+      } finally {
+        setIsSubmitting(false)
+      }
     }
   }
 
@@ -189,6 +401,9 @@ export function LessonsDialog({ lesson, trigger, curriculumOptions }: LessonDial
       }
       onSubmit={handleSubmit}
       submitLabel={isEditing ? "Save changes" : "Create Lesson"}
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      isSubmitting={isSubmitting}
       leftActions={
         isEditing ? (
           <Button
@@ -216,12 +431,18 @@ export function LessonsDialog({ lesson, trigger, curriculumOptions }: LessonDial
           <div className="grid gap-3">
             <Label htmlFor="curriculumId">Curriculum *</Label>
             <SelectDropdown
-              options={mockCurriculumOptions}
+              options={curriculumOptions || []}
               value={selectedCurriculum}
               onValueChange={(value) => setSelectedCurriculum(value)}
               placeholder="Select curriculum..."
               label="Curriculum Options"
+              disabled={(curriculumOptions || []).length === 0}
             />
+            {(curriculumOptions || []).length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No active curriculums available. Please create one first.
+              </p>
+            )}
           </div>
           <div className="grid gap-3">
             <Label htmlFor="title">Title *</Label>

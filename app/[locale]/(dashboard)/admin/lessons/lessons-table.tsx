@@ -43,111 +43,12 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { LessonsDialog } from "@/components/admin/lessons/lessons-dialog"
+import { useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
+import type { Doc } from "@/convex/_generated/dataModel"
 
-// Tipo para los datos de lessons
-export type Lesson = {
-    id: string
-    curriculumID: string
-    title: string
-    quarter: 1 | 2 | 3 | 4
-    orderInQuarter: number
-    isActive: boolean
-    isMandatory: boolean
-}
-
-// Datos de ejemplo (luego se reemplazará con datos de Convex)
-const data: Lesson[] = [
-    {
-        id: "LESSON-001",
-        curriculumID: "MATH-10-001",
-        title: "Introduction to Algebra",
-        quarter: 1,
-        orderInQuarter: 1,
-        isActive: true,
-        isMandatory: true,
-    },
-    {
-        id: "LESSON-002",
-        curriculumID: "MATH-10-001",
-        title: "Linear Equations",
-        quarter: 1,
-        orderInQuarter: 2,
-        isActive: true,
-        isMandatory: true,
-    },
-    {
-        id: "LESSON-003",
-        curriculumID: "MATH-10-001",
-        title: "Quadratic Functions",
-        quarter: 1,
-        orderInQuarter: 3,
-        isActive: true,
-        isMandatory: false,
-    },
-    {
-        id: "LESSON-004",
-        curriculumID: "SCI-09-001",
-        title: "Scientific Method",
-        quarter: 1,
-        orderInQuarter: 1,
-        isActive: true,
-        isMandatory: true,
-    },
-    {
-        id: "LESSON-005",
-        curriculumID: "SCI-09-001",
-        title: "Cell Biology",
-        quarter: 1,
-        orderInQuarter: 2,
-        isActive: true,
-        isMandatory: true,
-    },
-    {
-        id: "LESSON-006",
-        curriculumID: "ENG-11-001",
-        title: "Shakespeare's Sonnets",
-        quarter: 2,
-        orderInQuarter: 1,
-        isActive: true,
-        isMandatory: false,
-    },
-    {
-        id: "LESSON-007",
-        curriculumID: "HIST-12-001",
-        title: "World War I",
-        quarter: 2,
-        orderInQuarter: 2,
-        isActive: false,
-        isMandatory: true,
-    },
-    {
-        id: "LESSON-008",
-        curriculumID: "MATH-10-001",
-        title: "Geometry Fundamentals",
-        quarter: 2,
-        orderInQuarter: 1,
-        isActive: true,
-        isMandatory: true,
-    },
-    {
-        id: "LESSON-009",
-        curriculumID: "CHEM-11-001",
-        title: "Atomic Structure",
-        quarter: 1,
-        orderInQuarter: 1,
-        isActive: true,
-        isMandatory: true,
-    },
-    {
-        id: "LESSON-010",
-        curriculumID: "CHEM-11-001",
-        title: "Chemical Bonding",
-        quarter: 1,
-        orderInQuarter: 2,
-        isActive: true,
-        isMandatory: false,
-    },
-]
+// Tipo para los datos de lessons basado en el schema de Convex
+export type Lesson = Doc<"curriculum_lessons">
 
 const quarterOptions = [
     { label: "Quarter 1", value: "1" },
@@ -165,7 +66,7 @@ declare module '@tanstack/react-table' {
 
 export const columns: ColumnDef<Lesson>[] = [
     {
-        accessorKey: "curriculumID",
+        accessorKey: "curriculumId",
         header: ({ column }) => {
             return (
                 <Button
@@ -179,7 +80,7 @@ export const columns: ColumnDef<Lesson>[] = [
             )
         },
         cell: ({ row }) => (
-            <div className="text-sm hidden lg:block py-1">{row.getValue("curriculumID")}</div>
+            <div className="text-sm hidden lg:block py-1">{row.getValue("curriculumId")}</div>
         ),
         meta: {
             className: "hidden lg:table-cell",
@@ -205,7 +106,7 @@ export const columns: ColumnDef<Lesson>[] = [
                 <div className="space-y-2 py-1">
                     <div className="font-medium text-sm lg:text-base">{row.getValue("title")}</div>
                     <div className="flex lg:hidden flex-col gap-1.5 text-xs lg:text-sm text-muted-foreground">
-                        <span className="text-xs">{lesson.curriculumID}</span>
+                        <span className="text-xs">{lesson.curriculumId}</span>
                         <div className="flex items-center gap-1.5 flex-wrap">
                             <Badge className="bg-blue-500/15 text-blue-700 border border-blue-200 text-xs px-2 py-0.5">
                                 Q{lesson.quarter} (#{lesson.orderInQuarter})
@@ -218,11 +119,11 @@ export const columns: ColumnDef<Lesson>[] = [
         },
         filterFn: (row, id, value) => {
             const title = row.getValue("title") as string
-            const curriculumID = row.getValue("curriculumID") as string
+            const curriculumId = row.getValue("curriculumId") as string
             const searchValue = value.toLowerCase()
             return (
                 title.toLowerCase().includes(searchValue) ||
-                curriculumID.toLowerCase().includes(searchValue)
+                curriculumId.toLowerCase().includes(searchValue)
             )
         },
     },
@@ -326,6 +227,10 @@ export function LessonsTable() {
     const router = useRouter()
     const params = useParams()
     const locale = params.locale as string
+
+    // Obtener lessons desde Convex
+    const lessons = useQuery(api.lessons.getLessons, {})
+
     const [sorting, setSorting] = React.useState<SortingState>([])
     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
         []
@@ -338,7 +243,7 @@ export function LessonsTable() {
     const [mandatoryFilter, setMandatoryFilter] = React.useState<"mandatory" | "optional" | "all">("all")
 
     const table = useReactTable({
-        data,
+        data: lessons ?? [],
         columns,
         onSortingChange: setSorting,
         onColumnFiltersChange: setColumnFilters,
@@ -555,7 +460,7 @@ export function LessonsTable() {
                                     data-state={row.getIsSelected() && "selected"}
                                     className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
                                     onClick={() => {
-                                        const lessonId = row.original.id
+                                        const lessonId = row.original._id
                                         router.push(`/${locale}/lessons/${lessonId}`)
                                     }}
                                 >
@@ -587,7 +492,7 @@ export function LessonsTable() {
             </div>
             <div className="flex items-center justify-between gap-4 py-4">
                 <div className="text-sm text-muted-foreground">
-                    Showing {table.getRowModel().rows.length} of {data.length} lesson(s)
+                    Showing {table.getRowModel().rows.length} of {lessons?.length ?? 0} lesson(s)
                 </div>
                 <div className="space-x-2">
                     <Button
