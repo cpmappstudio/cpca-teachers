@@ -36,6 +36,10 @@ interface EntityDialogProps {
 
     // Size customization (optional)
     maxWidth?: string
+
+    // Dialog state control (optional)
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
 }
 
 export function EntityDialog({
@@ -47,10 +51,12 @@ export function EntityDialog({
     submitLabel = "Save changes",
     isSubmitting = false,
     leftActions,
-    maxWidth = "600px"
+    maxWidth = "600px",
+    open,
+    onOpenChange
 }: EntityDialogProps) {
     return (
-        <Dialog>
+        <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogTrigger asChild>
                 {trigger}
             </DialogTrigger>

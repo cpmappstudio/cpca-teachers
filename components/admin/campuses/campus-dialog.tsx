@@ -13,10 +13,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { SelectDropdown } from "@/components/ui/select-dropdown"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
-import { Plus, Edit, ChevronDown, User, Upload, Trash2, ImageIcon } from "lucide-react"
+import { Plus, Edit, ChevronDown, User, Upload, Trash2, ImageIcon, Loader2 } from "lucide-react"
 import { useState, useRef } from "react"
 import Image from "next/image"
-import { useQuery } from "convex/react"
+import { useQuery, useMutation } from "convex/react"
+import { useUser } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
+import { useLocale } from "next-intl"
 import { api } from "@/convex/_generated/api"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { EntityDialog } from "@/components/ui/entity-dialog"
@@ -30,6 +33,28 @@ interface CampusDialogProps {
 
 export function CampusDialog({ campus, trigger }: CampusDialogProps) {
     const isEditing = !!campus
+    const router = useRouter()
+    const locale = useLocale()
+
+    // Clerk user
+    const { user: clerkUser } = useUser()
+
+    // Get current Convex user
+    const currentUser = useQuery(
+        api.users.getCurrentUser,
+        clerkUser?.id ? { clerkId: clerkUser.id } : "skip"
+    )
+
+    // Mutations
+    const createCampusMutation = useMutation(api.campuses.createCampus)
+    const updateCampusMutation = useMutation(api.campuses.updateCampus)
+    const deleteCampusMutation = useMutation(api.campuses.deleteCampus)
+
+    // Dialog state
+    const [isOpen, setIsOpen] = useState(false)
+
+    // Loading state
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
     const [selectedDirectorId, setSelectedDirectorId] = useState<Id<"users"> | undefined>(
         campus?.directorId || undefined
@@ -79,44 +104,241 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
         fileInputRef.current?.click()
     }
 
-    const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault()
-        const formData = new FormData(event.currentTarget)
 
-        // Añadir los valores seleccionados al formData
-        if (selectedDirectorId) {
-            formData.set("directorId", selectedDirectorId)
-        }
-        formData.set("country", "United States") // Always US
-        formData.set("state", selectedState)
-        formData.set("city", selectedCity)
-        formData.set("status", selectedStatus)
+        // Guardar referencia al formulario ANTES de cualquier operación asíncrona
+        // Esto es necesario porque React recicla el SyntheticEvent después del await
+        const form = event.currentTarget
 
-        // Añadir imagen si se seleccionó una nueva
-        if (selectedImage) {
-            formData.set("campusImage", selectedImage)
+        // Validar que tengamos el usuario actual
+        if (!currentUser?._id) {
+            alert("Error: User not authenticated. Please sign in again.")
+            return
         }
 
-        if (isEditing) {
-            // TODO: Implement Convex mutation to update campus
-            console.log("Updating campus with form data:", Object.fromEntries(formData))
-        } else {
-            // TODO: Implement Convex mutation to create campus
-            console.log("Creating campus with form data:", Object.fromEntries(formData))
+        const formData = new FormData(form)
+
+        // Obtener datos del formulario
+        const name = formData.get("name") as string
+        const code = formData.get("code") as string | null
+        const street = formData.get("street") as string | null
+        const zipCode = formData.get("zipCode") as string | null
+
+        // Validación básica
+        if (!name?.trim()) {
+            alert("Validation Error: Campus name is required.")
+            return
         }
 
-        console.log("Selected Director ID:", selectedDirectorId)
-        console.log("Selected State:", selectedState)
-        console.log("Selected City:", selectedCity)
-        console.log("Selected Status:", selectedStatus)
-        console.log("Selected Image:", selectedImage?.name || "No image")
+        setIsSubmitting(true)
+
+        try {
+            if (isEditing) {
+                // Actualizar campus existente
+                if (!campus?._id) {
+                    alert("Error: Campus ID not found.")
+                    return
+                }
+
+                const updates: {
+                    name?: string
+                    code?: string
+                    directorId?: Id<"users">
+                    directorName?: string
+                    directorEmail?: string
+                    directorPhone?: string
+                    address?: {
+                        street?: string
+                        city?: string
+                        state?: string
+                        zipCode?: string
+                        country?: string
+                    }
+                    status?: "active" | "inactive" | "maintenance"
+                } = {}
+
+                // Solo incluir campos que han cambiado
+                if (name.trim() !== campus.name) {
+                    updates.name = name.trim()
+                }
+
+                if (code?.trim() !== campus.code) {
+                    updates.code = code?.trim() || undefined
+                }
+
+                if (selectedDirectorId !== campus.directorId) {
+                    const director = potentialDirectors?.find(d => d._id === selectedDirectorId)
+                    updates.directorId = selectedDirectorId
+                    if (director) {
+                        updates.directorName = director.fullName
+                        updates.directorEmail = director.email
+                    }
+                }
+
+                if (selectedStatus !== campus.status) {
+                    updates.status = selectedStatus as "active" | "inactive" | "maintenance"
+                }
+
+                // Actualizar address si hay cambios
+                const currentAddress = campus.address || {}
+                const newAddress: {
+                    street?: string
+                    city?: string
+                    state?: string
+                    zipCode?: string
+                    country?: string
+                } = {}
+
+                let addressChanged = false
+
+                if ((street?.trim() || "") !== (currentAddress.street || "")) {
+                    newAddress.street = street?.trim() || undefined
+                    addressChanged = true
+                }
+                if (selectedCity !== (currentAddress.city || "")) {
+                    newAddress.city = selectedCity || undefined
+                    addressChanged = true
+                }
+                if (selectedState !== (currentAddress.state || "")) {
+                    newAddress.state = selectedState || undefined
+                    addressChanged = true
+                }
+                if ((zipCode?.trim() || "") !== (currentAddress.zipCode || "")) {
+                    newAddress.zipCode = zipCode?.trim() || undefined
+                    addressChanged = true
+                }
+
+                if (addressChanged) {
+                    updates.address = {
+                        ...newAddress,
+                        country: "United States",
+                    }
+                }
+
+                // Solo hacer la actualización si hay cambios
+                if (Object.keys(updates).length > 0) {
+                    await updateCampusMutation({
+                        campusId: campus._id,
+                        updates,
+                        updatedBy: currentUser._id,
+                    })
+
+                    alert(`Success! Campus "${name}" has been updated successfully.`)
+                    console.log("Campus updated:", campus._id)
+
+                    // Cerrar el dialog automáticamente después del éxito
+                    setIsOpen(false)
+
+                    // Recargar la página para mostrar los cambios
+                    router.refresh()
+                } else {
+                    alert("No changes detected.")
+                    setIsSubmitting(false)
+                    return
+                }
+            } else {
+                // Crear campus
+                const campusData: {
+                    name: string
+                    createdBy: Id<"users">
+                    code?: string
+                    directorId?: Id<"users">
+                    directorName?: string
+                    directorEmail?: string
+                    directorPhone?: string
+                    address?: {
+                        street?: string
+                        city?: string
+                        state?: string
+                        zipCode?: string
+                        country?: string
+                    }
+                } = {
+                    name: name.trim(),
+                    createdBy: currentUser._id,
+                }
+
+                // Campos opcionales
+                if (code?.trim()) {
+                    campusData.code = code.trim()
+                }
+
+                if (selectedDirectorId) {
+                    const director = potentialDirectors?.find(d => d._id === selectedDirectorId)
+                    campusData.directorId = selectedDirectorId
+                    if (director) {
+                        campusData.directorName = director.fullName
+                        campusData.directorEmail = director.email
+                        // Note: phoneNumber not available from getPotentialDirectors query
+                    }
+                }
+
+                // Address (solo si hay al menos un campo)
+                if (street?.trim() || selectedCity || selectedState || zipCode?.trim()) {
+                    campusData.address = {
+                        street: street?.trim() || undefined,
+                        city: selectedCity || undefined,
+                        state: selectedState || undefined,
+                        zipCode: zipCode?.trim() || undefined,
+                        country: "United States",
+                    }
+                }
+
+                const campusId = await createCampusMutation(campusData)
+
+                alert(`Success! Campus "${name}" has been created successfully.`)
+                console.log("Campus created with ID:", campusId)
+
+                // Resetear formulario usando la referencia guardada
+                // Ahora usamos 'form' en lugar de 'event.currentTarget'
+                form.reset()
+                setSelectedDirectorId(undefined)
+                setSelectedState("")
+                setSelectedCity("")
+                setSelectedImage(null)
+                setImagePreview(null)
+
+                // Cerrar el dialog automáticamente después del éxito
+                setIsOpen(false)
+
+                // Recargar la página para mostrar el nuevo campus
+                // Usamos router.refresh() para refrescar los datos del servidor
+                router.refresh()
+            }
+        } catch (error) {
+            console.error("Error saving campus:", error)
+            const errorMessage = error instanceof Error ? error.message : "Failed to save campus. Please try again."
+            alert(`Error: ${errorMessage}`)
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
-    const handleDelete = () => {
-        if (campus && window.confirm(`Are you sure you want to delete "${campus.name}"? This action cannot be undone.`)) {
-            // TODO: Implement Convex mutation to delete campus
-            console.log("Deleting campus:", campus._id)
-            alert("Campus deletion would be implemented here")
+    const handleDelete = async () => {
+        if (!campus) return
+
+        if (window.confirm(`Are you sure you want to delete "${campus.name}"? This action cannot be undone.`)) {
+            try {
+                setIsSubmitting(true)
+                await deleteCampusMutation({ campusId: campus._id })
+                
+                alert(`Success! Campus "${campus.name}" has been deleted.`)
+                console.log("Campus deleted:", campus._id)
+
+                // Cerrar el dialog
+                setIsOpen(false)
+
+                // Redirigir a la página de listado de campuses con el locale correcto
+                router.push(`/${locale}/admin/campuses`)
+                router.refresh()
+            } catch (error) {
+                console.error("Error deleting campus:", error)
+                const errorMessage = error instanceof Error ? error.message : "Failed to delete campus. Please try again."
+                alert(`Error: ${errorMessage}`)
+            } finally {
+                setIsSubmitting(false)
+            }
         }
     }
 
@@ -144,6 +366,9 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
             }
             onSubmit={handleSubmit}
             submitLabel={isEditing ? "Save changes" : "Create Campus"}
+            isSubmitting={isSubmitting}
+            open={isOpen}
+            onOpenChange={setIsOpen}
             leftActions={isEditing ? (
                 <Button
                     type="button"

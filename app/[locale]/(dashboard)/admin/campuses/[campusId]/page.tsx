@@ -40,6 +40,7 @@ export default async function CampusDetailPage({ params }: CampusDetailPageProps
     const lastUpdatedLabel = campus.metrics?.lastUpdated
         ? formatRelativeTime(campus.metrics.lastUpdated)
         : "-";
+        
 
     return (
         <PageTransition>

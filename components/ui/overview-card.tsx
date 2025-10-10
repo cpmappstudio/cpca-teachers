@@ -15,6 +15,7 @@ interface OverviewCardProps {
     title: string;
     description: string;
     imageStorageId?: string | undefined;
+    imageUrl?: string | null;
     imageAlt: string;
     fallbackIcon: ReactNode;
     rows: InfoRowData[];
@@ -25,11 +26,15 @@ export function OverviewCard({
     title,
     description,
     imageStorageId,
+    imageUrl,
     imageAlt,
     fallbackIcon,
     rows,
     className = "gap-2"
 }: OverviewCardProps) {
+    // Prefer imageUrl over imageStorageId
+    const imageSrc = imageUrl || (imageStorageId ? `/api/convex/storage/${imageStorageId}` : null);
+
     return (
         <Card className={`${className} overflow-hidden gap-0 w-full h-full`}>
             <CardHeader>
@@ -40,9 +45,9 @@ export function OverviewCard({
                     </div>
                     <div className="w-20 h-20 flex-shrink-0">
                         <AspectRatio ratio={1} className="bg-muted rounded-lg">
-                            {imageStorageId ? (
+                            {imageSrc ? (
                                 <Image
-                                    src={`/api/convex/storage/${imageStorageId}`}
+                                    src={imageSrc}
                                     alt={imageAlt}
                                     fill
                                     className="h-full w-full rounded-lg object-cover"
@@ -61,6 +66,7 @@ export function OverviewCard({
                     <div key={index}>
                         <InfoRow
                             icon={row.icon}
+                            label={row.label}
                             value={row.value}
                             extra={row.extra}
                         />
