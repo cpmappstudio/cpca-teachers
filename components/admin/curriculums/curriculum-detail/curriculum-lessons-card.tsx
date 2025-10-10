@@ -48,111 +48,12 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
+import { useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
+import type { Doc, Id } from "@/convex/_generated/dataModel"
 
-// Lesson type definition
-type Lesson = {
-    id: string
-    curriculumID: string
-    title: string
-    quarter: number
-    orderInQuarter: number
-    isActive: boolean
-    isMandatory: boolean
-}
-
-// Mock lessons data - filtering will be done by curriculumId
-const mockLessonsData: Lesson[] = [
-    {
-        id: "1",
-        curriculumID: "curr-001",
-        title: "Introduction to Biblical Studies",
-        quarter: 1,
-        orderInQuarter: 1,
-        isActive: true,
-        isMandatory: true,
-    },
-    {
-        id: "2",
-        curriculumID: "curr-001",
-        title: "Old Testament Overview",
-        quarter: 1,
-        orderInQuarter: 2,
-        isActive: true,
-        isMandatory: true,
-    },
-    {
-        id: "3",
-        curriculumID: "curr-001",
-        title: "New Testament Foundations",
-        quarter: 2,
-        orderInQuarter: 1,
-        isActive: true,
-        isMandatory: true,
-    },
-    {
-        id: "4",
-        curriculumID: "curr-001",
-        title: "Christian Ethics",
-        quarter: 2,
-        orderInQuarter: 2,
-        isActive: true,
-        isMandatory: false,
-    },
-    {
-        id: "5",
-        curriculumID: "curr-002",
-        title: "Church History Part I",
-        quarter: 1,
-        orderInQuarter: 1,
-        isActive: true,
-        isMandatory: true,
-    },
-    {
-        id: "6",
-        curriculumID: "curr-002",
-        title: "Church History Part II",
-        quarter: 2,
-        orderInQuarter: 1,
-        isActive: true,
-        isMandatory: true,
-    },
-    {
-        id: "7",
-        curriculumID: "curr-002",
-        title: "Modern Church Movements",
-        quarter: 3,
-        orderInQuarter: 1,
-        isActive: false,
-        isMandatory: false,
-    },
-    {
-        id: "8",
-        curriculumID: "curr-003",
-        title: "Systematic Theology I",
-        quarter: 1,
-        orderInQuarter: 1,
-        isActive: true,
-        isMandatory: true,
-    },
-    {
-        id: "9",
-        curriculumID: "curr-003",
-        title: "Systematic Theology II",
-        quarter: 2,
-        orderInQuarter: 1,
-        isActive: true,
-        isMandatory: true,
-    },
-    {
-        id: "10",
-        curriculumID: "curr-003",
-        title: "Advanced Theological Topics",
-        quarter: 3,
-        orderInQuarter: 1,
-        isActive: true,
-        isMandatory: false,
-    },
-]
+// Lesson type definition based on Convex schema
+type Lesson = Doc<"curriculum_lessons">
 
 const quarterOptions = [
     { label: "Quarter 1", value: "1" },
@@ -337,10 +238,10 @@ export function CurriculumLessonsCard({
     const params = useParams()
     const locale = params.locale as string
 
-    // Filter lessons by curriculumId
-    const data = React.useMemo(
-        () => mockLessonsData.filter((lesson) => lesson.curriculumID === curriculumId),
-        [curriculumId]
+    // Get lessons from Convex - by default only active lessons
+    const lessons = useQuery(
+        api.curriculums.getLessonsByCurriculum,
+        { curriculumId: curriculumId as Id<"curriculums"> }
     )
 
     const [sorting, setSorting] = React.useState<SortingState>([])
@@ -358,7 +259,7 @@ export function CurriculumLessonsCard({
     >("all")
 
     const table = useReactTable({
-        data,
+        data: lessons ?? [],
         columns,
         onSortingChange: setSorting,
         onColumnFiltersChange: setColumnFilters,
@@ -402,6 +303,50 @@ export function CurriculumLessonsCard({
             table.getColumn("isMandatory")?.setFilterValue(mandatoryFilter)
         }
     }, [mandatoryFilter, table])
+
+    // Loading state
+    if (lessons === undefined) {
+        return (
+            <Card className="border shadow-sm overflow-hidden">
+                <CardHeader className="pb-4">
+                    <CardTitle className="text-lg font-semibold tracking-tight">
+                        Curriculum Lessons
+                    </CardTitle>
+                    <CardDescription className="text-sm">
+                        All lessons assigned to this curriculum
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex items-center justify-center py-8">
+                        <div className="text-muted-foreground">Loading lessons...</div>
+                    </div>
+                </CardContent>
+            </Card>
+        )
+    }
+
+    // Empty state
+    if (lessons.length === 0) {
+        return (
+            <Card className="border shadow-sm overflow-hidden">
+                <CardHeader className="pb-4">
+                    <CardTitle className="text-lg font-semibold tracking-tight">
+                        Curriculum Lessons
+                    </CardTitle>
+                    <CardDescription className="text-sm">
+                        All lessons assigned to this curriculum
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex items-center justify-center py-8">
+                        <div className="text-muted-foreground">
+                            No lessons found for this curriculum
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        )
+    }
 
     return (
         <Card className="border shadow-sm overflow-hidden">
@@ -618,7 +563,7 @@ export function CurriculumLessonsCard({
                                             data-state={row.getIsSelected() && "selected"}
                                             className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
                                             onClick={() => {
-                                                const lessonId = row.original.id
+                                                const lessonId = row.original._id
                                                 // TODO: Navigate to lesson detail when page is created
                                                 console.log("Navigate to lesson:", lessonId)
                                             }}
@@ -654,7 +599,7 @@ export function CurriculumLessonsCard({
                     </div>
                     <div className="flex items-center justify-between gap-4 px-4 md:px-6 py-4">
                         <div className="text-sm text-muted-foreground">
-                            Showing {table.getRowModel().rows.length} of {data.length}{" "}
+                            Showing {table.getRowModel().rows.length} of {lessons?.length ?? 0}{" "}
                             lesson(s)
                         </div>
                         <div className="space-x-2">

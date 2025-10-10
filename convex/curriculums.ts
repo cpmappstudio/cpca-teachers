@@ -112,3 +112,21 @@ export const deleteCurriculum = mutation({
     await ctx.db.delete(args.curriculumId);
   },
 });
+
+/**
+ * Get lessons by curriculum
+ */
+export const getLessonsByCurriculum = query({
+  args: {
+    curriculumId: v.id("curriculums"),
+    isActive: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("curriculum_lessons")
+      .withIndex("by_curriculum_active", (q) =>
+        q.eq("curriculumId", args.curriculumId).eq("isActive", args.isActive ?? true)
+      )
+      .collect();
+  },
+});

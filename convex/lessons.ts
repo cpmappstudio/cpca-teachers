@@ -170,3 +170,89 @@ export const deleteLesson = mutation({
     await ctx.db.delete(args.lessonId);
   },
 });
+
+/**
+ * Get all lessons with curriculum details
+ * Returns lessons with curriculum name and code for display
+ */
+export const getLessonsWithCurriculum = query({
+  args: {
+    curriculumId: v.optional(v.id("curriculums")),
+    quarter: v.optional(v.number()),
+    isActive: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    // Get all lessons first (reuse the logic from getLessons)
+    let lessons;
+
+    // Filter by curriculum and quarter if provided
+    if (args.curriculumId !== undefined && args.quarter !== undefined) {
+      lessons = await ctx.db
+        .query("curriculum_lessons")
+        .withIndex(
+          "by_curriculum_quarter",
+          (q) =>
+            q
+              .eq("curriculumId", args.curriculumId!)
+              .eq("quarter", args.quarter!)
+        )
+        .collect();
+
+      // Apply isActive filter if needed
+      if (args.isActive !== undefined) {
+        lessons = lessons.filter((lesson) => lesson.isActive === args.isActive);
+      }
+    }
+    // Filter by curriculum only
+    else if (args.curriculumId !== undefined) {
+      lessons = await ctx.db
+        .query("curriculum_lessons")
+        .withIndex("by_curriculum_active", (q) =>
+          q.eq("curriculumId", args.curriculumId!)
+        )
+        .collect();
+
+      // Apply isActive filter if needed
+      if (args.isActive !== undefined) {
+        lessons = lessons.filter((lesson) => lesson.isActive === args.isActive);
+      }
+    }
+    // Filter by quarter and active status
+    else if (args.quarter !== undefined && args.isActive !== undefined) {
+      lessons = await ctx.db
+        .query("curriculum_lessons")
+        .withIndex("by_quarter", (q) =>
+          q.eq("quarter", args.quarter!).eq("isActive", args.isActive!)
+        )
+        .collect();
+    }
+    // Get all lessons
+    else {
+      lessons = await ctx.db.query("curriculum_lessons").collect();
+
+      // Apply isActive filter if needed
+      if (args.isActive !== undefined) {
+        lessons = lessons.filter((lesson) => lesson.isActive === args.isActive);
+      }
+    }
+
+    // Fetch curriculum details for each lesson
+    const lessonsWithCurriculum = await Promise.all(
+      lessons.map(async (lesson) => {
+        const curriculum = await ctx.db.get(lesson.curriculumId);
+        return {
+          ...lesson,
+          curriculum: curriculum
+            ? {
+                _id: curriculum._id,
+                name: curriculum.name,
+                code: curriculum.code,
+              }
+            : null,
+        };
+      })
+    );
+
+    return lessonsWithCurriculum;
+  },
+});

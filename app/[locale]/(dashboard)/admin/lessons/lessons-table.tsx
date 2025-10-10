@@ -47,8 +47,14 @@ import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Doc } from "@/convex/_generated/dataModel"
 
-// Tipo para los datos de lessons basado en el schema de Convex
-export type Lesson = Doc<"curriculum_lessons">
+// Tipo para los datos de lessons con curriculum incluido
+type LessonWithCurriculum = Doc<"curriculum_lessons"> & {
+    curriculum: {
+        _id: Doc<"curriculums">["_id"]
+        name: string
+        code: string | undefined
+    } | null
+}
 
 const quarterOptions = [
     { label: "Quarter 1", value: "1" },
@@ -64,9 +70,9 @@ declare module '@tanstack/react-table' {
     }
 }
 
-export const columns: ColumnDef<Lesson>[] = [
+export const columns: ColumnDef<LessonWithCurriculum>[] = [
     {
-        accessorKey: "curriculumId",
+        accessorKey: "curriculum",
         header: ({ column }) => {
             return (
                 <Button
@@ -79,11 +85,27 @@ export const columns: ColumnDef<Lesson>[] = [
                 </Button>
             )
         },
-        cell: ({ row }) => (
-            <div className="text-sm hidden lg:block py-1">{row.getValue("curriculumId")}</div>
-        ),
+        cell: ({ row }) => {
+            const curriculum = row.original.curriculum
+            return (
+                <div className="text-sm hidden lg:block py-1">
+                    {curriculum ? (
+                        <div className="flex flex-col gap-0.5">
+                            <span className="text-xs text-muted-foreground">{curriculum.code}</span>
+                        </div>
+                    ) : (
+                        <span className="text-muted-foreground italic">No curriculum</span>
+                    )}
+                </div>
+            )
+        },
         meta: {
             className: "hidden lg:table-cell",
+        },
+        sortingFn: (rowA, rowB) => {
+            const codeA = rowA.original.curriculum?.code || ""
+            const codeB = rowB.original.curriculum?.code || ""
+            return codeA.localeCompare(codeB)
         },
     },
     {
@@ -106,7 +128,11 @@ export const columns: ColumnDef<Lesson>[] = [
                 <div className="space-y-2 py-1">
                     <div className="font-medium text-sm lg:text-base">{row.getValue("title")}</div>
                     <div className="flex lg:hidden flex-col gap-1.5 text-xs lg:text-sm text-muted-foreground">
-                        <span className="text-xs">{lesson.curriculumId}</span>
+                        {lesson.curriculum && (
+                            <span className="text-xs font-medium">
+                                {lesson.curriculum.name}
+                            </span>
+                        )}
                         <div className="flex items-center gap-1.5 flex-wrap">
                             <Badge className="bg-blue-500/15 text-blue-700 border border-blue-200 text-xs px-2 py-0.5">
                                 Q{lesson.quarter} (#{lesson.orderInQuarter})
@@ -119,11 +145,12 @@ export const columns: ColumnDef<Lesson>[] = [
         },
         filterFn: (row, id, value) => {
             const title = row.getValue("title") as string
-            const curriculumId = row.getValue("curriculumId") as string
+            const curriculum = row.original.curriculum
             const searchValue = value.toLowerCase()
             return (
                 title.toLowerCase().includes(searchValue) ||
-                curriculumId.toLowerCase().includes(searchValue)
+                (curriculum?.code?.toLowerCase().includes(searchValue) ?? false) ||
+                (curriculum?.name.toLowerCase().includes(searchValue) ?? false)
             )
         },
     },
@@ -228,8 +255,8 @@ export function LessonsTable() {
     const params = useParams()
     const locale = params.locale as string
 
-    // Obtener lessons desde Convex
-    const lessons = useQuery(api.lessons.getLessons, {})
+    // Obtener lessons con datos del curriculum desde Convex
+    const lessons = useQuery(api.lessons.getLessonsWithCurriculum, {})
 
     const [sorting, setSorting] = React.useState<SortingState>([])
     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
