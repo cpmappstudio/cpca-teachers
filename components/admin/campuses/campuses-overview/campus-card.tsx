@@ -22,7 +22,11 @@ export function CampusCard({ campus }: CampusCardProps) {
     return (
         <Link href={`/${locale}/admin/campuses/${campus.id}`}>
             <Card className="group pt-0 relative overflow-hidden border-border/60 bg-card shadow-sm cursor-pointer transition-all duration-200">
-                <CampusHero hero={campus.hero} name={campus.name} />
+                <CampusHero 
+                    hero={campus.hero} 
+                    name={campus.name}
+                    campusImageStorageId={campus.campusImageStorageId}
+                />
 
                 {campus.status ? (
                     <div className="absolute top-3 right-3 z-10">

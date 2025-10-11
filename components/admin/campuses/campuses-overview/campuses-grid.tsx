@@ -30,7 +30,11 @@ function CampusListItem({ campus }: CampusListItemProps) {
                 <div className="flex items-center p-5">
                     {/* Small hero thumbnail */}
                     <div className="mr-4 h-16 w-24 flex-shrink-0 overflow-hidden rounded-lg">
-                        <CampusHeroSmall hero={campus.hero} name={campus.name} />
+                        <CampusHeroSmall 
+                            hero={campus.hero} 
+                            name={campus.name}
+                            campusImageStorageId={campus.campusImageStorageId}
+                        />
                     </div>
 
                     {/* Content */}

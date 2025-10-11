@@ -1,8 +1,13 @@
+"use client";
+
 import type { ReactNode } from "react";
 import Image from "next/image";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Separator } from "@/components/ui/separator";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 
 interface InfoRowData {
     icon: ReactNode;
@@ -14,7 +19,7 @@ interface InfoRowData {
 interface OverviewCardProps {
     title: string;
     description: string;
-    imageStorageId?: string | undefined;
+    imageStorageId?: Id<"_storage"> | undefined;
     imageUrl?: string | null;
     imageAlt: string;
     fallbackIcon: ReactNode;
@@ -32,8 +37,14 @@ export function OverviewCard({
     rows,
     className = "gap-2"
 }: OverviewCardProps) {
-    // Prefer imageUrl over imageStorageId
-    const imageSrc = imageUrl || (imageStorageId ? `/api/convex/storage/${imageStorageId}` : null);
+    // Get image URL from Convex storage if storageId is provided
+    const convexImageUrl = useQuery(
+        api.campuses.getImageUrl,
+        imageStorageId ? { storageId: imageStorageId } : "skip"
+    );
+
+    // Prefer provided imageUrl, then convexImageUrl from storage
+    const imageSrc = imageUrl || convexImageUrl || null;
 
     return (
         <Card className={`${className} overflow-hidden gap-0 w-full h-full`}>
