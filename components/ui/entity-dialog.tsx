@@ -13,6 +13,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog"
 import { ReactNode } from "react"
+import { Save } from "lucide-react"
 
 interface EntityDialogProps {
     // Trigger configuration
@@ -35,6 +36,10 @@ interface EntityDialogProps {
 
     // Size customization (optional)
     maxWidth?: string
+
+    // Dialog state control (optional)
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
 }
 
 export function EntityDialog({
@@ -46,10 +51,18 @@ export function EntityDialog({
     submitLabel = "Save changes",
     isSubmitting = false,
     leftActions,
-    maxWidth = "600px"
+    maxWidth = "600px",
+    open,
+    onOpenChange
 }: EntityDialogProps) {
+    const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault()
+        event.stopPropagation() // Prevenir propagación a formularios padres
+        onSubmit(event)
+    }
+
     return (
-        <Dialog>
+        <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogTrigger asChild>
                 {trigger}
             </DialogTrigger>
@@ -57,7 +70,7 @@ export function EntityDialog({
                 className="w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden"
                 style={{ maxWidth }}
             >
-                <form onSubmit={onSubmit} className="flex flex-col h-full">
+                <form onSubmit={handleFormSubmit} className="flex flex-col h-full">
                     {/* Fixed Header */}
                     <DialogHeader className="px-6 pt-6 pb-4 border-b bg-background flex-shrink-0">
                         <DialogTitle>{title}</DialogTitle>
@@ -87,6 +100,7 @@ export function EntityDialog({
                                 className="min-w-[120px]"
                                 disabled={isSubmitting}
                             >
+                                <Save className="h-4 w-4" />
                                 {isSubmitting ? "Saving..." : submitLabel}
                             </Button>
                         </div>

@@ -1,4 +1,4 @@
-import type { Doc } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import type { CampusStatus } from "@/convex/types";
 
 export type CampusDoc = Doc<"campuses">;
@@ -17,6 +17,7 @@ export interface CampusOverview {
     teacherCount?: number;
     status?: CampusStatus;
     hero?: CampusHero;
+    campusImageStorageId?: Id<"_storage">;
 }
 
 export const FALLBACK_CAMPUSES: CampusOverview[] = [
@@ -123,6 +124,7 @@ export function mapCampusDocToOverview(campus: CampusDoc): CampusOverview {
         description: location ?? campus.directorName ?? undefined,
         teacherCount,
         status: campus.status,
+        campusImageStorageId: campus.campusImageStorageId,
         hero: {
             type: "initials",
             label: extractInitials(campus.name),

@@ -7,13 +7,20 @@ import type { UserRole } from "@/convex/types";
 const roleMatchers = {
     teacher: createRouteMatcher(['/:locale/teaching(.*)', '/teaching(.*)']),
     admin: createRouteMatcher(['/:locale/admin(.*)', '/admin(.*)']),
+    shared: createRouteMatcher([
+        '/:locale/lessons(.*)',
+        '/lessons(.*)',
+        '/:locale/curriculums(.*)',
+        '/curriculums(.*)'
+    ]),
 } as const;
 
 // Constantes inmutables con type safety completo
-const ROLE_PERMISSIONS = {
-    teacher: ['teacher', 'admin', 'superadmin'] as const,
-    admin: ['admin', 'superadmin'] as const,
-} satisfies Record<keyof typeof roleMatchers, readonly UserRole[]>;
+const ROLE_PERMISSIONS: Record<keyof typeof roleMatchers, readonly UserRole[]> = {
+    teacher: ['teacher', 'admin', 'superadmin'],
+    admin: ['admin', 'superadmin'],
+    shared: ['teacher', 'admin', 'superadmin'],
+};
 
 /**
  * Extract user role from Clerk session claims
@@ -88,6 +95,6 @@ export function checkRoleAccess(
         }
     }
 
-    // ?? CRITICO: Si no coincide con ningún matcher, es ruta desconocida
+    // Si no coincide con ningún matcher, es ruta desconocida
     return 'unknown';
 }

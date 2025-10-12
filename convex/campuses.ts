@@ -2,6 +2,24 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
 /**
+ * Generate upload URL for campus image
+ * This follows the Convex file storage pattern
+ */
+export const generateUploadUrl = mutation(async (ctx) => {
+  return await ctx.storage.generateUploadUrl();
+});
+
+/**
+ * Get URL for a stored file
+ */
+export const getImageUrl = query({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, args) => {
+    return await ctx.storage.getUrl(args.storageId);
+  },
+});
+
+/**
  * Get all campuses
  */
 export const getCampuses = query({
@@ -31,12 +49,63 @@ export const getCampus = query({
 });
 
 /**
+ * Save campus image
+ * Updates the campusImageStorageId field with the uploaded file's storage ID
+ */
+export const saveCampusImage = mutation({
+  args: {
+    campusId: v.id("campuses"),
+    storageId: v.id("_storage"),
+    updatedBy: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.campusId, {
+      campusImageStorageId: args.storageId,
+      updatedAt: Date.now(),
+      updatedBy: args.updatedBy,
+    });
+  },
+});
+
+/**
+ * Delete campus image
+ * Removes the image from storage and clears the campusImageStorageId field
+ */
+export const deleteCampusImage = mutation({
+  args: {
+    campusId: v.id("campuses"),
+    updatedBy: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Get the campus to find the current image storage ID
+    const campus = await ctx.db.get(args.campusId);
+    
+    if (!campus) {
+      throw new Error("Campus not found");
+    }
+
+    // Delete the image from storage if it exists
+    if (campus.campusImageStorageId) {
+      await ctx.storage.delete(campus.campusImageStorageId);
+    }
+
+    // Clear the campusImageStorageId field
+    await ctx.db.patch(args.campusId, {
+      campusImageStorageId: undefined,
+      updatedAt: Date.now(),
+      updatedBy: args.updatedBy,
+    });
+  },
+});
+
+/**
  * Create new campus
  */
 export const createCampus = mutation({
   args: {
     name: v.string(),
     code: v.optional(v.string()),
+    campusImageStorageId: v.optional(v.id("_storage")),
     directorId: v.optional(v.id("users")),
     directorName: v.optional(v.string()),
     directorEmail: v.optional(v.string()),
@@ -54,6 +123,7 @@ export const createCampus = mutation({
     const campusId = await ctx.db.insert("campuses", {
       name: args.name,
       code: args.code,
+      campusImageStorageId: args.campusImageStorageId,
       directorId: args.directorId,
       directorName: args.directorName,
       directorEmail: args.directorEmail,
@@ -84,6 +154,7 @@ export const updateCampus = mutation({
     updates: v.object({
       name: v.optional(v.string()),
       code: v.optional(v.string()),
+      campusImageStorageId: v.optional(v.id("_storage")),
       directorId: v.optional(v.id("users")),
       directorName: v.optional(v.string()),
       directorEmail: v.optional(v.string()),

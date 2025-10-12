@@ -8,24 +8,24 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface TeacherPageProps {
-    params: {
+    params: Promise<{
         teacherId: string
         locale: string
-    }
+    }>
 }
 
-export default function TeacherPage({ params }: TeacherPageProps) {
-    const { teacherId } = params
+export default async function TeacherPage({ params }: TeacherPageProps) {
+    const { teacherId } = await params
 
     return (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 px-2 md:px-4 pb-8">
             {/* Header */}
             <Suspense fallback={<Skeleton className="h-20 w-full" />}>
                 <TeacherHeader teacherId={teacherId} />
             </Suspense>
 
             {/* Main Content Grid */}
-            <div className="grid gap-6 lg:grid-cols-3 lg:items-stretch">
+            <div className="grid gap-6 lg:grid-cols-1 lg:items-stretch">
                 {/* Teacher Overview */}
                 <div className="lg:col-span-1 flex">
                     <Suspense fallback={<Skeleton className="h-96 w-full" />}>
@@ -34,11 +34,11 @@ export default function TeacherPage({ params }: TeacherPageProps) {
                 </div>
 
                 {/* Teacher Metrics */}
-                <div className="lg:col-span-2 flex">
+                {/* <div className="lg:col-span-2 flex">
                     <Suspense fallback={<Skeleton className="h-96 w-full" />}>
                         <TeacherMetricsCard teacherId={teacherId} />
                     </Suspense>
-                </div>
+                </div> */}
             </div>
 
             {/* Curriculums Section */}

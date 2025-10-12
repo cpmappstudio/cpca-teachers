@@ -46,10 +46,10 @@ function buildMockCurriculums(): CurriculumData[] {
     }))
 }
 
-function buildMockContributionData(): ContributionData {
+function buildMockContributionData() {
     const today = new Date()
     const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate())
-    const data: ContributionData = {}
+    const data: Record<string, number> = {}
 
     // Initialize all days in the past year with 0 contributions
     for (let d = new Date(oneYearAgo); d <= today; d.setDate(d.getDate() + 1)) {
@@ -104,10 +104,7 @@ function CurriculumRadialChart({ data, config }: CurriculumRadialChartProps) {
                     >
                         <ChartTooltip
                             cursor={false}
-                            content={<ChartTooltipContent nameKey="name" formatter={(value: any, name: any, props: any) => {
-                                // value is the remainingPercent
-                                return [`${value}%`, "Remaining"]
-                            }} />}
+                            content={<ChartTooltipContent nameKey="name" formatter={(value: any) => [`${value}%`, "Remaining"]} />}
                         />
                         <RadialBar dataKey="remainingPercent" background>
                             <LabelList
@@ -189,19 +186,19 @@ export function TeacherMetricsCard({ teacherId, className }: TeacherMetricsCardP
     } satisfies ChartConfig
 
     return (
-        <Card className={`${className} w-full h-full flex flex-col`}>
-            <CardHeader>
-                <CardTitle>Teaching metrics</CardTitle>
-                <CardDescription>Curriculum completion progress and daily teaching activity</CardDescription>
+        <Card className={`${className} w-full h-full flex flex-col overflow-hidden`}>
+            <CardHeader className="pb-4">
+                <CardTitle className="text-lg font-semibold tracking-tight">Teaching metrics</CardTitle>
+                <CardDescription className="text-sm">Curriculum completion progress and daily teaching activity</CardDescription>
             </CardHeader>
-            <CardContent className="px-2 sm:p-6 flex-1">
+            <CardContent className="px-4 md:px-6 pt-0 pb-4 flex-1">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
                     <CurriculumRadialChart data={curriculumData} config={chartConfig} />
                     <ContributionChart data={contributionData} />
                 </div>
             </CardContent>
-            <CardFooter className="flex-col gap-2 text-sm">
-                <div className="text-muted-foreground leading-none">
+            <CardFooter className="flex-col gap-2 text-xs md:text-sm px-4 md:px-6 pb-5 pt-0 border-t bg-muted/10">
+                <div className="text-muted-foreground leading-relaxed">
                     Left: Percentages show lessons remaining per curriculum. Right: Daily teaching activity over the past year.
                 </div>
             </CardFooter>

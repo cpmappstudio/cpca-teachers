@@ -13,62 +13,73 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { SelectDropdown } from "@/components/ui/select-dropdown"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
-import { Plus, Edit, ChevronDown, Upload, Trash2, ImageIcon, Building2 } from "lucide-react"
+import { Plus, Edit, ChevronDown, Upload, Trash2, ImageIcon, Building2, Loader2 } from "lucide-react"
 import { useState, useRef } from "react"
 import Image from "next/image"
+import { useQuery, useMutation, useAction } from "convex/react"
+import { useUser } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
+import { useLocale } from "next-intl"
+import { toast } from "sonner"
+import { api } from "@/convex/_generated/api"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { EntityDialog } from "@/components/ui/entity-dialog"
 
 interface TeacherDialogProps {
     teacher?: Doc<"users">
     trigger?: React.ReactNode
+    defaultCampusId?: Id<"campuses">
 }
 
-export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
+export function TeacherDialog({ teacher, trigger, defaultCampusId }: TeacherDialogProps) {
     const isEditing = !!teacher
+    const router = useRouter()
+    const locale = useLocale()
+
+    // Clerk user
+    const { user: clerkUser } = useUser()
+
+    // Get current Convex user
+    const currentUser = useQuery(
+        api.users.getCurrentUser,
+        clerkUser?.id ? { clerkId: clerkUser.id } : "skip"
+    )
+
+    // Mutations and Actions
+    const createTeacherWithClerk = useAction(api.users.createTeacherWithClerk)
+    const updateUserWithClerk = useAction(api.users.updateUserWithClerk)
+    const deleteUserMutation = useMutation(api.users.deleteUser)
+    const generateUploadUrl = useMutation(api.users.generateUploadUrl)
+    const deleteUserAvatar = useMutation(api.users.deleteUserAvatar)
+
+    // Dialog state
+    const [isOpen, setIsOpen] = useState(false)
+
+    // Loading state
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
     const [selectedCampusId, setSelectedCampusId] = useState<Id<"campuses"> | undefined>(
-        teacher?.campusId || undefined
+        teacher?.campusId || defaultCampusId || undefined
     )
     const [selectedStatus, setSelectedStatus] = useState<string>(
         teacher?.status || "active"
     )
     const [selectedImage, setSelectedImage] = useState<File | null>(null)
     const [imagePreview, setImagePreview] = useState<string | null>(null)
+    const [deleteExistingImage, setDeleteExistingImage] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    // Mock campuses data
-    const availableCampuses = [
-        {
-            _id: "campus_1" as Id<"campuses">,
-            name: "Main Campus",
-            status: "active",
-            address: {
-                city: "New York",
-                state: "NY"
-            }
-        },
-        {
-            _id: "campus_2" as Id<"campuses">,
-            name: "North Campus",
-            status: "active",
-            address: {
-                city: "Albany",
-                state: "NY"
-            }
-        },
-        {
-            _id: "campus_3" as Id<"campuses">,
-            name: "South Campus",
-            status: "inactive",
-            address: {
-                city: "Buffalo",
-                state: "NY"
-            }
-        }
-    ]
+    // Query available campuses
+    const allCampuses = useQuery(api.campuses.getCampuses, {})
+    const availableCampuses = allCampuses?.filter(campus => campus.status === "active")
 
-    const selectedCampus = availableCampuses.find(campus => campus._id === selectedCampusId)
+    const selectedCampus = availableCampuses?.find(campus => campus._id === selectedCampusId)
+
+    // Get existing avatar URL if editing
+    const existingAvatarUrl = useQuery(
+        api.users.getAvatarUrl,
+        teacher?.avatarStorageId ? { storageId: teacher.avatarStorageId } : "skip"
+    )
 
     // Teacher status options
     const teacherStatusOptions = [
@@ -83,6 +94,7 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
         const file = event.target.files?.[0]
         if (file) {
             setSelectedImage(file)
+            setDeleteExistingImage(false) // Cancel deletion if uploading new image
             const reader = new FileReader()
             reader.onload = (e) => {
                 setImagePreview(e.target?.result as string)
@@ -99,44 +111,332 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
         }
     }
 
+    const handleDeleteExistingImage = () => {
+        setDeleteExistingImage(true)
+        setSelectedImage(null)
+        setImagePreview(null)
+    }
+
     const triggerFileUpload = () => {
         fileInputRef.current?.click()
     }
 
-    const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-        event.preventDefault()
-        const formData = new FormData(event.currentTarget)
+    // Upload image to Convex storage
+    const uploadImage = async (file: File): Promise<Id<"_storage"> | null> => {
+        try {
+            // Step 1: Get a short-lived upload URL
+            const uploadUrl = await generateUploadUrl()
 
-        // Añadir los valores seleccionados al formData
-        if (selectedCampusId) {
-            formData.set("campusId", selectedCampusId)
+            // Step 2: POST the file to the upload URL
+            const result = await fetch(uploadUrl, {
+                method: "POST",
+                headers: { "Content-Type": file.type },
+                body: file,
+            })
+
+            if (!result.ok) {
+                throw new Error(`Upload failed: ${result.statusText}`)
+            }
+
+            // Step 3: Get the storage ID from the response
+            const { storageId } = await result.json()
+            return storageId as Id<"_storage">
+        } catch (error) {
+            console.error("Error uploading image:", error)
+            throw error
         }
-        formData.set("status", selectedStatus)
-        formData.set("role", "teacher") // Always teacher for this dialog
-
-        // Añadir imagen si se seleccionó una nueva
-        if (selectedImage) {
-            formData.set("teacherImage", selectedImage)
-        }
-
-        if (isEditing) {
-            // TODO: Implement Convex mutation to update teacher
-            console.log("Updating teacher with form data:", Object.fromEntries(formData))
-        } else {
-            // TODO: Implement Convex mutation to create teacher
-            console.log("Creating teacher with form data:", Object.fromEntries(formData))
-        }
-
-        console.log("Selected Campus ID:", selectedCampusId)
-        console.log("Selected Status:", selectedStatus)
-        console.log("Selected Image:", selectedImage?.name || "No image")
     }
 
-    const handleDelete = () => {
-        if (teacher && window.confirm(`Are you sure you want to delete "${teacher.fullName}"? This action cannot be undone.`)) {
-            // TODO: Implement Convex mutation to delete teacher
-            console.log("Deleting teacher:", teacher._id)
-            alert("Teacher deletion would be implemented here")
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault()
+        event.stopPropagation() // Prevenir que el evento se propague al formulario padre
+
+        // Guardar referencia al formulario ANTES de cualquier operación asíncrona
+        const form = event.currentTarget
+
+        // Validar que tengamos el usuario actual
+        if (!currentUser?._id) {
+            toast.error("User not authenticated", {
+                description: "Please sign in again to continue.",
+            })
+            return
+        }
+
+        const formData = new FormData(form)
+
+        // Obtener datos del formulario
+        const firstName = formData.get("firstName") as string
+        const lastName = formData.get("lastName") as string
+        const email = formData.get("email") as string
+        const phone = formData.get("phone") as string | null
+
+        // Validación básica
+        if (!firstName?.trim() || !lastName?.trim()) {
+            toast.error("Validation Error", {
+                description: "First name and last name are required.",
+            })
+            return
+        }
+
+        if (!email?.trim()) {
+            toast.error("Validation Error", {
+                description: "Email is required.",
+            })
+            return
+        }
+
+        // Validar formato de email
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(email.trim())) {
+            toast.error("Validation Error", {
+                description: "Please enter a valid email address.",
+            })
+            return
+        }
+
+        // Validar formato de teléfono si se proporciona
+        if (phone?.trim()) {
+            const phoneRegex = /^[\d\s\-\+\(\)]+$/
+            if (!phoneRegex.test(phone.trim()) || phone.trim().length < 10) {
+                toast.error("Validation Error", {
+                    description: "Please enter a valid phone number (at least 10 digits).",
+                })
+                return
+            }
+        }
+
+        setIsSubmitting(true)
+
+        try {
+            // Handle image deletion or replacement
+            if (isEditing && teacher?._id && teacher?.avatarStorageId) {
+                // Delete existing image if:
+                // 1. User explicitly marked it for deletion, OR
+                // 2. User is uploading a new image to replace it
+                if (deleteExistingImage || selectedImage) {
+                    await deleteUserAvatar({
+                        userId: teacher._id,
+                        updatedBy: currentUser._id,
+                    })
+                }
+            }
+
+            // Upload image first if a new one is selected
+            let uploadedImageStorageId: Id<"_storage"> | null = null
+            if (selectedImage) {
+                uploadedImageStorageId = await uploadImage(selectedImage)
+            }
+
+            if (isEditing) {
+                // Actualizar teacher existente
+                if (!teacher?._id) {
+                    toast.error("Error", {
+                        description: "Teacher ID not found.",
+                    })
+                    return
+                }
+
+                const updates: {
+                    firstName?: string
+                    lastName?: string
+                    email?: string
+                    phone?: string
+                    avatarStorageId?: Id<"_storage"> | null // Allow null to delete image
+                    campusId?: Id<"campuses">
+                    status?: "active" | "inactive" | "on_leave" | "terminated"
+                } = {}
+
+                // Include new image if uploaded
+                if (uploadedImageStorageId) {
+                    updates.avatarStorageId = uploadedImageStorageId
+                }
+
+                // Solo incluir campos que han cambiado
+                if (firstName.trim() !== teacher.firstName) {
+                    updates.firstName = firstName.trim()
+                }
+
+                if (lastName.trim() !== teacher.lastName) {
+                    updates.lastName = lastName.trim()
+                }
+
+                if (email.trim() !== teacher.email) {
+                    updates.email = email.trim()
+                }
+
+                if ((phone?.trim() || "") !== (teacher.phone || "")) {
+                    updates.phone = phone?.trim() || undefined
+                }
+
+                if (selectedCampusId !== teacher.campusId) {
+                    updates.campusId = selectedCampusId
+                }
+
+                if (selectedStatus !== teacher.status) {
+                    updates.status = selectedStatus as "active" | "inactive" | "on_leave" | "terminated"
+                }
+
+                // Handle image deletion
+                if (deleteExistingImage && teacher.avatarStorageId) {
+                    updates.avatarStorageId = null
+                }
+
+                // Solo hacer la actualización si hay cambios
+                const hasChanges = Object.keys(updates).length > 0
+
+                if (hasChanges) {
+                    await updateUserWithClerk({
+                        userId: teacher._id,
+                        updates,
+                    })
+
+                    toast.success("Teacher updated successfully", {
+                        description: `"${firstName} ${lastName}" has been updated in both Convex and Clerk.`,
+                    })
+                    console.log("Teacher updated:", teacher._id)
+
+                    // Reset states
+                    setDeleteExistingImage(false)
+                    setSelectedImage(null)
+                    setImagePreview(null)
+
+                    // Cerrar el dialog automáticamente después del éxito
+                    setIsOpen(false)
+
+                    // Recargar la página para mostrar los cambios
+                    router.refresh()
+                } else {
+                    toast.info("No changes detected", {
+                        description: "Please make changes before updating.",
+                    })
+                    setIsSubmitting(false)
+                    return
+                }
+            } else {
+                // Crear teacher en Clerk y Convex
+                const teacherData = {
+                    firstName: firstName.trim(),
+                    lastName: lastName.trim(),
+                    email: email.trim(),
+                    phone: phone?.trim(),
+                    avatarStorageId: uploadedImageStorageId || undefined,
+                    campusId: selectedCampusId,
+                    status: selectedStatus as "active" | "inactive" | "on_leave" | "terminated" | undefined,
+                }
+
+                const result = await createTeacherWithClerk(teacherData)
+
+                const successDescription = selectedCampusId && selectedCampus
+                    ? `"${firstName} ${lastName}" has been created in Clerk and assigned to ${selectedCampus.name}.`
+                    : `"${firstName} ${lastName}" has been created in Clerk.`
+
+                toast.success("Teacher created successfully", {
+                    description: successDescription,
+                })
+
+                // Informar sobre la invitación
+                if (result.invitationSent) {
+                    toast.success("Invitation sent", {
+                        description: `An invitation email has been sent to ${email}. The teacher can now set up their account.`,
+                        duration: 8000,
+                    })
+                } else {
+                    toast.info("Manual invitation needed", {
+                        description: `Please send an invitation to ${email} manually from Clerk Dashboard.`,
+                        duration: 8000,
+                    })
+                }
+
+                console.log("Teacher created:", result)                // Resetear formulario
+                form.reset()
+                // Mantener el campus preseleccionado si se pasó como defaultCampusId
+                setSelectedCampusId(defaultCampusId || undefined)
+                setSelectedStatus("active")
+                setSelectedImage(null)
+                setImagePreview(null)
+                setDeleteExistingImage(false)
+
+                // Cerrar el dialog automáticamente después del éxito
+                setIsOpen(false)
+
+                // Recargar la página para mostrar el nuevo teacher
+                router.refresh()
+            }
+        } catch (error) {
+            console.error("Error saving teacher:", error)
+
+            // Proporcionar mensajes de error más específicos
+            let errorMessage = "Failed to save teacher. Please try again."
+
+            if (error instanceof Error) {
+                if (error.message.includes("duplicate") || error.message.includes("unique")) {
+                    errorMessage = "A teacher with this email already exists."
+                } else if (error.message.includes("permission") || error.message.includes("unauthorized")) {
+                    errorMessage = "You don't have permission to perform this action."
+                } else if (error.message.includes("network") || error.message.includes("fetch")) {
+                    errorMessage = "Network error. Please check your connection."
+                } else {
+                    errorMessage = error.message
+                }
+            }
+
+            toast.error("Error saving teacher", {
+                description: errorMessage,
+            })
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
+
+    const handleDelete = async () => {
+        if (!teacher) return
+
+        if (
+            window.confirm(
+                `Are you sure you want to delete "${teacher.fullName}"? This action cannot be undone.`
+            )
+        ) {
+            try {
+                setIsSubmitting(true)
+                await deleteUserMutation({ userId: teacher._id })
+
+                toast.success("Teacher deleted successfully", {
+                    description: `"${teacher.fullName}" has been deleted.`,
+                })
+                console.log("Teacher deleted:", teacher._id)
+
+                // Reset states
+                setDeleteExistingImage(false)
+                setSelectedImage(null)
+                setImagePreview(null)
+
+                // Cerrar el dialog
+                setIsOpen(false)
+
+                // Redirigir a la página de listado de teachers con el locale correcto
+                router.push(`/${locale}/admin/teachers`)
+                router.refresh()
+            } catch (error) {
+                console.error("Error deleting teacher:", error)
+
+                let errorMessage = "Failed to delete teacher. Please try again."
+
+                if (error instanceof Error) {
+                    if (error.message.includes("permission") || error.message.includes("unauthorized")) {
+                        errorMessage = "You don't have permission to delete this teacher."
+                    } else if (error.message.includes("not found")) {
+                        errorMessage = "Teacher not found. It may have been already deleted."
+                    } else {
+                        errorMessage = error.message
+                    }
+                }
+
+                toast.error("Error deleting teacher", {
+                    description: errorMessage,
+                })
+            } finally {
+                setIsSubmitting(false)
+            }
         }
     }
 
@@ -147,7 +447,7 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
             Edit teacher
         </Button>
     ) : (
-        <Button className="bg-sidebar-accent h-9 dark:text-white gap-2">
+        <Button className="bg-deep-koamaru h-9 dark:text-white gap-2">
             <Plus className="h-4 w-4" />
             <span className="hidden md:inline">Add Teacher</span>
         </Button>
@@ -164,6 +464,9 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
             }
             onSubmit={handleSubmit}
             submitLabel={isEditing ? "Save changes" : "Create Teacher"}
+            isSubmitting={isSubmitting}
+            open={isOpen}
+            onOpenChange={setIsOpen}
             leftActions={isEditing ? (
                 <Button
                     type="button"
@@ -267,11 +570,13 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
                                         fill
                                         className="h-full w-full rounded-lg object-cover"
                                     />
-                                ) : teacher?.avatarStorageId ? (
-                                    <div className="flex h-full w-full items-center justify-center rounded-lg bg-muted">
-                                        <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                                        <span className="ml-2 text-sm text-muted-foreground">Current Image</span>
-                                    </div>
+                                ) : existingAvatarUrl && !deleteExistingImage ? (
+                                    <Image
+                                        src={existingAvatarUrl}
+                                        alt="Current teacher avatar"
+                                        fill
+                                        className="h-full w-full rounded-lg object-cover"
+                                    />
                                 ) : (
                                     <div className="flex h-full w-full items-center justify-center rounded-lg bg-muted">
                                         <ImageIcon className="h-8 w-8 text-muted-foreground" />
@@ -312,6 +617,18 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
                                     >
                                         <Trash2 className="h-4 w-4" />
                                         Remove
+                                    </Button>
+                                )}
+
+                                {existingAvatarUrl && !deleteExistingImage && !imagePreview && isEditing && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={handleDeleteExistingImage}
+                                        className="gap-2 text-destructive hover:text-destructive"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                        Delete Current Image
                                     </Button>
                                 )}
                             </div>
@@ -356,7 +673,7 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
                             <DropdownMenuContent className="w-80" align="start">
                                 <DropdownMenuLabel>Available Campuses</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
-                                {availableCampuses.length === 0 ? (
+                                {!availableCampuses || availableCampuses.length === 0 ? (
                                     <DropdownMenuItem disabled>
                                         No campuses available
                                     </DropdownMenuItem>
@@ -398,9 +715,16 @@ export function TeacherDialog({ teacher, trigger }: TeacherDialogProps) {
                                 )}
                             </DropdownMenuContent>
                         </DropdownMenu>
-                        <div className="text-sm text-muted-foreground">
-                            {availableCampuses.length} campus(es) available
-                        </div>
+                        {availableCampuses === undefined ? (
+                            <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Loading campuses...
+                            </div>
+                        ) : (
+                            <div className="text-sm text-muted-foreground">
+                                {availableCampuses.length} campus(es) available
+                            </div>
+                        )}
                     </div>
                 </div>
 

@@ -2,7 +2,6 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { CampusesOverview } from "@/components/admin/campuses/campuses-overview";
 import {
-    FALLBACK_CAMPUSES,
     mapCampusDocToOverview,
     type CampusOverview,
 } from "@/lib/campuses/campus-overview";
@@ -24,15 +23,10 @@ export default async function CampusesPage() {
 async function loadCampuses(client: ConvexHttpClient): Promise<CampusOverview[]> {
     try {
         const campuses = await client.query(api.campuses.getCampuses, { isActive: true });
-
-        if (!campuses.length) {
-            return FALLBACK_CAMPUSES;
-        }
-
         return campuses.map(mapCampusDocToOverview);
     } catch (error) {
         console.error("[CampusesPage] Failed to load campuses:", error);
-        return FALLBACK_CAMPUSES;
+        return [];
     }
 }
 

@@ -16,16 +16,14 @@ export function CampusHeader({ campus, locale, hasHero = false, addressLabel }: 
     const descriptionColor = hasHero ? "text-sm text-white/90" : "text-sm text-muted-foreground";
 
     return (
-        <div className="mx-2 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-1">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between ">
+            <div className="space-y-1.5">
                 <h1 className={`text-3xl font-semibold tracking-tight ${textColor}`}>
                     {campus.name}
                 </h1>
-                <p className={`${descriptionColor} font-semibold`}>
-                    {addressLabel ?? "Campus details and academic overview"}
-                </p>
+                <p className={`${descriptionColor}`}>{addressLabel ?? "Campus details and academic overview"}</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 pt-1 md:pt-0">
                 <Button variant="outline" className="gap-2" asChild>
                     <Link href={`/${locale}/admin/campuses`}>
                         <ArrowLeft className="h-4 w-4" />

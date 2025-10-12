@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import createIntlMiddleware from 'next-intl/middleware'
 import { routing } from './i18n/routing'
 import { getLocaleFromPathname } from './lib/locale-setup'
+import { roleFromSessionClaims, checkRoleAccess } from './lib/rbac'
 
 const intlMiddleware = createIntlMiddleware(routing)
 
@@ -47,9 +48,23 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
       return NextResponse.redirect(signInUrl)
     }
 
-    // Para el MVP, permitimos acceso a todas las rutas autenticadas
-    // La seguridad a nivel de página se manejará en cada componente
-    // usando los roles de la base de datos de Convex
+    // Obtener rol del usuario desde session claims
+    const userRole = roleFromSessionClaims(authObject.sessionClaims)
+
+    // Si no tiene rol, redirigir a página de espera
+    if (!userRole) {
+      const pendingUrl = new URL(`/${locale}/pending-role`, req.url)
+      return NextResponse.redirect(pendingUrl)
+    }
+
+    // Verificar acceso por rol
+    const accessResult = checkRoleAccess(req, userRole)
+
+    if (accessResult === 'denied') {
+      // Si el acceso está denegado, redirigir a dashboard principal
+      const dashboardUrl = new URL(`/${locale}`, req.url)
+      return NextResponse.redirect(dashboardUrl)
+    }
 
     return intlMiddleware(req)
 

@@ -57,6 +57,6 @@ export const campusStatusOptions = [
     { value: "active", label: "Active" },
     { value: "inactive", label: "Inactive" },
     { value: "maintenance", label: "Under Maintenance" },
-    { value: "construction", label: "Under Construction" },
-    { value: "suspended", label: "Temporarily Suspended" },
+    // { value: "construction", label: "Under Construction" },
+    // { value: "suspended", label: "Temporarily Suspended" },
 ];
