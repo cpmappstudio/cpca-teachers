@@ -21,6 +21,7 @@ import { EntityDialog } from "@/components/ui/entity-dialog";
 import { useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter, useParams } from "next/navigation";
+import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 
@@ -117,7 +118,9 @@ export function CurriculumDialog({
   // Resource handlers
   const handleAddResource = () => {
     if (!newResourceName.trim() || !newResourceUrl.trim() || !newResourceType.trim()) {
-      alert("Please fill in all resource fields (name, URL, and type).");
+      toast.error("Validation Error", {
+        description: "Please fill in all resource fields (name, URL, and type).",
+      });
       return;
     }
 
@@ -145,7 +148,9 @@ export function CurriculumDialog({
 
     // Validar que tengamos el usuario actual
     if (!currentUser?._id) {
-      alert("Error: User not authenticated. Please sign in again.");
+      toast.error("Authentication Error", {
+        description: "User not authenticated. Please sign in again.",
+      });
       return;
     }
 
@@ -159,12 +164,16 @@ export function CurriculumDialog({
 
     // Validación básica
     if (!name?.trim()) {
-      alert("Validation Error: Curriculum name is required.");
+      toast.error("Validation Error", {
+        description: "Curriculum name is required.",
+      });
       return;
     }
 
     if (!isEditing && !selectedStatus) {
-      alert("Validation Error: Curriculum status is required.");
+      toast.error("Validation Error", {
+        description: "Curriculum status is required.",
+      });
       return;
     }
 
@@ -173,7 +182,9 @@ export function CurriculumDialog({
       parseInt(numberOfQuarters) < 1 ||
       parseInt(numberOfQuarters) > 4
     ) {
-      alert("Validation Error: Number of quarters must be between 1 and 4.");
+      toast.error("Validation Error", {
+        description: "Number of quarters must be between 1 and 4.",
+      });
       return;
     }
 
@@ -183,7 +194,9 @@ export function CurriculumDialog({
       if (isEditing) {
         // Actualizar curriculum existente
         if (!curriculum?._id) {
-          alert("Error: Curriculum ID not found.");
+          toast.error("Error", {
+            description: "Curriculum ID not found.",
+          });
           return;
         }
 
@@ -243,7 +256,9 @@ export function CurriculumDialog({
             updatedBy: currentUser._id,
           });
 
-          alert(`Success! Curriculum "${name}" has been updated successfully.`);
+          toast.success("Curriculum updated successfully", {
+            description: `"${name}" has been updated.`,
+          });
 
           // Cerrar el dialog automáticamente después del éxito
           setIsOpen(false);
@@ -251,7 +266,9 @@ export function CurriculumDialog({
           // Recargar la página para mostrar los cambios
           router.refresh();
         } else {
-          alert("No changes detected.");
+          toast.info("No changes detected", {
+            description: "Please make changes before updating.",
+          });
           setIsSubmitting(false);
           return;
         }
@@ -294,7 +311,9 @@ export function CurriculumDialog({
 
         const curriculumId = await createCurriculumMutation(curriculumData);
 
-        alert(`Success! Curriculum "${name}" has been created successfully.`);
+        toast.success("Curriculum created successfully", {
+          description: `"${name}" has been created.`,
+        });
 
         // Resetear formulario
         form.reset();
@@ -316,7 +335,9 @@ export function CurriculumDialog({
         error instanceof Error
           ? error.message
           : "Failed to save curriculum. Please try again.";
-      alert(`Error: ${errorMessage}`);
+      toast.error("Error", {
+        description: errorMessage,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -329,7 +350,9 @@ export function CurriculumDialog({
       setIsSubmitting(true);
       await deleteCurriculumMutation({ curriculumId: curriculum._id });
 
-      alert(`Success! Curriculum "${curriculum.name}" has been deleted.`);
+      toast.success("Curriculum deleted successfully", {
+        description: `"${curriculum.name}" has been deleted.`,
+      });
 
       // Cerrar el dialog
       setIsOpen(false);
@@ -343,7 +366,9 @@ export function CurriculumDialog({
         error instanceof Error
           ? error.message
           : "Failed to delete curriculum. Please try again.";
-      alert(`Error: ${errorMessage}`);
+      toast.error("Error", {
+        description: errorMessage,
+      });
     } finally {
       setIsSubmitting(false);
     }

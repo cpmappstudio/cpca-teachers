@@ -5,7 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { OverviewCard } from "@/components/ui/overview-card";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, Hash, GraduationCap, Calendar, FileText, Layers } from "lucide-react";
+import { Book, Hash, Calendar, FileText, Layers } from "lucide-react";
 import { CurriculumLessonsCard } from "./curriculum-lessons-card";
 
 interface CurriculumOverviewCardProps {
@@ -42,7 +42,7 @@ export function CurriculumOverviewCard({ curriculumId }: CurriculumOverviewCardP
 
     const rows = [
         {
-            icon: <BookOpen className="h-4 w-4 text-primary" />,
+            icon: <Book className="h-4 w-4 text-primary" />,
             label: "Curriculum name",
             value: curriculum.name
         },
@@ -79,21 +79,21 @@ export function CurriculumOverviewCard({ curriculumId }: CurriculumOverviewCardP
 
     return (
         <div className="flex flex-col gap-6 w-full">
-        <div className="w-full">
-        <OverviewCard
-            title="Curriculum overview"
-            description="General information and curriculum details."
-            imageStorageId={undefined}
-            imageAlt={`${curriculum.name} curriculum`}
-            fallbackIcon={<BookOpen className="h-8 w-8 text-muted-foreground" />}
-            rows={rows}
-            className="gap-2"
-        />
+            <div className="w-full">
+                <OverviewCard
+                    title="Curriculum overview"
+                    description="General information and curriculum details."
+                    imageStorageId={undefined}
+                    imageAlt={`${curriculum.name} curriculum`}
+                    fallbackIcon={<Book className="h-8 w-8 text-muted-foreground" />}
+                    rows={rows}
+                    className="gap-2"
+                />
+            </div>
+            <div className="w-full">
+                <CurriculumLessonsCard curriculumId={curriculumId} />
+            </div>
         </div>
-        <div className="w-full">
-          <CurriculumLessonsCard curriculumId={curriculumId} />
-        </div>
-        </div>
-        
+
     );
 }

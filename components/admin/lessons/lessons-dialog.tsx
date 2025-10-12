@@ -30,6 +30,7 @@ import { Switch } from "@/components/ui/switch";
 import { useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter, useParams } from "next/navigation";
+import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 
@@ -147,7 +148,9 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
 
     // Validar que tengamos el usuario actual
     if (!currentUser?._id) {
-      alert("Error: User not authenticated. Please sign in again.");
+      toast.error("Authentication Error", {
+        description: "User not authenticated. Please sign in again.",
+      });
       return;
     }
 
@@ -165,37 +168,47 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
 
     // Validación básica
     if (!curriculumId?.trim()) {
-      alert("Validation Error: Curriculum is required.");
+      toast.error("Validation Error", {
+        description: "Curriculum is required.",
+      });
       return;
     }
 
     if (!title?.trim()) {
-      alert("Validation Error: Lesson title is required.");
+      toast.error("Validation Error", {
+        description: "Lesson title is required.",
+      });
       return;
     }
 
     if (!quarter) {
-      alert("Validation Error: Quarter is required.");
+      toast.error("Validation Error", {
+        description: "Quarter is required.",
+      });
       return;
     }
 
     if (!orderInQuarter) {
-      alert("Validation Error: Order in quarter is required.");
+      toast.error("Validation Error", {
+        description: "Order in quarter is required.",
+      });
       return;
     }
 
     // Client-side validation: Check if order is already occupied
     const orderNum = parseInt(orderInQuarter);
     if (occupiedOrders && occupiedOrders.includes(orderNum)) {
-      alert(
-        `Validation Error: Position ${orderNum} is already occupied in Quarter ${quarter}. Please choose a different order number.\n\nOccupied positions: ${occupiedOrders.join(", ")}`
-      );
+      toast.error("Validation Error", {
+        description: `Position ${orderNum} is already occupied in Quarter ${quarter}. Please choose a different order number. Occupied positions: ${occupiedOrders.join(", ")}`,
+      });
       return;
     }
 
     // Mandatory field validation (always required, both create and edit)
     if (isMandatory === undefined || isMandatory === null) {
-      alert("Validation Error: Mandatory status is required.");
+      toast.error("Validation Error", {
+        description: "Mandatory status is required.",
+      });
       return;
     }
 
@@ -205,7 +218,9 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
       if (isEditing) {
         // Actualizar lesson existente
         if (!lesson?._id) {
-          alert("Error: Lesson ID not found.");
+          toast.error("Error", {
+            description: "Lesson ID not found.",
+          });
           return;
         }
 
@@ -277,7 +292,9 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
             updatedBy: currentUser._id,
           });
 
-          alert(`Success! Lesson "${title}" has been updated successfully.`);
+          toast.success("Lesson updated successfully", {
+            description: `"${title}" has been updated.`,
+          });
 
           // Cerrar el dialog automáticamente después del éxito
           setIsOpen(false);
@@ -285,7 +302,9 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
           // Recargar la página para mostrar los cambios
           router.refresh();
         } else {
-          alert("No changes detected.");
+          toast.info("No changes detected", {
+            description: "Please make changes before updating.",
+          });
           setIsSubmitting(false);
           return;
         }
@@ -342,7 +361,9 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
 
         const lessonId = await createLessonMutation(lessonData);
 
-        alert(`Success! Lesson "${title}" has been created successfully.`);
+        toast.success("Lesson created successfully", {
+          description: `"${title}" has been created.`,
+        });
 
         // Resetear formulario
         form.reset();
@@ -368,7 +389,9 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
         error instanceof Error
           ? error.message
           : "Failed to save lesson. Please try again.";
-      alert(`Error: ${errorMessage}`);
+      toast.error("Error", {
+        description: errorMessage,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -381,7 +404,9 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
       setIsSubmitting(true);
       await deleteLessonMutation({ lessonId: lesson._id });
 
-      alert(`Success! Lesson "${lesson.title}" has been deleted.`);
+      toast.success("Lesson deleted successfully", {
+        description: `"${lesson.title}" has been deleted.`,
+      });
 
       // Cerrar el dialog de alerta y el dialog principal
       setShowDeleteAlert(false);
@@ -395,7 +420,9 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
         error instanceof Error
           ? error.message
           : "Failed to delete lesson. Please try again.";
-      alert(`Error: ${errorMessage}`);
+      toast.error("Error", {
+        description: errorMessage,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -420,7 +447,9 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
       !newResourceUrl.trim() ||
       !newResourceType.trim()
     ) {
-      alert("Please fill in all resource fields (name, URL, and type).");
+      toast.error("Validation Error", {
+        description: "Please fill in all resource fields (name, URL, and type).",
+      });
       return;
     }
 

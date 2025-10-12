@@ -305,7 +305,7 @@ export function CurriculumsTable() {
                             }
                             placeholder="Search by course name or code"
                             aria-label="Search curriculums"
-                            className="pl-10 pr-4 rounded-l bg-card"
+                            className="pl-10 pr-3 rounded-l bg-card h-9"
                         />
                     </div>
                 </div>
@@ -327,7 +327,7 @@ export function CurriculumsTable() {
                         )}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="lg" className=" px-3 bg-card">
+                            <Button variant="outline" size="lg" className=" h-9 px-3 bg-card">
                                 <Filter className="h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>

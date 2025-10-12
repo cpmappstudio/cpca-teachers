@@ -69,7 +69,6 @@ export function CurriculumHeader({ curriculumId }: CurriculumHeaderProps) {
                 <h1 className={`text-2xl md:text-3xl font-semibold tracking-tight ${textColor}`}>
                     {curriculum.name}
                 </h1>
-                <p className={`${descriptionColor} leading-relaxed`}>{subtitle}</p>
             </div>
             <div className="flex items-center gap-3 pt-1">
                 <Button variant="outline" className="gap-2" asChild>

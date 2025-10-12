@@ -467,7 +467,7 @@ export function TeachersTable() {
               }
               placeholder="Search teachers by name or campus"
               aria-label="Search teachers"
-              className="pl-10 pr-4 rounded-l bg-card"
+              className="pl-10 pr-3 rounded-l bg-card h-9"
             />
           </div>
         </div>
@@ -489,7 +489,7 @@ export function TeachersTable() {
             )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="lg" className="px-3 bg-card">
+              <Button variant="outline" size="lg" className="px-3 h-9 bg-card">
                 <Filter className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>

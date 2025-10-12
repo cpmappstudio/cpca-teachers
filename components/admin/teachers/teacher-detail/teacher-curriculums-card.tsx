@@ -634,7 +634,7 @@ export function TeacherCurriculumsCard({
                                 }
                                 placeholder="Search by course name or code"
                                 aria-label="Search curriculums"
-                                className="pl-10 pr-4 rounded-l bg-card h-10"
+                                className="pl-10 pr-3 rounded-l bg-card h-9"
                             />
                         </div>
                     </div>
