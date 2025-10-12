@@ -186,6 +186,11 @@ export const columns: ColumnDef<Teacher>[] = [
     meta: {
       className: "hidden lg:table-cell",
     },
+    filterFn: (row, id, value) => {
+      if (value === "all") return true;
+      const campusId = row.original.campusId;
+      return campusId === value;
+    },
   },
   {
     accessorKey: "progressAvg",
@@ -384,6 +389,7 @@ export function TeachersTable() {
   const [statusFilter, setStatusFilter] = React.useState<UserStatus | "all">(
     "all",
   );
+  const [campusFilter, setCampusFilter] = React.useState<string>("all");
 
   // Transform Convex data to table format
   const data: Teacher[] = React.useMemo(() => {
@@ -438,6 +444,15 @@ export function TeachersTable() {
     }
   }, [statusFilter, table]);
 
+  // Apply campus filter to the table
+  React.useEffect(() => {
+    if (campusFilter === "all") {
+      table.getColumn("campus")?.setFilterValue(undefined);
+    } else {
+      table.getColumn("campus")?.setFilterValue(campusFilter);
+    }
+  }, [campusFilter, table]);
+
   // Loading state
   if (!users || !campuses) {
     return (
@@ -474,12 +489,14 @@ export function TeachersTable() {
         <div className="flex items-center gap-3">
           {/* Botón Clear all - visible solo cuando hay filtros activos */}
           {(statusFilter !== "all" ||
+            campusFilter !== "all" ||
             (table.getColumn("fullName")?.getFilterValue() as string)?.length > 0) && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
                   setStatusFilter("all");
+                  setCampusFilter("all");
                   table.getColumn("fullName")?.setFilterValue("");
                 }}
                 className="px-3"
@@ -498,33 +515,66 @@ export function TeachersTable() {
                 Filter by:
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <div className="px-3 py-3">
-                <label className="text-sm font-medium text-foreground">
-                  Status
-                </label>
-                <Select
-                  value={statusFilter}
-                  onValueChange={(value) =>
-                    setStatusFilter(value as UserStatus | "all")
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Teachers</SelectItem>
-                    {statusOptions.map((status) => (
-                      <SelectItem key={status.value} value={status.value}>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={`w-2 h-2 rounded-full ${status.color}`}
-                          ></div>
-                          {status.label}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="px-3 py-3 space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-foreground">
+                    Campus
+                  </label>
+                  <Select
+                    value={campusFilter}
+                    onValueChange={(value) => setCampusFilter(value)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select campus" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Campuses</SelectItem>
+                      {campuses
+                        .filter((campus) => campus.status === "active")
+                        .map((campus) => (
+                          <SelectItem key={campus._id} value={campus._id}>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-sky-600"></div>
+                              {campus.name}
+                              {campus.code && (
+                                <span className="text-xs text-muted-foreground">
+                                  ({campus.code})
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground">
+                    Status
+                  </label>
+                  <Select
+                    value={statusFilter}
+                    onValueChange={(value) =>
+                      setStatusFilter(value as UserStatus | "all")
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Teachers</SelectItem>
+                      {statusOptions.map((status) => (
+                        <SelectItem key={status.value} value={status.value}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-2 h-2 rounded-full ${status.color}`}
+                            ></div>
+                            {status.label}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </DropdownMenuContent>
           </DropdownMenu>
