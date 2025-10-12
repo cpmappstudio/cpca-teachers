@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -119,7 +120,7 @@ function SortableGradeBadge({ grade, index, onRemove }: SortableGradeBadgeProps)
         <GraduationCap className="h-3 w-3 flex-shrink-0" />
         <span className="truncate">{grade.name} ({grade.code})</span>
         {grade.category && (
-          <span className="text-xs text-muted-foreground flex-shrink-0">• {grade.category}</span>
+          <span className="text-xs text-muted-foreground flex-shrink-0">- {grade.category}</span>
         )}
         <button
           type="button"
@@ -189,6 +190,100 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
   const [newGradeName, setNewGradeName] = useState("");
   const [newGradeCode, setNewGradeCode] = useState("");
   const [newGradeCategory, setNewGradeCategory] = useState<string>("");
+  const [useGradeTemplate, setUseGradeTemplate] = useState(false);
+
+  // Grade template - Standard US education system
+  const gradeTemplate: Grade[] = [
+    // Pre-K
+    { name: "Pre-K", code: "PK", level: 0, category: "prekinder", isActive: true },
+    // Kindergarten
+    { name: "K - 1", code: "K1", level: 1, category: "kinder", isActive: true },
+    { name: "K - 2", code: "K2", level: 2, category: "kinder", isActive: true },
+    // 1st Grade
+    { name: "1st - 1", code: "1-1", level: 3, category: "elementary", isActive: true },
+    { name: "1st - 2", code: "1-2", level: 4, category: "elementary", isActive: true },
+    { name: "1st - 3", code: "1-3", level: 5, category: "elementary", isActive: true },
+    { name: "1st - 4", code: "1-4", level: 6, category: "elementary", isActive: true },
+    { name: "1st - 5", code: "1-5", level: 7, category: "elementary", isActive: true },
+    { name: "1st - 6", code: "1-6", level: 8, category: "elementary", isActive: true },
+    // 2nd Grade
+    { name: "2nd - 1", code: "2-1", level: 9, category: "elementary", isActive: true },
+    { name: "2nd - 2", code: "2-2", level: 10, category: "elementary", isActive: true },
+    { name: "2nd - 3", code: "2-3", level: 11, category: "elementary", isActive: true },
+    { name: "2nd - 4", code: "2-4", level: 12, category: "elementary", isActive: true },
+    { name: "2nd - 5", code: "2-5", level: 13, category: "elementary", isActive: true },
+    { name: "2nd - 6", code: "2-6", level: 14, category: "elementary", isActive: true },
+    // 3rd Grade
+    { name: "3rd - 1", code: "3-1", level: 15, category: "elementary", isActive: true },
+    { name: "3rd - 2", code: "3-2", level: 16, category: "elementary", isActive: true },
+    { name: "3rd - 3", code: "3-3", level: 17, category: "elementary", isActive: true },
+    { name: "3rd - 4", code: "3-4", level: 18, category: "elementary", isActive: true },
+    { name: "3rd - 5", code: "3-5", level: 19, category: "elementary", isActive: true },
+    { name: "3rd - 6", code: "3-6", level: 20, category: "elementary", isActive: true },
+    // 4th Grade
+    { name: "4th - 1", code: "4-1", level: 21, category: "elementary", isActive: true },
+    { name: "4th - 2", code: "4-2", level: 22, category: "elementary", isActive: true },
+    { name: "4th - 3", code: "4-3", level: 23, category: "elementary", isActive: true },
+    { name: "4th - 4", code: "4-4", level: 24, category: "elementary", isActive: true },
+    { name: "4th - 5", code: "4-5", level: 25, category: "elementary", isActive: true },
+    { name: "4th - 6", code: "4-6", level: 26, category: "elementary", isActive: true },
+    // 5th Grade
+    { name: "5th - 1", code: "5-1", level: 27, category: "elementary", isActive: true },
+    { name: "5th - 2", code: "5-2", level: 28, category: "elementary", isActive: true },
+    { name: "5th - 3", code: "5-3", level: 29, category: "elementary", isActive: true },
+    { name: "5th - 4", code: "5-4", level: 30, category: "elementary", isActive: true },
+    { name: "5th - 5", code: "5-5", level: 31, category: "elementary", isActive: true },
+    { name: "5th - 6", code: "5-6", level: 32, category: "elementary", isActive: true },
+    // 6th Grade
+    { name: "6th - 1", code: "6-1", level: 33, category: "middle", isActive: true },
+    { name: "6th - 2", code: "6-2", level: 34, category: "middle", isActive: true },
+    { name: "6th - 3", code: "6-3", level: 35, category: "middle", isActive: true },
+    { name: "6th - 4", code: "6-4", level: 36, category: "middle", isActive: true },
+    { name: "6th - 5", code: "6-5", level: 37, category: "middle", isActive: true },
+    { name: "6th - 6", code: "6-6", level: 38, category: "middle", isActive: true },
+    // 7th Grade
+    { name: "7th - 1", code: "7-1", level: 39, category: "middle", isActive: true },
+    { name: "7th - 2", code: "7-2", level: 40, category: "middle", isActive: true },
+    { name: "7th - 3", code: "7-3", level: 41, category: "middle", isActive: true },
+    { name: "7th - 4", code: "7-4", level: 42, category: "middle", isActive: true },
+    { name: "7th - 5", code: "7-5", level: 43, category: "middle", isActive: true },
+    { name: "7th - 6", code: "7-6", level: 44, category: "middle", isActive: true },
+    // 8th Grade
+    { name: "8th - 1", code: "8-1", level: 45, category: "middle", isActive: true },
+    { name: "8th - 2", code: "8-2", level: 46, category: "middle", isActive: true },
+    { name: "8th - 3", code: "8-3", level: 47, category: "middle", isActive: true },
+    { name: "8th - 4", code: "8-4", level: 48, category: "middle", isActive: true },
+    { name: "8th - 5", code: "8-5", level: 49, category: "middle", isActive: true },
+    { name: "8th - 6", code: "8-6", level: 50, category: "middle", isActive: true },
+    // 9th Grade
+    { name: "9th - 1", code: "9-1", level: 51, category: "high", isActive: true },
+    { name: "9th - 2", code: "9-2", level: 52, category: "high", isActive: true },
+    { name: "9th - 3", code: "9-3", level: 53, category: "high", isActive: true },
+    { name: "9th - 4", code: "9-4", level: 54, category: "high", isActive: true },
+    { name: "9th - 5", code: "9-5", level: 55, category: "high", isActive: true },
+    { name: "9th - 6", code: "9-6", level: 56, category: "high", isActive: true },
+    // 10th Grade
+    { name: "10th - 1", code: "10-1", level: 57, category: "high", isActive: true },
+    { name: "10th - 2", code: "10-2", level: 58, category: "high", isActive: true },
+    { name: "10th - 3", code: "10-3", level: 59, category: "high", isActive: true },
+    { name: "10th - 4", code: "10-4", level: 60, category: "high", isActive: true },
+    { name: "10th - 5", code: "10-5", level: 61, category: "high", isActive: true },
+    { name: "10th - 6", code: "10-6", level: 62, category: "high", isActive: true },
+    // 11th Grade
+    { name: "11th - 1", code: "11-1", level: 63, category: "high", isActive: true },
+    { name: "11th - 2", code: "11-2", level: 64, category: "high", isActive: true },
+    { name: "11th - 3", code: "11-3", level: 65, category: "high", isActive: true },
+    { name: "11th - 4", code: "11-4", level: 66, category: "high", isActive: true },
+    { name: "11th - 5", code: "11-5", level: 67, category: "high", isActive: true },
+    { name: "11th - 6", code: "11-6", level: 68, category: "high", isActive: true },
+    // 12th Grade
+    { name: "12th - 1", code: "12-1", level: 69, category: "high", isActive: true },
+    { name: "12th - 2", code: "12-2", level: 70, category: "high", isActive: true },
+    { name: "12th - 3", code: "12-3", level: 71, category: "high", isActive: true },
+    { name: "12th - 4", code: "12-4", level: 72, category: "high", isActive: true },
+    { name: "12th - 5", code: "12-5", level: 73, category: "high", isActive: true },
+    { name: "12th - 6", code: "12-6", level: 74, category: "high", isActive: true },
+  ];
 
   // Setup drag and drop sensors
   const sensors = useSensors(
@@ -260,6 +355,19 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
 
   const triggerFileUpload = () => {
     fileInputRef.current?.click();
+  };
+
+  // Grade template handler
+  const handleUseGradeTemplate = (checked: boolean) => {
+    setUseGradeTemplate(checked);
+    if (checked) {
+      setGrades(gradeTemplate);
+      toast.success("Grade template loaded", {
+        description: `${gradeTemplate.length} standard grades have been added. You can customize them as needed.`,
+      });
+    } else {
+      setGrades([]);
+    }
   };
 
   // Grade handlers
@@ -881,6 +989,28 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
           <div className="space-y-4">
             <h4 className="text-sm font-medium border-b pb-2">Grades Offered</h4>
             <div className="grid gap-4">
+              {/* Use Grade Template Checkbox - Only show when creating */}
+              {!isEditing && (
+                <div className="flex items-center space-x-2 p-4 border rounded-lg bg-muted/50">
+                  <Checkbox
+                    id="useGradeTemplate"
+                    checked={useGradeTemplate}
+                    onCheckedChange={handleUseGradeTemplate}
+                  />
+                  <div className="grid gap-1.5 leading-none">
+                    <label
+                      htmlFor="useGradeTemplate"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      Use standard grade template
+                    </label>
+                    <p className="text-sm text-muted-foreground">
+                      Load all standard grades from Pre-K to 12th grade (75 grades total)
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Display existing grades with drag & drop */}
               {grades.length > 0 && (
                 <div className="space-y-3 overflow-hidden">
