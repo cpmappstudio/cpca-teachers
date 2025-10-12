@@ -126,6 +126,21 @@ export default defineSchema({
       country: v.optional(v.string()),
     })),
 
+    // Grades offered at this campus
+    grades: v.optional(v.array(v.object({
+      name: v.string(), // "Prekinder", "1st Grade", "2nd Grade", etc.
+      code: v.string(), // "PK", "G1", "G2", etc.
+      level: v.number(), // Numeric level for ordering (0 for prekinder, 1, 2, 3...)
+      category: v.optional(v.union(
+        v.literal("prekinder"),
+        v.literal("kinder"),
+        v.literal("elementary"),
+        v.literal("middle"),
+        v.literal("high")
+      )),
+      isActive: v.boolean(),
+    }))),
+
     // Metrics (denormalized for dashboard)
     metrics: v.optional(v.object({
       totalTeachers: v.number(),

@@ -32,8 +32,11 @@ import {
   Trash2,
   ImageIcon,
   Loader2,
+  X,
+  GraduationCap,
+  GripVertical,
 } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { useQuery, useMutation } from "convex/react";
 import { useUser } from "@clerk/nextjs";
@@ -45,6 +48,90 @@ import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { EntityDialog } from "@/components/ui/entity-dialog";
 import { usStates, campusStatusOptions } from "@/lib/location-data";
 import { getCitiesByState } from "@/lib/cities-data";
+import { Badge } from "@/components/ui/badge";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+// Grade type definition
+type Grade = {
+  name: string;
+  code: string;
+  level: number;
+  category?: "prekinder" | "kinder" | "elementary" | "middle" | "high";
+  isActive: boolean;
+};
+
+// Sortable Grade Badge Component
+interface SortableGradeBadgeProps {
+  grade: Grade;
+  index: number;
+  onRemove: (index: number) => void;
+}
+
+function SortableGradeBadge({ grade, index, onRemove }: SortableGradeBadgeProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: index });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-1 w-full max-w-full"
+    >
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded flex-shrink-0"
+      >
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <Badge
+        variant="outline"
+        className="flex items-center gap-2 px-3 py-1.5 text-sm flex-1 min-w-0"
+      >
+        <GraduationCap className="h-3 w-3 flex-shrink-0" />
+        <span className="truncate">{grade.name} ({grade.code})</span>
+        {grade.category && (
+          <span className="text-xs text-muted-foreground flex-shrink-0">• {grade.category}</span>
+        )}
+        <button
+          type="button"
+          onClick={() => onRemove(index)}
+          className="ml-1 rounded-full hover:bg-muted p-0.5 flex-shrink-0"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </Badge>
+    </div>
+  );
+}
 
 interface CampusDialogProps {
   campus?: Doc<"campuses">;
@@ -97,6 +184,29 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
   const [deleteExistingImage, setDeleteExistingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Grades state
+  const [grades, setGrades] = useState<Grade[]>(campus?.grades || []);
+  const [newGradeName, setNewGradeName] = useState("");
+  const [newGradeCode, setNewGradeCode] = useState("");
+  const [newGradeCategory, setNewGradeCategory] = useState<string>("");
+
+  // Setup drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Grade categories
+  const gradeCategories = [
+    { value: "prekinder", label: "Prekinder" },
+    { value: "kinder", label: "Kinder" },
+    { value: "elementary", label: "Elementary" },
+    { value: "middle", label: "Middle School" },
+    { value: "high", label: "High School" },
+  ];
+
   // Query para obtener usuarios que pueden ser directores (admins y superadmins)
   const potentialDirectors = useQuery(api.admin.getPotentialDirectors);
   const selectedDirector = potentialDirectors?.find(
@@ -111,6 +221,14 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
 
   // Get available cities based on selected state
   const availableCities = getCitiesByState(selectedState);
+
+  // Sync grades state when campus prop changes (only on initial load or campus change)
+  // Don't sync during editing to preserve local changes
+  useEffect(() => {
+    if (campus?.grades && isOpen) {
+      setGrades(campus.grades);
+    }
+  }, [campus?._id, isOpen]); // Only run when campus ID or dialog open state changes
 
   // Image handling functions
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -142,6 +260,70 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
 
   const triggerFileUpload = () => {
     fileInputRef.current?.click();
+  };
+
+  // Grade handlers
+  const handleAddGrade = () => {
+    if (!newGradeName.trim() || !newGradeCode.trim()) {
+      toast.error("Validation Error", {
+        description: "Grade name and code are required.",
+      });
+      return;
+    }
+
+    // Check for duplicate code
+    const codeExists = grades.some(
+      (grade) => grade.code.toLowerCase() === newGradeCode.trim().toLowerCase()
+    );
+
+    if (codeExists) {
+      toast.error("Duplicate Grade Code", {
+        description: `A grade with code "${newGradeCode.trim()}" already exists. Please use a different code.`,
+      });
+      return;
+    }
+
+    const newGrade: Grade = {
+      name: newGradeName.trim(),
+      code: newGradeCode.trim(),
+      level: grades.length, // Level is based on current position
+      category: newGradeCategory as "prekinder" | "kinder" | "elementary" | "middle" | "high" | undefined,
+      isActive: true,
+    };
+
+    setGrades([...grades, newGrade]);
+    setNewGradeName("");
+    setNewGradeCode("");
+    setNewGradeCategory("");
+  };
+
+  const handleRemoveGrade = (index: number) => {
+    const updatedGrades = grades.filter((_, i) => i !== index);
+    // Recalculate levels based on new order
+    const reindexedGrades = updatedGrades.map((grade, idx) => ({
+      ...grade,
+      level: idx,
+    }));
+    setGrades(reindexedGrades);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setGrades((items) => {
+        const oldIndex = items.findIndex((_, idx) => idx === active.id);
+        const newIndex = items.findIndex((_, idx) => idx === over.id);
+
+        const reorderedGrades = arrayMove(items, oldIndex, newIndex);
+
+        // Recalculate levels based on new order
+        return reorderedGrades.map((grade, idx) => ({
+          ...grade,
+          level: idx,
+        }));
+      });
+    }
   };
 
   // Upload image to Convex storage
@@ -253,6 +435,13 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
             zipCode?: string;
             country?: string;
           };
+          grades?: Array<{
+            name: string;
+            code: string;
+            level: number;
+            category?: "prekinder" | "kinder" | "elementary" | "middle" | "high";
+            isActive: boolean;
+          }>;
           status?: "active" | "inactive" | "maintenance";
         } = {};
 
@@ -328,6 +517,12 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
           };
         }
 
+        // Check if grades changed
+        if (JSON.stringify(grades) !== JSON.stringify(campus.grades || [])) {
+          // Always send the grades array, even if empty
+          updates.grades = grades;
+        }
+
         // Solo hacer la actualización si hay cambios o si se eliminó la imagen
         const hasChanges = Object.keys(updates).length > 0;
         const imageWasDeleted = deleteExistingImage && campus.campusImageStorageId;
@@ -381,6 +576,13 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
             zipCode?: string;
             country?: string;
           };
+          grades?: Array<{
+            name: string;
+            code: string;
+            level: number;
+            category?: "prekinder" | "kinder" | "elementary" | "middle" | "high";
+            isActive: boolean;
+          }>;
         } = {
           name: name.trim(),
           createdBy: currentUser._id,
@@ -424,6 +626,11 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
           };
         }
 
+        // Grades (solo si hay al menos un grado)
+        if (grades.length > 0) {
+          campusData.grades = grades;
+        }
+
         const campusId = await createCampusMutation(campusData);
 
         toast.success("Campus created successfully", {
@@ -439,6 +646,10 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
         setSelectedImage(null);
         setImagePreview(null);
         setDeleteExistingImage(false);
+        setGrades([]);
+        setNewGradeName("");
+        setNewGradeCode("");
+        setNewGradeCategory("");
 
         // Cerrar el dialog automáticamente después del éxito
         setIsOpen(false);
@@ -662,6 +873,90 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                     Loading available directors...
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+
+          {/* Grades Section */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium border-b pb-2">Grades Offered</h4>
+            <div className="grid gap-4">
+              {/* Display existing grades with drag & drop */}
+              {grades.length > 0 && (
+                <div className="space-y-3 overflow-hidden">
+                  <Label>Current Grades ({grades.length}) - Drag to reorder</Label>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext
+                      items={grades.map((_, index) => index)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="flex flex-col gap-2 w-full overflow-hidden">
+                        {grades.map((grade, index) => (
+                          <SortableGradeBadge
+                            key={index}
+                            grade={grade}
+                            index={index}
+                            onRemove={handleRemoveGrade}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                </div>
+              )}
+
+              {/* Add new grade form */}
+              <div className="space-y-3">
+                <Label className="text-sm">Add New Grade</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className="grid gap-2">
+                    <Label htmlFor="gradeName" className="text-xs">
+                      Name<span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="gradeName"
+                      value={newGradeName}
+                      onChange={(e) => setNewGradeName(e.target.value)}
+                      placeholder="e.g., Prekinder, 1st Grade"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="gradeCode" className="text-xs">
+                      Code<span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="gradeCode"
+                      value={newGradeCode}
+                      onChange={(e) => setNewGradeCode(e.target.value)}
+                      placeholder="e.g., PK, G1"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="gradeCategory" className="text-xs">
+                      Category
+                    </Label>
+                    <SelectDropdown
+                      options={gradeCategories}
+                      value={newGradeCategory}
+                      onValueChange={(value) => setNewGradeCategory(value)}
+                      placeholder="Select..."
+                      label="Grade Categories"
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAddGrade}
+                  className="gap-2 self-start"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Grade
+                </Button>
               </div>
             </div>
           </div>

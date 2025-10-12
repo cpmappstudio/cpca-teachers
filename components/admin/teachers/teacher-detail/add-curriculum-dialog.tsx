@@ -17,88 +17,8 @@ import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { EntityDialog } from "@/components/ui/entity-dialog"
-
-// Mock data para curriculums - TEMPORAL PARA TESTING
-const mockCurriculums = [
-    {
-        _id: "curriculum_5" as Id<"curriculums">,
-        name: "History Grade 3",
-        code: "HIST-G3",
-        status: "active" as const,
-        metrics: {
-            totalLessons: 32,
-            assignedTeachers: 2,
-            averageProgress: 85,
-            lastUpdated: Date.now(),
-        },
-        isActive: true
-    },
-    {
-        _id: "curriculum_6" as Id<"curriculums">,
-        name: "Art Education",
-        code: "ART-G3",
-        status: "active" as const,
-        metrics: {
-            totalLessons: 28,
-            assignedTeachers: 1,
-            averageProgress: 92,
-            lastUpdated: Date.now(),
-        },
-        isActive: true
-    },
-    {
-        _id: "curriculum_7" as Id<"curriculums">,
-        name: "Physical Education",
-        code: "PE-G3",
-        status: "draft" as const,
-        metrics: {
-            totalLessons: 40,
-            assignedTeachers: 0,
-            averageProgress: 0,
-            lastUpdated: Date.now(),
-        },
-        isActive: false
-    },
-    {
-        _id: "curriculum_8" as Id<"curriculums">,
-        name: "Music Education",
-        code: "MUS-G3",
-        status: "active" as const,
-        metrics: {
-            totalLessons: 24,
-            assignedTeachers: 3,
-            averageProgress: 78,
-            lastUpdated: Date.now(),
-        },
-        isActive: true
-    },
-    {
-        _id: "curriculum_9" as Id<"curriculums">,
-        name: "Computer Science Basics",
-        code: "CS-G3",
-        status: "draft" as const,
-        metrics: {
-            totalLessons: 36,
-            assignedTeachers: 1,
-            averageProgress: 45,
-            lastUpdated: Date.now(),
-        },
-        isActive: false
-    },
-    {
-        _id: "curriculum_10" as Id<"curriculums">,
-        name: "Geography Grade 3",
-        code: "GEO-G3",
-        status: "active" as const,
-        metrics: {
-            totalLessons: 30,
-            assignedTeachers: 2,
-            averageProgress: 88,
-            lastUpdated: Date.now(),
-        },
-        isActive: true
-    }
-]
+import { toast } from "sonner"
+import { CurriculumDialog } from "@/components/admin/curriculums/curriculum-dialog"
 
 interface AddCurriculumDialogProps {
     teacherId: string
@@ -107,14 +27,12 @@ interface AddCurriculumDialogProps {
 export function AddCurriculumDialog({ teacherId }: AddCurriculumDialogProps) {
     const [selectedCurriculumIds, setSelectedCurriculumIds] = useState<Id<"curriculums">[]>([])
 
-    // Query para obtener curriculums disponibles (comentado temporalmente)
-    // const allCurriculums = useQuery(api.curriculums.getAvailable)
-    // const availableCurriculums = allCurriculums?.filter(curriculum =>
-    //     curriculum.status === "active"
-    // ) || []
-
-    // Usando mock data temporalmente
-    const availableCurriculums = mockCurriculums
+    // Query para obtener curriculums disponibles
+    const allCurriculums = useQuery(api.curriculums.getCurriculums, { isActive: true })
+    // Show both active and draft curriculums (exclude archived and deprecated)
+    const availableCurriculums = allCurriculums?.filter(curriculum =>
+        curriculum.status === "active" || curriculum.status === "draft"
+    ) || []
 
     const selectedCurriculums = availableCurriculums.filter(curriculum =>
         selectedCurriculumIds.includes(curriculum._id)
@@ -135,8 +53,10 @@ export function AddCurriculumDialog({ teacherId }: AddCurriculumDialogProps) {
     const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault()
 
-        // Simular éxito
-        alert(`Successfully added ${selectedCurriculums.length} curriculum(s) to the teacher!`)
+        // TODO: Implement actual curriculum assignment logic
+        toast.success("Curriculums added successfully", {
+            description: `${selectedCurriculums.length} curriculum${selectedCurriculums.length === 1 ? '' : 's'} added to the teacher.`
+        })
 
         // Reset selection after submit
         setSelectedCurriculumIds([])
@@ -242,17 +162,18 @@ export function AddCurriculumDialog({ teacherId }: AddCurriculumDialogProps) {
                         <p className="text-sm text-muted-foreground">
                             If the curriculum you want to assign isn't in the system yet, you can create a new curriculum.
                         </p>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            className="gap-2 self-start"
-                            onClick={() => {
-                                alert("Create Curriculum functionality coming soon!")
-                            }}
-                        >
-                            <FileText className="h-4 w-4" />
-                            Create Curriculum
-                        </Button>
+                        <CurriculumDialog
+                            trigger={
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="gap-2 self-start"
+                                >
+                                    <FileText className="h-4 w-4" />
+                                    Create Curriculum
+                                </Button>
+                            }
+                        />
                     </div>
                 </div>
             </div>

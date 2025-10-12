@@ -117,6 +117,19 @@ export const createCampus = mutation({
       zipCode: v.optional(v.string()),
       country: v.optional(v.string()),
     })),
+    grades: v.optional(v.array(v.object({
+      name: v.string(),
+      code: v.string(),
+      level: v.number(),
+      category: v.optional(v.union(
+        v.literal("prekinder"),
+        v.literal("kinder"),
+        v.literal("elementary"),
+        v.literal("middle"),
+        v.literal("high")
+      )),
+      isActive: v.boolean(),
+    }))),
     createdBy: v.id("users"),
   },
   handler: async (ctx, args) => {
@@ -129,6 +142,7 @@ export const createCampus = mutation({
       directorEmail: args.directorEmail,
       directorPhone: args.directorPhone,
       address: args.address,
+      grades: args.grades,
       isActive: true,
       status: "active",
       createdAt: Date.now(),
@@ -166,6 +180,19 @@ export const updateCampus = mutation({
         zipCode: v.optional(v.string()),
         country: v.optional(v.string()),
       })),
+      grades: v.optional(v.array(v.object({
+        name: v.string(),
+        code: v.string(),
+        level: v.number(),
+        category: v.optional(v.union(
+          v.literal("prekinder"),
+          v.literal("kinder"),
+          v.literal("elementary"),
+          v.literal("middle"),
+          v.literal("high")
+        )),
+        isActive: v.boolean(),
+      }))),
       status: v.optional(v.union(
         v.literal("active"),
         v.literal("inactive"),
@@ -182,6 +209,11 @@ export const updateCampus = mutation({
       updates.directorId = undefined;
       updates.directorName = undefined;
       updates.directorEmail = undefined;
+    }
+
+    // Handle empty grades array - convert to undefined to clear the field
+    if (updates.grades !== undefined && updates.grades.length === 0) {
+      updates.grades = undefined;
     }
 
     await ctx.db.patch(args.campusId, {
