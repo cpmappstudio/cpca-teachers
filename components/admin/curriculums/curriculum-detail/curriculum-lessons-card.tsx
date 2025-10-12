@@ -405,7 +405,7 @@ export function CurriculumLessonsCard({
                                     <Button
                                         variant="outline"
                                         size="lg"
-                                        className="h-10 px-3 bg-card"
+                                        className="h-9 px-3 bg-card"
                                     >
                                         <Filter className="h-4 w-4" />
                                     </Button>

@@ -345,7 +345,7 @@ const lessonColumns: ColumnDef<Lesson>[] = [
         cell: ({ row }) => {
             const lesson = row.original
             return (
-                <div 
+                <div
                     className="flex items-center justify-center gap-2 py-1"
                     onClick={(e) => e.stopPropagation()}
                 >
@@ -473,7 +473,7 @@ function LessonsTable({ curriculumId }: { curriculumId: string }) {
                         )}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="lg" className="h-10 px-3 bg-card">
+                            <Button variant="outline" size="lg" className="h-9 px-3 bg-card">
                                 <Filter className="h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
