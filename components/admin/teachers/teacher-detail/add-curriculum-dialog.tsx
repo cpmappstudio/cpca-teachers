@@ -153,7 +153,6 @@ export function AddCurriculumDialog({ teacherId }: AddCurriculumDialogProps) {
         <EntityDialog
             trigger={trigger}
             title="Add Curriculums to Teacher"
-            description="Select curriculums to assign to this teacher. You can select multiple curriculums before saving."
             onSubmit={handleSubmit}
             submitLabel={`Add ${selectedCurriculumIds.length} Curriculum${selectedCurriculumIds.length === 1 ? '' : 's'}`}
             maxWidth="700px"

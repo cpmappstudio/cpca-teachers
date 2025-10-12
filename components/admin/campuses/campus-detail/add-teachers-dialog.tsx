@@ -127,7 +127,6 @@ export function AddTeachersDialog({ campusId }: AddTeachersDialogProps) {
         <EntityDialog
             trigger={trigger}
             title="Add Teachers to Campus"
-            description="Select teachers to assign to this campus. You can select multiple teachers before saving."
             onSubmit={handleSubmit}
             submitLabel="Update Teachers"
             maxWidth="700px"

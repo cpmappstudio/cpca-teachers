@@ -11,6 +11,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { SelectDropdown } from "@/components/ui/select-dropdown";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import {
@@ -65,6 +75,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
 
   // Dialog state
   const [isOpen, setIsOpen] = useState(false);
+  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
 
   // Loading state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -231,7 +242,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
           name?: string;
           code?: string;
           campusImageStorageId?: Id<"_storage">;
-          directorId?: Id<"users">;
+          directorId?: Id<"users"> | null;
           directorName?: string;
           directorEmail?: string;
           directorPhone?: string;
@@ -261,13 +272,16 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
         // }
 
         if (selectedDirectorId !== campus.directorId) {
-          const director = potentialDirectors?.find(
-            (d) => d._id === selectedDirectorId,
-          );
-          updates.directorId = selectedDirectorId;
-          if (director) {
-            updates.directorName = director.fullName;
-            updates.directorEmail = director.email;
+          // Send null instead of undefined to properly unassign director
+          updates.directorId = selectedDirectorId || null;
+          if (selectedDirectorId) {
+            const director = potentialDirectors?.find(
+              (d) => d._id === selectedDirectorId,
+            );
+            if (director) {
+              updates.directorName = director.fullName;
+              updates.directorEmail = director.email;
+            }
           }
         }
 
@@ -449,41 +463,36 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
   const handleDelete = async () => {
     if (!campus) return;
 
-    if (
-      window.confirm(
-        `Are you sure you want to delete "${campus.name}"? This action cannot be undone.`,
-      )
-    ) {
-      try {
-        setIsSubmitting(true);
-        await deleteCampusMutation({ campusId: campus._id });
+    try {
+      setIsSubmitting(true);
+      await deleteCampusMutation({ campusId: campus._id });
 
-        toast.success("Campus deleted successfully", {
-          description: `"${campus.name}" has been deleted.`,
-        });
+      toast.success("Campus deleted successfully", {
+        description: `"${campus.name}" has been deleted.`,
+      });
 
-        // Reset states
-        setDeleteExistingImage(false);
-        setSelectedImage(null);
-        setImagePreview(null);
+      // Reset states
+      setDeleteExistingImage(false);
+      setSelectedImage(null);
+      setImagePreview(null);
 
-        // Cerrar el dialog
-        setIsOpen(false);
+      // Cerrar el dialog
+      setIsOpen(false);
+      setShowDeleteAlert(false);
 
-        // Redirigir a la página de listado de campuses con el locale correcto
-        router.push(`/${locale}/admin/campuses`);
-        router.refresh();
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : "Failed to delete campus. Please try again.";
-        toast.error("Error deleting campus", {
-          description: errorMessage,
-        });
-      } finally {
-        setIsSubmitting(false);
-      }
+      // Redirigir a la página de listado de campuses con el locale correcto
+      router.push(`/${locale}/admin/campuses`);
+      router.refresh();
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to delete campus. Please try again.";
+      toast.error("Error deleting campus", {
+        description: errorMessage,
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -501,348 +510,366 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
   );
 
   return (
-    <EntityDialog
-      trigger={trigger || defaultTrigger}
-      title={isEditing ? "Edit Campus" : "Create New Campus"}
-      description={
-        isEditing
-          ? "Make changes to the campus information. Click save when you're done."
-          : "Add a new campus to the system. Fill in the required information and click create."
-      }
-      onSubmit={handleSubmit}
-      submitLabel={isEditing ? "Save changes" : "Create Campus"}
-      isSubmitting={isSubmitting}
-      open={isOpen}
-      onOpenChange={setIsOpen}
-      leftActions={
-        isEditing ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleDelete}
-            className="gap-2 bg-rose-100 text-rose-800 hover:bg-rose-200 border-rose-200 dark:bg-rose-900/20 dark:text-rose-200 min-w-[120px] whitespace-nowrap"
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete Campus
-          </Button>
-        ) : undefined
-      }
-    >
-      <div className="grid gap-6">
-        {/* Hidden inputs para los valores seleccionados */}
-        <input
-          type="hidden"
-          name="directorId"
-          value={selectedDirectorId || ""}
-        />
-        <input type="hidden" name="country" value="United States" />
-        <input type="hidden" name="state" value={selectedState} />
-        <input type="hidden" name="city" value={selectedCity} />
-        <input type="hidden" name="status" value={selectedStatus} />
+    <>
+      <EntityDialog
+        trigger={trigger || defaultTrigger}
+        title={isEditing ? "Edit Campus" : "Create New Campus"}
+        onSubmit={handleSubmit}
+        submitLabel={isEditing ? "Save changes" : "Create Campus"}
+        isSubmitting={isSubmitting}
+        open={isOpen}
+        onOpenChange={setIsOpen}
+        leftActions={
+          isEditing ? (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setShowDeleteAlert(true)}
+              className="gap-2 min-w-[120px] text-white whitespace-nowrap"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Campus
+            </Button>
+          ) : undefined
+        }
+      >
+        <div className="grid gap-6">
+          {/* Hidden inputs para los valores seleccionados */}
+          <input
+            type="hidden"
+            name="directorId"
+            value={selectedDirectorId || ""}
+          />
+          <input type="hidden" name="country" value="United States" />
+          <input type="hidden" name="state" value={selectedState} />
+          <input type="hidden" name="city" value={selectedCity} />
+          <input type="hidden" name="status" value={selectedStatus} />
 
-        {/* Basic Information */}
-        <div className="space-y-4">
-          <h4 className="text-sm font-medium border-b pb-2">
-            Basic Information
-          </h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="grid gap-3">
-              <Label htmlFor="name">
-                Name
-                <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="name"
-                name="name"
-                defaultValue={campus?.name || ""}
-                placeholder={isEditing ? "" : "Enter campus name"}
-                required
-              />
-            </div>
-            <div className="grid gap-3">
-              <Label htmlFor="code">Code</Label>
-              <Input
-                id="code"
-                name="code"
-                defaultValue={campus?.code || ""}
-                placeholder="Enter campus code"
-                disabled={isEditing}
-                className={isEditing ? "bg-muted cursor-not-allowed" : ""}
-              />
-            </div>
-            <div className="grid gap-3">
-              <Label htmlFor="status">
-                Status
-                <span className="text-red-500">*</span>
-              </Label>
-              <SelectDropdown
-                options={campusStatusOptions}
-                value={selectedStatus}
-                onValueChange={(value) => setSelectedStatus(value)}
-                placeholder="Select status..."
-                label="Status Options"
-              />
-            </div>
-            <div className="grid gap-3">
-              <Label>Director</Label>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between">
-                    {selectedDirector ? (
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4" />
-                        <span className="font-medium">
-                          {selectedDirector.fullName}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">
-                        Select a director
-                      </span>
-                    )}
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-80" align="start">
-                  <DropdownMenuLabel>Available Directors</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {potentialDirectors?.length === 0 ? (
-                    <DropdownMenuItem disabled>
-                      No directors available
-                    </DropdownMenuItem>
-                  ) : (
-                    <>
-                      <DropdownMenuItem
-                        onClick={() => setSelectedDirectorId(undefined)}
-                        className={!selectedDirectorId ? "bg-accent" : ""}
-                      >
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4" />
-                          <span>No director assigned</span>
-                        </div>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      {potentialDirectors?.map((director) => (
-                        <DropdownMenuItem
-                          key={director._id}
-                          onClick={() => setSelectedDirectorId(director._id)}
-                          className={
-                            selectedDirectorId === director._id
-                              ? "bg-accent"
-                              : ""
-                          }
-                        >
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <User className="h-4 w-4" />
-                              <span className="font-medium">
-                                {director.fullName}
-                              </span>
-                              <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                                {director.role}
-                              </span>
-                            </div>
-                            <span className="text-sm text-muted-foreground ml-6">
-                              {director.email}
-                            </span>
-                          </div>
-                        </DropdownMenuItem>
-                      ))}
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              {potentialDirectors === undefined && (
-                <div className="text-sm text-muted-foreground">
-                  Loading available directors...
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Campus Image */}
-        <div className="space-y-4">
-          <h4 className="text-sm font-medium border-b pb-2">Campus Image</h4>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Image Preview */}
-            <div className="space-y-3">
-              <Label>{isEditing ? "Current Image" : "Preview"}</Label>
-              <AspectRatio ratio={1} className="bg-muted rounded-lg">
-                {imagePreview ? (
-                  <Image
-                    src={imagePreview}
-                    alt="Campus preview"
-                    fill
-                    className="h-full w-full rounded-lg object-cover"
-                  />
-                ) : existingImageUrl && !deleteExistingImage ? (
-                  <Image
-                    src={existingImageUrl}
-                    alt="Current campus image"
-                    fill
-                    className="h-full w-full rounded-lg object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center rounded-lg bg-muted">
-                    <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                    <span className="ml-2 text-sm text-muted-foreground">
-                      No Image
-                    </span>
-                  </div>
-                )}
-              </AspectRatio>
-            </div>
-
-            {/* Upload Controls */}
-            <div className="space-y-4 lg:col-span-2">
-              <div className="space-y-3">
-                <Label>
-                  {isEditing ? "Upload New Image" : "Upload Campus Image"}
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Choose a square image that represents your campus. Recommended
-                  size: 400x400px or larger.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={triggerFileUpload}
-                  className="gap-2"
-                >
-                  <Upload className="h-4 w-4" />
-                  Upload Image
-                </Button>
-
-                {(selectedImage || imagePreview) && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleImageRemove}
-                    className="gap-2 text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Remove
-                  </Button>
-                )}
-
-                {existingImageUrl && !deleteExistingImage && !imagePreview && isEditing && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleDeleteExistingImage}
-                    className="gap-2 text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete Current Image
-                  </Button>
-                )}
-              </div>
-
-              {selectedImage && (
-                <div className="text-sm text-muted-foreground">
-                  Selected: {selectedImage.name} (
-                  {Math.round(selectedImage.size / 1024)}KB)
-                </div>
-              )}
-
-              {/* Hidden file input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="hidden"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Address */}
-        <div className="space-y-4">
-          <h4 className="text-sm font-medium border-b pb-2">Address</h4>
-          <div className="grid gap-4">
-            {/* Country - First */}
-            <div className="grid gap-3">
-              <Label htmlFor="country">Country</Label>
-              <Input
-                id="country"
-                name="country"
-                value="United States"
-                disabled
-                className="bg-muted"
-              />
-            </div>
-
-            {/* State and City - Second row */}
+          {/* Basic Information */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium border-b pb-2">
+              Basic Information
+            </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-3">
-                <Label htmlFor="state">
-                  State
+                <Label htmlFor="name">
+                  Name
+                  <span className="text-red-500">*</span>
                 </Label>
-                <SelectDropdown
-                  options={usStates}
-                  value={selectedState}
-                  onValueChange={(value) => {
-                    setSelectedState(value);
-                    // Reset city when state changes
-                    setSelectedCity("");
-                  }}
-                  placeholder="Select state..."
-                  label="US States"
+                <Input
+                  id="name"
+                  name="name"
+                  defaultValue={campus?.name || ""}
+                  placeholder={isEditing ? "" : "Enter campus name"}
+                  required
                 />
               </div>
               <div className="grid gap-3">
-                <Label htmlFor="city">City</Label>
-                <SelectDropdown
-                  options={availableCities}
-                  value={selectedCity}
-                  onValueChange={(value) => setSelectedCity(value)}
-                  placeholder={
-                    availableCities.length > 0
-                      ? "Select city..."
-                      : "Select state first"
-                  }
-                  label={
-                    availableCities.length > 0 ? "Available Cities" : undefined
-                  }
-                  disabled={availableCities.length === 0}
+                <Label htmlFor="code">Code</Label>
+                <Input
+                  id="code"
+                  name="code"
+                  defaultValue={campus?.code || ""}
+                  placeholder="Enter campus code"
+                  disabled={isEditing}
+                  className={isEditing ? "bg-muted cursor-not-allowed" : ""}
                 />
-                {availableCities.length === 0 && selectedState && (
-                  <p className="text-xs text-muted-foreground">
-                    No major cities available for selected state
-                  </p>
+              </div>
+              <div className="grid gap-3">
+                <Label htmlFor="status">
+                  Status
+                  <span className="text-red-500">*</span>
+                </Label>
+                <SelectDropdown
+                  options={campusStatusOptions}
+                  value={selectedStatus}
+                  onValueChange={(value) => setSelectedStatus(value)}
+                  placeholder="Select status..."
+                  label="Status Options"
+                />
+              </div>
+              <div className="grid gap-3">
+                <Label>Director</Label>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between">
+                      {selectedDirector ? (
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4" />
+                          <span className="font-medium">
+                            {selectedDirector.fullName}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          Select a director
+                        </span>
+                      )}
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-80" align="start">
+                    <DropdownMenuLabel>Available Directors</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {potentialDirectors?.length === 0 ? (
+                      <DropdownMenuItem disabled>
+                        No directors available
+                      </DropdownMenuItem>
+                    ) : (
+                      <>
+                        <DropdownMenuItem
+                          onClick={() => setSelectedDirectorId(undefined)}
+                          className={!selectedDirectorId ? "bg-accent" : ""}
+                        >
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4" />
+                            <span>No director assigned</span>
+                          </div>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {potentialDirectors?.map((director) => (
+                          <DropdownMenuItem
+                            key={director._id}
+                            onClick={() => setSelectedDirectorId(director._id)}
+                            className={
+                              selectedDirectorId === director._id
+                                ? "bg-accent"
+                                : ""
+                            }
+                          >
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <User className="h-4 w-4" />
+                                <span className="font-medium">
+                                  {director.fullName}
+                                </span>
+                                <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
+                                  {director.role}
+                                </span>
+                              </div>
+                              <span className="text-sm text-muted-foreground ml-6">
+                                {director.email}
+                              </span>
+                            </div>
+                          </DropdownMenuItem>
+                        ))}
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {potentialDirectors === undefined && (
+                  <div className="text-sm text-muted-foreground">
+                    Loading available directors...
+                  </div>
                 )}
               </div>
             </div>
+          </div>
 
-            {/* Street - Third row */}
-            <div className="grid gap-3">
-              <Label htmlFor="street">Street Address</Label>
-              <Input
-                id="street"
-                name="street"
-                defaultValue={campus?.address?.street || ""}
-                placeholder={isEditing ? "" : "Enter street adress"}
-              />
+          {/* Campus Image */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium border-b pb-2">Campus Image</h4>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Image Preview */}
+              <div className="space-y-3">
+                <Label>{isEditing ? "Current Image" : "Preview"}</Label>
+                <AspectRatio ratio={1} className="bg-muted rounded-lg">
+                  {imagePreview ? (
+                    <Image
+                      src={imagePreview}
+                      alt="Campus preview"
+                      fill
+                      className="h-full w-full rounded-lg object-cover"
+                    />
+                  ) : existingImageUrl && !deleteExistingImage ? (
+                    <Image
+                      src={existingImageUrl}
+                      alt="Current campus image"
+                      fill
+                      className="h-full w-full rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center rounded-lg bg-muted">
+                      <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                      <span className="ml-2 text-sm text-muted-foreground">
+                        No Image
+                      </span>
+                    </div>
+                  )}
+                </AspectRatio>
+              </div>
+
+              {/* Upload Controls */}
+              <div className="space-y-4 lg:col-span-2">
+                <div className="space-y-3">
+                  <Label>
+                    {isEditing ? "Upload New Image" : "Upload Campus Image"}
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Choose a square image that represents your campus. Recommended
+                    size: 400x400px or larger.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={triggerFileUpload}
+                    className="gap-2"
+                  >
+                    <Upload className="h-4 w-4" />
+                    Upload Image
+                  </Button>
+
+                  {(selectedImage || imagePreview) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleImageRemove}
+                      className="gap-2 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Remove
+                    </Button>
+                  )}
+
+                  {existingImageUrl && !deleteExistingImage && !imagePreview && isEditing && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleDeleteExistingImage}
+                      className="gap-2 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete Current Image
+                    </Button>
+                  )}
+                </div>
+
+                {selectedImage && (
+                  <div className="text-sm text-muted-foreground">
+                    Selected: {selectedImage.name} (
+                    {Math.round(selectedImage.size / 1024)}KB)
+                  </div>
+                )}
+
+                {/* Hidden file input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </div>
             </div>
+          </div>
 
-            {/* ZIP Code - Fourth row */}
-            <div className="grid gap-3">
-              <Label htmlFor="zipCode">ZIP Code</Label>
-              <Input
-                id="zipCode"
-                name="zipCode"
-                defaultValue={campus?.address?.zipCode || ""}
-                placeholder={isEditing ? "" : "Enter ZIP code"}
-              />
+          {/* Address */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium border-b pb-2">Address</h4>
+            <div className="grid gap-4">
+              {/* Country - First */}
+              <div className="grid gap-3">
+                <Label htmlFor="country">Country</Label>
+                <Input
+                  id="country"
+                  name="country"
+                  value="United States"
+                  disabled
+                  className="bg-muted"
+                />
+              </div>
+
+              {/* State and City - Second row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid gap-3">
+                  <Label htmlFor="state">
+                    State
+                  </Label>
+                  <SelectDropdown
+                    options={usStates}
+                    value={selectedState}
+                    onValueChange={(value) => {
+                      setSelectedState(value);
+                      // Reset city when state changes
+                      setSelectedCity("");
+                    }}
+                    placeholder="Select state..."
+                    label="US States"
+                  />
+                </div>
+                <div className="grid gap-3">
+                  <Label htmlFor="city">City</Label>
+                  <SelectDropdown
+                    options={availableCities}
+                    value={selectedCity}
+                    onValueChange={(value) => setSelectedCity(value)}
+                    placeholder={
+                      availableCities.length > 0
+                        ? "Select city..."
+                        : "Select state first"
+                    }
+                    label={
+                      availableCities.length > 0 ? "Available Cities" : undefined
+                    }
+                    disabled={availableCities.length === 0}
+                  />
+                  {availableCities.length === 0 && selectedState && (
+                    <p className="text-xs text-muted-foreground">
+                      No major cities available for selected state
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Street - Third row */}
+              <div className="grid gap-3">
+                <Label htmlFor="street">Street Address</Label>
+                <Input
+                  id="street"
+                  name="street"
+                  defaultValue={campus?.address?.street || ""}
+                  placeholder={isEditing ? "" : "Enter street adress"}
+                />
+              </div>
+
+              {/* ZIP Code - Fourth row */}
+              <div className="grid gap-3">
+                <Label htmlFor="zipCode">ZIP Code</Label>
+                <Input
+                  id="zipCode"
+                  name="zipCode"
+                  defaultValue={campus?.address?.zipCode || ""}
+                  placeholder={isEditing ? "" : "Enter ZIP code"}
+                />
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </EntityDialog>
+      </EntityDialog>
+
+      <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the campus
+              &quot;{campus?.name}&quot; and remove all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive !text-white text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Campus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

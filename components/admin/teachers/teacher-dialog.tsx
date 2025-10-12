@@ -11,6 +11,16 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { SelectDropdown } from "@/components/ui/select-dropdown"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { Plus, Edit, ChevronDown, Upload, Trash2, ImageIcon, Building2, Loader2 } from "lucide-react"
@@ -54,6 +64,7 @@ export function TeacherDialog({ teacher, trigger, defaultCampusId }: TeacherDial
 
     // Dialog state
     const [isOpen, setIsOpen] = useState(false)
+    const [showDeleteAlert, setShowDeleteAlert] = useState(false)
 
     // Loading state
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -373,49 +384,44 @@ export function TeacherDialog({ teacher, trigger, defaultCampusId }: TeacherDial
     const handleDelete = async () => {
         if (!teacher) return
 
-        if (
-            window.confirm(
-                `Are you sure you want to delete "${teacher.fullName}"? This action cannot be undone.`
-            )
-        ) {
-            try {
-                setIsSubmitting(true)
-                await deleteUserMutation({ userId: teacher._id })
+        try {
+            setIsSubmitting(true)
+            await deleteUserMutation({ userId: teacher._id })
 
-                toast.success("Teacher deleted successfully", {
-                    description: `"${teacher.fullName}" has been deleted.`,
-                })
+            toast.success("Teacher deleted successfully", {
+                description: `"${teacher.fullName}" has been deleted.`,
+            })
 
-                // Reset states
-                setDeleteExistingImage(false)
-                setSelectedImage(null)
-                setImagePreview(null)
+            // Reset states
+            setDeleteExistingImage(false)
+            setSelectedImage(null)
+            setImagePreview(null)
 
-                // Cerrar el dialog
-                setIsOpen(false)
+            // Cerrar el dialog
+            setIsOpen(false)
+            setShowDeleteAlert(false)
 
-                // Redirigir a la página de listado de teachers con el locale correcto
-                router.push(`/${locale}/admin/teachers`)
-                router.refresh()
-            } catch (error) {
-                let errorMessage = "Failed to delete teacher. Please try again."
+            // Redirigir a la página de listado de teachers con el locale correcto
+            router.push(`/${locale}/admin/teachers`)
+            router.refresh()
+        } catch (error) {
+            let errorMessage = "Failed to delete teacher. Please try again."
 
-                if (error instanceof Error) {
-                    if (error.message.includes("permission") || error.message.includes("unauthorized")) {
-                        errorMessage = "You don't have permission to delete this teacher."
-                    } else if (error.message.includes("not found")) {
-                        errorMessage = "Teacher not found. It may have been already deleted."
-                    } else {
-                        errorMessage = error.message
-                    }
+            if (error instanceof Error) {
+                if (error.message.includes("permission") || error.message.includes("unauthorized")) {
+                    errorMessage = "You don't have permission to delete this teacher."
+                } else if (error.message.includes("not found")) {
+                    errorMessage = "Teacher not found. It may have been already deleted."
+                } else {
+                    errorMessage = error.message
                 }
-
-                toast.error("Error deleting teacher", {
-                    description: errorMessage,
-                })
-            } finally {
-                setIsSubmitting(false)
             }
+
+            toast.error("Error deleting teacher", {
+                description: errorMessage,
+            })
+        } finally {
+            setIsSubmitting(false)
         }
     }
 
@@ -433,297 +439,315 @@ export function TeacherDialog({ teacher, trigger, defaultCampusId }: TeacherDial
     )
 
     return (
-        <EntityDialog
-            trigger={trigger || defaultTrigger}
-            title={isEditing ? "Edit Teacher" : "Create New Teacher"}
-            description={
-                isEditing
-                    ? "Make changes to the teacher information. Click save when you're done."
-                    : "Add a new teacher to the system. Fill in the required information and click create."
-            }
-            onSubmit={handleSubmit}
-            submitLabel={isEditing ? "Save changes" : "Create Teacher"}
-            isSubmitting={isSubmitting}
-            open={isOpen}
-            onOpenChange={setIsOpen}
-            leftActions={isEditing ? (
-                <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleDelete}
-                    className="gap-2 bg-rose-100 text-rose-800 hover:bg-rose-200 border-rose-200 dark:bg-rose-900/20 dark:text-rose-200 min-w-[120px] whitespace-nowrap"
-                >
-                    <Trash2 className="h-4 w-4" />
-                    Delete Teacher
-                </Button>
-            ) : undefined}
-        >
-            <div className="grid gap-6">
-                {/* Hidden inputs para los valores seleccionados */}
-                <input type="hidden" name="campusId" value={selectedCampusId || ""} />
-                <input type="hidden" name="status" value={selectedStatus} />
-                <input type="hidden" name="role" value="teacher" />
+        <>
+            <EntityDialog
+                trigger={trigger || defaultTrigger}
+                title={isEditing ? "Edit Teacher" : "Create New Teacher"}
+                onSubmit={handleSubmit}
+                submitLabel={isEditing ? "Save changes" : "Create Teacher"}
+                isSubmitting={isSubmitting}
+                open={isOpen}
+                onOpenChange={setIsOpen}
+                leftActions={isEditing ? (
+                    <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={() => setShowDeleteAlert(true)}
+                        className="gap-2 min-w-[120px] whitespace-nowrap"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                        Delete Teacher
+                    </Button>
+                ) : undefined}
+            >
+                <div className="grid gap-6">
+                    {/* Hidden inputs para los valores seleccionados */}
+                    <input type="hidden" name="campusId" value={selectedCampusId || ""} />
+                    <input type="hidden" name="status" value={selectedStatus} />
+                    <input type="hidden" name="role" value="teacher" />
 
-                {/* Basic Information */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="grid gap-3">
-                        <Label htmlFor="firstName">
-                            First Name {!isEditing && "*"}
-                        </Label>
-                        <Input
-                            id="firstName"
-                            name="firstName"
-                            defaultValue={teacher?.firstName || ""}
-                            placeholder={isEditing ? "" : "e.g., John, María"}
-                            required
-                        />
+                    {/* Basic Information */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="grid gap-3">
+                            <Label htmlFor="firstName">
+                                First Name {!isEditing && "*"}
+                            </Label>
+                            <Input
+                                id="firstName"
+                                name="firstName"
+                                defaultValue={teacher?.firstName || ""}
+                                placeholder={isEditing ? "" : "e.g., John, María"}
+                                required
+                            />
+                        </div>
+                        <div className="grid gap-3">
+                            <Label htmlFor="lastName">
+                                Last Name {!isEditing && "*"}
+                            </Label>
+                            <Input
+                                id="lastName"
+                                name="lastName"
+                                defaultValue={teacher?.lastName || ""}
+                                placeholder={isEditing ? "" : "e.g., Smith, García"}
+                                required
+                            />
+                        </div>
                     </div>
-                    <div className="grid gap-3">
-                        <Label htmlFor="lastName">
-                            Last Name {!isEditing && "*"}
-                        </Label>
-                        <Input
-                            id="lastName"
-                            name="lastName"
-                            defaultValue={teacher?.lastName || ""}
-                            placeholder={isEditing ? "" : "e.g., Smith, García"}
-                            required
-                        />
-                    </div>
-                </div>
 
-                {/* Contact Information */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="grid gap-3">
-                        <Label htmlFor="email">
-                            Email {!isEditing && "*"}
-                        </Label>
-                        <Input
-                            id="email"
-                            name="email"
-                            type="email"
-                            defaultValue={teacher?.email || ""}
-                            placeholder={isEditing ? "" : "e.g., john.smith@alefuniversity.edu"}
-                            required
-                        />
+                    {/* Contact Information */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="grid gap-3">
+                            <Label htmlFor="email">
+                                Email {!isEditing && "*"}
+                            </Label>
+                            <Input
+                                id="email"
+                                name="email"
+                                type="email"
+                                defaultValue={teacher?.email || ""}
+                                placeholder={isEditing ? "" : "e.g., john.smith@alefuniversity.edu"}
+                                required
+                            />
+                        </div>
+                        <div className="grid gap-3">
+                            <Label htmlFor="phone">Phone</Label>
+                            <Input
+                                id="phone"
+                                name="phone"
+                                type="tel"
+                                defaultValue={teacher?.phone || ""}
+                                placeholder={isEditing ? "" : "e.g., +1 (555) 123-4567"}
+                            />
+                        </div>
                     </div>
+
+                    {/* Role - Disabled for teachers */}
                     <div className="grid gap-3">
-                        <Label htmlFor="phone">Phone</Label>
+                        <Label htmlFor="role">Role</Label>
                         <Input
-                            id="phone"
-                            name="phone"
-                            type="tel"
-                            defaultValue={teacher?.phone || ""}
-                            placeholder={isEditing ? "" : "e.g., +1 (555) 123-4567"}
+                            id="role"
+                            name="role"
+                            value="Teacher"
+                            disabled
+                            className="bg-muted"
                         />
+                        <p className="text-sm text-muted-foreground">
+                            The role is assigned when the user is created
+                        </p>
                     </div>
-                </div>
 
-                {/* Role - Disabled for teachers */}
-                <div className="grid gap-3">
-                    <Label htmlFor="role">Role</Label>
-                    <Input
-                        id="role"
-                        name="role"
-                        value="Teacher"
-                        disabled
-                        className="bg-muted"
-                    />
-                    <p className="text-sm text-muted-foreground">
-                        The role is assigned when the user is created
-                    </p>
-                </div>
+                    {/* Teacher Image */}
+                    <div className="space-y-4">
+                        <h4 className="text-sm font-medium border-b pb-2">Teacher Image</h4>
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Image Preview */}
+                            <div className="space-y-3">
+                                <Label>{isEditing ? "Current Image" : "Preview"}</Label>
+                                <AspectRatio ratio={1} className="bg-muted rounded-lg">
+                                    {imagePreview ? (
+                                        <Image
+                                            src={imagePreview}
+                                            alt="Teacher preview"
+                                            fill
+                                            className="h-full w-full rounded-lg object-cover"
+                                        />
+                                    ) : existingAvatarUrl && !deleteExistingImage ? (
+                                        <Image
+                                            src={existingAvatarUrl}
+                                            alt="Current teacher avatar"
+                                            fill
+                                            className="h-full w-full rounded-lg object-cover"
+                                        />
+                                    ) : (
+                                        <div className="flex h-full w-full items-center justify-center rounded-lg bg-muted">
+                                            <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                                            <span className="ml-2 text-sm text-muted-foreground">No Image</span>
+                                        </div>
+                                    )}
+                                </AspectRatio>
+                            </div>
 
-                {/* Teacher Image */}
-                <div className="space-y-4">
-                    <h4 className="text-sm font-medium border-b pb-2">Teacher Image</h4>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Image Preview */}
-                        <div className="space-y-3">
-                            <Label>{isEditing ? "Current Image" : "Preview"}</Label>
-                            <AspectRatio ratio={1} className="bg-muted rounded-lg">
-                                {imagePreview ? (
-                                    <Image
-                                        src={imagePreview}
-                                        alt="Teacher preview"
-                                        fill
-                                        className="h-full w-full rounded-lg object-cover"
-                                    />
-                                ) : existingAvatarUrl && !deleteExistingImage ? (
-                                    <Image
-                                        src={existingAvatarUrl}
-                                        alt="Current teacher avatar"
-                                        fill
-                                        className="h-full w-full rounded-lg object-cover"
-                                    />
-                                ) : (
-                                    <div className="flex h-full w-full items-center justify-center rounded-lg bg-muted">
-                                        <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                                        <span className="ml-2 text-sm text-muted-foreground">No Image</span>
+                            {/* Upload Controls */}
+                            <div className="space-y-4 lg:col-span-2">
+                                <div className="space-y-3">
+                                    <Label>
+                                        {isEditing ? "Upload New Image" : "Upload Teacher Image"}
+                                    </Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        Choose a square image that represents the teacher. Recommended size: 400x400px or larger.
+                                    </p>
+                                </div>
+
+                                <div className="flex flex-wrap gap-3">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={triggerFileUpload}
+                                        className="gap-2"
+                                    >
+                                        <Upload className="h-4 w-4" />
+                                        Upload Image
+                                    </Button>
+
+                                    {(selectedImage || imagePreview) && (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={handleImageRemove}
+                                            className="gap-2 text-destructive hover:text-destructive"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                            Remove
+                                        </Button>
+                                    )}
+
+                                    {existingAvatarUrl && !deleteExistingImage && !imagePreview && isEditing && (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={handleDeleteExistingImage}
+                                            className="gap-2 text-destructive hover:text-destructive"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                            Delete Current Image
+                                        </Button>
+                                    )}
+                                </div>
+
+                                {selectedImage && (
+                                    <div className="text-sm text-muted-foreground">
+                                        Selected: {selectedImage.name} ({Math.round(selectedImage.size / 1024)}KB)
                                     </div>
                                 )}
-                            </AspectRatio>
+
+                                {/* Hidden file input */}
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleImageUpload}
+                                    className="hidden"
+                                />
+                            </div>
                         </div>
+                    </div>
 
-                        {/* Upload Controls */}
-                        <div className="space-y-4 lg:col-span-2">
-                            <div className="space-y-3">
-                                <Label>
-                                    {isEditing ? "Upload New Image" : "Upload Teacher Image"}
-                                </Label>
-                                <p className="text-sm text-muted-foreground">
-                                    Choose a square image that represents the teacher. Recommended size: 400x400px or larger.
-                                </p>
-                            </div>
-
-                            <div className="flex flex-wrap gap-3">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={triggerFileUpload}
-                                    className="gap-2"
-                                >
-                                    <Upload className="h-4 w-4" />
-                                    Upload Image
-                                </Button>
-
-                                {(selectedImage || imagePreview) && (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={handleImageRemove}
-                                        className="gap-2 text-destructive hover:text-destructive"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                        Remove
+                    {/* Campus Assignment */}
+                    <div className="space-y-4">
+                        <h4 className="text-sm font-medium border-b pb-2">Campus Assignment</h4>
+                        <div className="grid gap-3">
+                            <Label>Assigned Campus</Label>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" className="w-full justify-between">
+                                        {selectedCampus ? (
+                                            <div className="flex items-center gap-2">
+                                                <Building2 className="h-4 w-4" />
+                                                <span className="font-medium">{selectedCampus.name}</span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-muted-foreground">Select a campus</span>
+                                        )}
+                                        <ChevronDown className="h-4 w-4" />
                                     </Button>
-                                )}
-
-                                {existingAvatarUrl && !deleteExistingImage && !imagePreview && isEditing && (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={handleDeleteExistingImage}
-                                        className="gap-2 text-destructive hover:text-destructive"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                        Delete Current Image
-                                    </Button>
-                                )}
-                            </div>
-
-                            {selectedImage && (
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="w-80" align="start">
+                                    <DropdownMenuLabel>Available Campuses</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    {!availableCampuses || availableCampuses.length === 0 ? (
+                                        <DropdownMenuItem disabled>
+                                            No campuses available
+                                        </DropdownMenuItem>
+                                    ) : (
+                                        <>
+                                            <DropdownMenuItem
+                                                onClick={() => setSelectedCampusId(undefined)}
+                                                className={!selectedCampusId ? "bg-accent" : ""}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <Building2 className="h-4 w-4" />
+                                                    <span>No campus assigned</span>
+                                                </div>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            {availableCampuses.map((campus) => (
+                                                <DropdownMenuItem
+                                                    key={campus._id}
+                                                    onClick={() => setSelectedCampusId(campus._id)}
+                                                    className={selectedCampusId === campus._id ? "bg-accent" : ""}
+                                                >
+                                                    <div className="flex flex-col gap-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <Building2 className="h-4 w-4" />
+                                                            <span className="font-medium">{campus.name}</span>
+                                                            <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
+                                                                {campus.status}
+                                                            </span>
+                                                        </div>
+                                                        {campus.address?.city && campus.address?.state && (
+                                                            <span className="text-sm text-muted-foreground ml-6">
+                                                                {campus.address.city}, {campus.address.state}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </DropdownMenuItem>
+                                            ))}
+                                        </>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            {availableCampuses === undefined ? (
+                                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    Loading campuses...
+                                </div>
+                            ) : (
                                 <div className="text-sm text-muted-foreground">
-                                    Selected: {selectedImage.name} ({Math.round(selectedImage.size / 1024)}KB)
+                                    {availableCampuses.length} campus(es) available
                                 </div>
                             )}
+                        </div>
+                    </div>
 
-                            {/* Hidden file input */}
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/*"
-                                onChange={handleImageUpload}
-                                className="hidden"
+                    {/* Status */}
+                    <div className="space-y-4">
+                        <h4 className="text-sm font-medium border-b pb-2">Status</h4>
+                        <div className="grid gap-3">
+                            <Label htmlFor="status">
+                                Teacher Status {!isEditing && "*"}
+                            </Label>
+                            <SelectDropdown
+                                options={teacherStatusOptions}
+                                value={selectedStatus}
+                                onValueChange={(value) => setSelectedStatus(value)}
+                                placeholder="Select status..."
+                                label="Teacher Status Options"
                             />
                         </div>
                     </div>
                 </div>
+            </EntityDialog>
 
-                {/* Campus Assignment */}
-                <div className="space-y-4">
-                    <h4 className="text-sm font-medium border-b pb-2">Campus Assignment</h4>
-                    <div className="grid gap-3">
-                        <Label>Assigned Campus</Label>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" className="w-full justify-between">
-                                    {selectedCampus ? (
-                                        <div className="flex items-center gap-2">
-                                            <Building2 className="h-4 w-4" />
-                                            <span className="font-medium">{selectedCampus.name}</span>
-                                        </div>
-                                    ) : (
-                                        <span className="text-muted-foreground">Select a campus</span>
-                                    )}
-                                    <ChevronDown className="h-4 w-4" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="w-80" align="start">
-                                <DropdownMenuLabel>Available Campuses</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                {!availableCampuses || availableCampuses.length === 0 ? (
-                                    <DropdownMenuItem disabled>
-                                        No campuses available
-                                    </DropdownMenuItem>
-                                ) : (
-                                    <>
-                                        <DropdownMenuItem
-                                            onClick={() => setSelectedCampusId(undefined)}
-                                            className={!selectedCampusId ? "bg-accent" : ""}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <Building2 className="h-4 w-4" />
-                                                <span>No campus assigned</span>
-                                            </div>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        {availableCampuses.map((campus) => (
-                                            <DropdownMenuItem
-                                                key={campus._id}
-                                                onClick={() => setSelectedCampusId(campus._id)}
-                                                className={selectedCampusId === campus._id ? "bg-accent" : ""}
-                                            >
-                                                <div className="flex flex-col gap-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <Building2 className="h-4 w-4" />
-                                                        <span className="font-medium">{campus.name}</span>
-                                                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                                                            {campus.status}
-                                                        </span>
-                                                    </div>
-                                                    {campus.address?.city && campus.address?.state && (
-                                                        <span className="text-sm text-muted-foreground ml-6">
-                                                            {campus.address.city}, {campus.address.state}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </DropdownMenuItem>
-                                        ))}
-                                    </>
-                                )}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        {availableCampuses === undefined ? (
-                            <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                Loading campuses...
-                            </div>
-                        ) : (
-                            <div className="text-sm text-muted-foreground">
-                                {availableCampuses.length} campus(es) available
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Status */}
-                <div className="space-y-4">
-                    <h4 className="text-sm font-medium border-b pb-2">Status</h4>
-                    <div className="grid gap-3">
-                        <Label htmlFor="status">
-                            Teacher Status {!isEditing && "*"}
-                        </Label>
-                        <SelectDropdown
-                            options={teacherStatusOptions}
-                            value={selectedStatus}
-                            onValueChange={(value) => setSelectedStatus(value)}
-                            placeholder="Select status..."
-                            label="Teacher Status Options"
-                        />
-                    </div>
-                </div>
-            </div>
-        </EntityDialog>
+            <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the teacher
+                            &quot;{teacher?.fullName}&quot; and remove all associated data.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDelete}
+                            className="bg-destructive !text-white text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            Delete Teacher
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
     )
 }

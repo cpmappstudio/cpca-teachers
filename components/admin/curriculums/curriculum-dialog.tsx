@@ -5,6 +5,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SelectDropdown } from "@/components/ui/select-dropdown";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Plus, Edit, Trash2, BookOpen, Upload, X, Link as LinkIcon } from "lucide-react";
 import { useState, useRef } from "react";
 import { EntityDialog } from "@/components/ui/entity-dialog";
@@ -50,6 +60,7 @@ export function CurriculumDialog({
 
   // Dialog state
   const [isOpen, setIsOpen] = useState(false);
+  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
 
   // Loading state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -314,32 +325,27 @@ export function CurriculumDialog({
   const handleDelete = async () => {
     if (!curriculum) return;
 
-    if (
-      window.confirm(
-        `Are you sure you want to delete "${curriculum.name}"? This action cannot be undone.`,
-      )
-    ) {
-      try {
-        setIsSubmitting(true);
-        await deleteCurriculumMutation({ curriculumId: curriculum._id });
+    try {
+      setIsSubmitting(true);
+      await deleteCurriculumMutation({ curriculumId: curriculum._id });
 
-        alert(`Success! Curriculum "${curriculum.name}" has been deleted.`);
+      alert(`Success! Curriculum "${curriculum.name}" has been deleted.`);
 
-        // Cerrar el dialog
-        setIsOpen(false);
+      // Cerrar el dialog
+      setIsOpen(false);
+      setShowDeleteAlert(false);
 
-        // Redirigir a la página de listado de curriculums con el locale correcto
-        router.push(`/${locale}/admin/curriculums`);
-        router.refresh();
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : "Failed to delete curriculum. Please try again.";
-        alert(`Error: ${errorMessage}`);
-      } finally {
-        setIsSubmitting(false);
-      }
+      // Redirigir a la página de listado de curriculums con el locale correcto
+      router.push(`/${locale}/admin/curriculums`);
+      router.refresh();
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to delete curriculum. Please try again.";
+      alert(`Error: ${errorMessage}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -357,126 +363,122 @@ export function CurriculumDialog({
   );
 
   return (
-    <EntityDialog
-      trigger={trigger || defaultTrigger}
-      title={isEditing ? "Edit Curriculum" : "Create New Curriculum"}
-      description={
-        isEditing
-          ? "Make changes to the curriculum information. Click save when you're done."
-          : "Add a new curriculum to the system. Fill in the required information and click create."
-      }
-      onSubmit={handleSubmit}
-      submitLabel={isEditing ? "Save changes" : "Create Curriculum"}
-      isSubmitting={isSubmitting}
-      open={isOpen}
-      onOpenChange={setIsOpen}
-      leftActions={
-        isEditing ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleDelete}
-            className="gap-2 bg-rose-100 text-rose-800 hover:bg-rose-200 border-rose-200 dark:bg-rose-900/20 dark:text-rose-200 min-w-[120px] whitespace-nowrap"
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete Curriculum
-          </Button>
-        ) : undefined
-      }
-    >
-      <div className="grid gap-6">
-        {/* Hidden input para status */}
-        <input type="hidden" name="status" value={selectedStatus} />
+    <>
+      <EntityDialog
+        trigger={trigger || defaultTrigger}
+        title={isEditing ? "Edit Curriculum" : "Create New Curriculum"}
+        onSubmit={handleSubmit}
+        submitLabel={isEditing ? "Save changes" : "Create Curriculum"}
+        isSubmitting={isSubmitting}
+        open={isOpen}
+        onOpenChange={setIsOpen}
+        leftActions={
+          isEditing ? (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setShowDeleteAlert(true)}
+              className="gap-2 min-w-[120px] whitespace-nowrap"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Curriculum
+            </Button>
+          ) : undefined
+        }
+      >
+        <div className="grid gap-6">
+          {/* Hidden input para status */}
+          <input type="hidden" name="status" value={selectedStatus} />
 
-        {/* Basic Information */}
-        <div className="space-y-4">
-          <h4 className="text-sm font-medium border-b pb-2">
-            Basic Information
-          </h4>
-          <div className="grid gap-4">
-            {/* Name and Code - First row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="grid gap-3">
-                <Label htmlFor="name">
-                  Name
-                  <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="name"
-                  name="name"
-                  defaultValue={curriculum?.name || ""}
-                  placeholder={isEditing ? "" : "Enter curriculum name"}
-                  required
-                />
+          {/* Basic Information */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium border-b pb-2">
+              Basic Information
+            </h4>
+            <div className="grid gap-4">
+              {/* Name and Code - First row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid gap-3">
+                  <Label htmlFor="name">
+                    Name
+                    <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    defaultValue={curriculum?.name || ""}
+                    placeholder={isEditing ? "" : "Enter curriculum name"}
+                    required
+                  />
+                </div>
+                <div className="grid gap-3">
+                  <Label htmlFor="code">Code</Label>
+                  <Input
+                    id="code"
+                    name="code"
+                    defaultValue={curriculum?.code || ""}
+                    placeholder={isEditing ? "" : "Enter curriculum code"}
+                    disabled={isEditing}
+                    className={isEditing ? "bg-muted cursor-not-allowed" : ""}
+                  />
+                </div>
               </div>
-              <div className="grid gap-3">
-                <Label htmlFor="code">Code</Label>
-                <Input
-                  id="code"
-                  name="code"
-                  defaultValue={curriculum?.code || ""}
-                  placeholder={isEditing ? "" : "Enter curriculum code"}
-                  disabled={isEditing}
-                  className={isEditing ? "bg-muted cursor-not-allowed" : ""}
-                />
-              </div>
-            </div>
 
-            {/* Description - Full width */}
-            <div className="grid gap-3">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                name="description"
-                defaultValue={curriculum?.description || ""}
-                placeholder={
-                  isEditing
-                    ? ""
-                    : "Provide a brief description of the curriculum..."
-                }
-                rows={4}
-                className="resize-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Description - Full width */}
               <div className="grid gap-3">
-                <Label htmlFor="numberOfQuarters">
-                  Number of Quarters
-                  <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="numberOfQuarters"
-                  name="numberOfQuarters"
-                  type="number"
-                  min="1"
-                  max="4"
-                  defaultValue={curriculum?.numberOfQuarters || 4}
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  name="description"
+                  defaultValue={curriculum?.description || ""}
                   placeholder={
-                    isEditing ? "" : "Enter number of quarters (1-4)"
+                    isEditing
+                      ? ""
+                      : "Provide a brief description of the curriculum..."
                   }
-                  required
+                  rows={4}
+                  className="resize-none"
                 />
               </div>
-              <div className="grid gap-3">
-                <Label htmlFor="status">
-                  Status
-                  <span className="text-red-500">*</span>
-                </Label>
-                <SelectDropdown
-                  options={curriculumStatusOptions}
-                  value={selectedStatus}
-                  onValueChange={(value) => setSelectedStatus(value)}
-                  placeholder="Select status..."
-                  label="Status Options"
-                />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid gap-3">
+                  <Label htmlFor="numberOfQuarters">
+                    Number of Quarters
+                    <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="numberOfQuarters"
+                    name="numberOfQuarters"
+                    type="number"
+                    min="1"
+                    max="4"
+                    defaultValue={curriculum?.numberOfQuarters || 4}
+                    placeholder={
+                      isEditing ? "" : "Enter number of quarters (1-4)"
+                    }
+                    required
+                  />
+                </div>
+                <div className="grid gap-3">
+                  <Label htmlFor="status">
+                    Status
+                    <span className="text-red-500">*</span>
+                  </Label>
+                  <SelectDropdown
+                    options={curriculumStatusOptions}
+                    value={selectedStatus}
+                    onValueChange={(value) => setSelectedStatus(value)}
+                    placeholder="Select status..."
+                    label="Status Options"
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Syllabus Document */}
-        {/* <div className="space-y-4">
+          {/* Syllabus Document */}
+          {/* <div className="space-y-4">
           <h4 className="text-sm font-medium border-b pb-2">Syllabus</h4>
           <div className="grid gap-4">
             <div className="grid gap-3">
@@ -531,8 +533,8 @@ export function CurriculumDialog({
           </div>
         </div> */}
 
-        {/* Resources */}
-        {/* <div className="space-y-4">
+          {/* Resources */}
+          {/* <div className="space-y-4">
           <h4 className="text-sm font-medium border-b pb-2">Resources</h4>
           <div className="grid gap-4">
             {resources.length > 0 && (
@@ -571,8 +573,8 @@ export function CurriculumDialog({
               </div>
             )} */}
 
-        {/* Add New Resource */}
-        {/* <div className="space-y-3">
+          {/* Add New Resource */}
+          {/* <div className="space-y-3">
               <div className="grid gap-3">
                 <div className="grid gap-2">
                   <Label htmlFor="resourceName" className="text-sm">
@@ -618,9 +620,31 @@ export function CurriculumDialog({
                 </Button>
               </div>
             </div> */}
-        {/* </div> */}
-        {/* </div> */}
-      </div>
-    </EntityDialog>
+          {/* </div> */}
+          {/* </div> */}
+        </div>
+      </EntityDialog>
+
+      <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the curriculum
+              &quot;{curriculum?.name}&quot; and remove all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive !text-white text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Curriculum
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

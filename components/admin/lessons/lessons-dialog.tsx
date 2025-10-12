@@ -8,6 +8,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { SelectDropdown } from "@/components/ui/select-dropdown";
 import { EntityDialog } from "@/components/ui/entity-dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Plus,
   Edit,
   Trash2,
@@ -55,6 +65,7 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
 
   // Dialog state
   const [isOpen, setIsOpen] = useState(false);
+  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
 
   // Loading state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -366,32 +377,27 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
   const handleDelete = async () => {
     if (!lesson) return;
 
-    if (
-      window.confirm(
-        `Are you sure you want to delete lesson "${lesson.title}"? This action cannot be undone.`,
-      )
-    ) {
-      try {
-        setIsSubmitting(true);
-        await deleteLessonMutation({ lessonId: lesson._id });
+    try {
+      setIsSubmitting(true);
+      await deleteLessonMutation({ lessonId: lesson._id });
 
-        alert(`Success! Lesson "${lesson.title}" has been deleted.`);
+      alert(`Success! Lesson "${lesson.title}" has been deleted.`);
 
-        // Cerrar el dialog
-        setIsOpen(false);
+      // Cerrar el dialog de alerta y el dialog principal
+      setShowDeleteAlert(false);
+      setIsOpen(false);
 
-        // Redirigir a la página de listado de lessons con el locale correcto
-        router.push(`/${locale}/admin/lessons`);
-        router.refresh();
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : "Failed to delete lesson. Please try again.";
-        alert(`Error: ${errorMessage}`);
-      } finally {
-        setIsSubmitting(false);
-      }
+      // Redirigir a la página de listado de lessons con el locale correcto
+      router.push(`/${locale}/admin/lessons`);
+      router.refresh();
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to delete lesson. Please try again.";
+      alert(`Error: ${errorMessage}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -450,198 +456,194 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
   );
 
   return (
-    <EntityDialog
-      trigger={trigger || defaultTrigger}
-      title={isEditing ? "Edit Lesson" : "Create New Lesson"}
-      description={
-        isEditing
-          ? "Make changes to the lesson information. Click save when you're done."
-          : "Add a new lesson to a curriculum. Fill in the required information and click create."
-      }
-      onSubmit={handleSubmit}
-      submitLabel={isEditing ? "Save changes" : "Create Lesson"}
-      open={isOpen}
-      onOpenChange={setIsOpen}
-      isSubmitting={isSubmitting}
-      leftActions={
-        isEditing ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleDelete}
-            className="gap-2 bg-rose-100 text-rose-800 hover:bg-rose-200 border-rose-200 dark:bg-rose-900/20 dark:text-rose-200 min-w-[120px] whitespace-nowrap"
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete Lesson
-          </Button>
-        ) : undefined
-      }
-    >
-      <div className="grid gap-6">
-        {/* Hidden inputs */}
-        <input type="hidden" name="curriculumId" value={selectedCurriculum} />
-        <input type="hidden" name="quarter" value={selectedQuarter} />
-        <input
-          type="hidden"
-          name="isMandatory"
-          value={isMandatory ? "true" : "false"}
-        />
-        <input
-          type="hidden"
-          name="objectives"
-          value={JSON.stringify(objectives)}
-        />
-        <input
-          type="hidden"
-          name="resources"
-          value={JSON.stringify(resources)}
-        />
+    <>
+      <EntityDialog
+        trigger={trigger || defaultTrigger}
+        title={isEditing ? "Edit Lesson" : "Create New Lesson"}
+        onSubmit={handleSubmit}
+        submitLabel={isEditing ? "Save changes" : "Create Lesson"}
+        open={isOpen}
+        onOpenChange={setIsOpen}
+        isSubmitting={isSubmitting}
+        leftActions={
+          isEditing ? (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setShowDeleteAlert(true)}
+              className="gap-2 min-w-[120px] whitespace-nowrap"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Lesson
+            </Button>
+          ) : undefined
+        }
+      >
+        <div className="grid gap-6">
+          {/* Hidden inputs */}
+          <input type="hidden" name="curriculumId" value={selectedCurriculum} />
+          <input type="hidden" name="quarter" value={selectedQuarter} />
+          <input
+            type="hidden"
+            name="isMandatory"
+            value={isMandatory ? "true" : "false"}
+          />
+          <input
+            type="hidden"
+            name="objectives"
+            value={JSON.stringify(objectives)}
+          />
+          <input
+            type="hidden"
+            name="resources"
+            value={JSON.stringify(resources)}
+          />
 
-        {/* Basic Information */}
-        <div className="space-y-4">
-          <h4 className="text-sm font-medium border-b pb-2">
-            Basic Information
-          </h4>
-          <div className="grid gap-4">
-            {/* Curriculum and Title - First row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="grid gap-3">
-                <Label htmlFor="curriculumId">
-                  Curriculum
-                  <span className="text-red-500">*</span>
-                </Label>
-                <SelectDropdown
-                  options={curriculumOptions || []}
-                  value={selectedCurriculum}
-                  onValueChange={(value) => {
-                    setSelectedCurriculum(value);
-                    // Reset quarter when curriculum changes
-                    const newCurriculum = curriculums?.find((c) => c._id === value);
-                    if (newCurriculum && selectedQuarter) {
-                      const quarterNum = parseInt(selectedQuarter);
-                      if (quarterNum > newCurriculum.numberOfQuarters) {
-                        setSelectedQuarter("");
-                      }
-                    }
-                  }}
-                  placeholder="Select curriculum..."
-                  label="Curriculum Options"
-                  disabled={(curriculumOptions || []).length === 0}
-                />
-                {(curriculumOptions || []).length === 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    No active curriculums available. Please create one first.
-                  </p>
-                )}
-              </div>
-              <div className="grid gap-3">
-                <Label htmlFor="title">
-                  Name
-                  <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="title"
-                  name="title"
-                  defaultValue={lesson?.title || ""}
-                  placeholder={isEditing ? "" : "Enter lesson name"}
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Description - Full width */}
-            <div className="grid gap-3">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                name="description"
-                defaultValue={lesson?.description || ""}
-                placeholder={
-                  isEditing
-                    ? ""
-                    : "Provide a brief description of the lesson..."
-                }
-                rows={4}
-                className="resize-none"
-              />
-            </div>
-
-            {/* Curriculum Structure */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="grid gap-3">
-                <Label htmlFor="quarter">
-                  Quarter
-                  <span className="text-red-500">*</span>
-                </Label>
-                <SelectDropdown
-                  options={quarterOptions}
-                  value={selectedQuarter}
-                  onValueChange={(value) => setSelectedQuarter(value)}
-                  placeholder={selectedCurriculum ? "Select quarter..." : "Select curriculum first"}
-                  label="Quarter Options"
-                  disabled={!selectedCurriculum}
-                />
-              </div>
-              <div className="grid gap-3">
-                <Label htmlFor="orderInQuarter">
-                  Order in Quarter
-                  <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="orderInQuarter"
-                  name="orderInQuarter"
-                  type="number"
-                  min={1}
-                  defaultValue={lesson?.orderInQuarter || ""}
-                  placeholder={selectedQuarter ? "Select order..." : "Select quarter first"}
-                  required
-                  disabled={!selectedCurriculum || !selectedQuarter}
-                />
-                {occupiedOrders && occupiedOrders.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Occupied positions: {occupiedOrders.join(", ")}
-                  </p>
-                )}
-              </div>
-              <div className="grid gap-3">
-                <Label htmlFor="expectedDurationMinutes">Duration (min)</Label>
-                <Input
-                  id="expectedDurationMinutes"
-                  name="expectedDurationMinutes"
-                  type="number"
-                  min={5}
-                  step={5}
-                  defaultValue={lesson?.expectedDurationMinutes || ""}
-                  placeholder={isEditing ? "" : "e.g., 45"}
-                />
-              </div>
-            </div>
-
-            {/* Mandatory Status */}
-            <div className="space-y-2 border rounded-md p-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="text-base">
-                    Mandatory
+          {/* Basic Information */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium border-b pb-2">
+              Basic Information
+            </h4>
+            <div className="grid gap-4">
+              {/* Curriculum and Title - First row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid gap-3">
+                  <Label htmlFor="curriculumId">
+                    Curriculum
                     <span className="text-red-500">*</span>
                   </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Indicates if this lesson is required or optional for
-                    students.
-                  </p>
+                  <SelectDropdown
+                    options={curriculumOptions || []}
+                    value={selectedCurriculum}
+                    onValueChange={(value) => {
+                      setSelectedCurriculum(value);
+                      // Reset quarter when curriculum changes
+                      const newCurriculum = curriculums?.find((c) => c._id === value);
+                      if (newCurriculum && selectedQuarter) {
+                        const quarterNum = parseInt(selectedQuarter);
+                        if (quarterNum > newCurriculum.numberOfQuarters) {
+                          setSelectedQuarter("");
+                        }
+                      }
+                    }}
+                    placeholder="Select curriculum..."
+                    label="Curriculum Options"
+                    disabled={(curriculumOptions || []).length === 0}
+                  />
+                  {(curriculumOptions || []).length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      No active curriculums available. Please create one first.
+                    </p>
+                  )}
                 </div>
-                <Switch
-                  checked={isMandatory}
-                  onCheckedChange={setIsMandatory}
-                  aria-label="Toggle mandatory status"
+                <div className="grid gap-3">
+                  <Label htmlFor="title">
+                    Name
+                    <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="title"
+                    name="title"
+                    defaultValue={lesson?.title || ""}
+                    placeholder={isEditing ? "" : "Enter lesson name"}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Description - Full width */}
+              <div className="grid gap-3">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  name="description"
+                  defaultValue={lesson?.description || ""}
+                  placeholder={
+                    isEditing
+                      ? ""
+                      : "Provide a brief description of the lesson..."
+                  }
+                  rows={4}
+                  className="resize-none"
                 />
+              </div>
+
+              {/* Curriculum Structure */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid gap-3">
+                  <Label htmlFor="quarter">
+                    Quarter
+                    <span className="text-red-500">*</span>
+                  </Label>
+                  <SelectDropdown
+                    options={quarterOptions}
+                    value={selectedQuarter}
+                    onValueChange={(value) => setSelectedQuarter(value)}
+                    placeholder={selectedCurriculum ? "Select quarter..." : "Select curriculum first"}
+                    label="Quarter Options"
+                    disabled={!selectedCurriculum}
+                  />
+                </div>
+                <div className="grid gap-3">
+                  <Label htmlFor="orderInQuarter">
+                    Order in Quarter
+                    <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="orderInQuarter"
+                    name="orderInQuarter"
+                    type="number"
+                    min={1}
+                    defaultValue={lesson?.orderInQuarter || ""}
+                    placeholder={selectedQuarter ? "Select order..." : "Select quarter first"}
+                    required
+                    disabled={!selectedCurriculum || !selectedQuarter}
+                  />
+                  {occupiedOrders && occupiedOrders.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Occupied positions: {occupiedOrders.join(", ")}
+                    </p>
+                  )}
+                </div>
+                <div className="grid gap-3">
+                  <Label htmlFor="expectedDurationMinutes">Duration (min)</Label>
+                  <Input
+                    id="expectedDurationMinutes"
+                    name="expectedDurationMinutes"
+                    type="number"
+                    min={5}
+                    step={5}
+                    defaultValue={lesson?.expectedDurationMinutes || ""}
+                    placeholder={isEditing ? "" : "e.g., 45"}
+                  />
+                </div>
+              </div>
+
+              {/* Mandatory Status */}
+              <div className="space-y-2 border rounded-md p-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-base">
+                      Mandatory
+                      <span className="text-red-500">*</span>
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Indicates if this lesson is required or optional for
+                      students.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={isMandatory}
+                    onCheckedChange={setIsMandatory}
+                    aria-label="Toggle mandatory status"
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Learning Objectives */}
-        {/* <div className="space-y-4">
+          {/* Learning Objectives */}
+          {/* <div className="space-y-4">
           <h4 className="text-sm font-medium border-b pb-2">
             Learning Objectives
           </h4>
@@ -691,8 +693,8 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
           </div>
         </div> */}
 
-        {/* Additional Resources */}
-        {/* <div className="space-y-4">
+          {/* Additional Resources */}
+          {/* <div className="space-y-4">
           <h4 className="text-sm font-medium border-b pb-2">Resources</h4>
           <div className="space-y-4">
             <div className="grid gap-4 p-4 border rounded-md bg-muted/20">
@@ -814,7 +816,30 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
             </div>
           </div>
         </div> */}
-      </div>
-    </EntityDialog>
+        </div>
+      </EntityDialog>
+
+      <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the
+              lesson <strong>&quot;{lesson?.title}&quot;</strong> and all
+              associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive !text-white text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Lesson
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

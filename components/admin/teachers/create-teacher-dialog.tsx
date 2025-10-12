@@ -36,7 +36,6 @@ export function CreateTeacherDialog({ campusId }: CreateTeacherDialogProps) {
         <EntityDialog
             trigger={trigger}
             title="Add New Teacher"
-            description="Create a new teacher profile and assign them to this campus."
             onSubmit={handleSubmit}
             submitLabel="Create Teacher"
         >

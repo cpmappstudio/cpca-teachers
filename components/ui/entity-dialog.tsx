@@ -21,7 +21,6 @@ interface EntityDialogProps {
 
     // Header configuration
     title: string
-    description: string
 
     // Content
     children: ReactNode
@@ -45,7 +44,6 @@ interface EntityDialogProps {
 export function EntityDialog({
     trigger,
     title,
-    description,
     children,
     onSubmit,
     submitLabel = "Save changes",
@@ -74,7 +72,6 @@ export function EntityDialog({
                     {/* Fixed Header */}
                     <DialogHeader className="px-6 pt-6 pb-4 border-b bg-background flex-shrink-0">
                         <DialogTitle>{title}</DialogTitle>
-                        <DialogDescription>{description}</DialogDescription>
                     </DialogHeader>
 
                     {/* Scrollable Content */}
@@ -87,14 +84,12 @@ export function EntityDialog({
                     </div>
 
                     {/* Fixed Footer */}
-                    <DialogFooter className="px-6 py-4 border-t bg-background flex-shrink-0 flex justify-between items-center flex-nowrap">
-                        {/* Left actions (like delete button) */}
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                    <DialogFooter className="px-6 py-4 border-t bg-background flex-shrink-0">
+                        <div className="flex items-center gap-2 w-full justify-end">
+                            {/* Left actions (like delete button) */}
                             {leftActions}
-                        </div>
 
-                        {/* Right actions (submit button) */}
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                            {/* Submit button */}
                             <Button
                                 type="submit"
                                 className="min-w-[120px]"

@@ -79,7 +79,7 @@ export const deleteCampusImage = mutation({
   handler: async (ctx, args) => {
     // Get the campus to find the current image storage ID
     const campus = await ctx.db.get(args.campusId);
-    
+
     if (!campus) {
       throw new Error("Campus not found");
     }
@@ -155,7 +155,7 @@ export const updateCampus = mutation({
       name: v.optional(v.string()),
       code: v.optional(v.string()),
       campusImageStorageId: v.optional(v.id("_storage")),
-      directorId: v.optional(v.id("users")),
+      directorId: v.optional(v.union(v.id("users"), v.null())), // Allow null to unassign director
       directorName: v.optional(v.string()),
       directorEmail: v.optional(v.string()),
       directorPhone: v.optional(v.string()),
@@ -175,8 +175,17 @@ export const updateCampus = mutation({
     updatedBy: v.id("users"),
   },
   handler: async (ctx, args) => {
+    const updates: any = { ...args.updates };
+
+    // Convert null to undefined for Convex schema compatibility
+    if (updates.directorId === null) {
+      updates.directorId = undefined;
+      updates.directorName = undefined;
+      updates.directorEmail = undefined;
+    }
+
     await ctx.db.patch(args.campusId, {
-      ...args.updates,
+      ...updates,
       updatedAt: Date.now(),
       updatedBy: args.updatedBy,
     });
@@ -185,10 +194,24 @@ export const updateCampus = mutation({
 
 /**
  * Delete campus
+ * Also deletes associated image from storage if it exists
  */
 export const deleteCampus = mutation({
   args: { campusId: v.id("campuses") },
   handler: async (ctx, args) => {
+    // Get the campus to check if it has an image
+    const campus = await ctx.db.get(args.campusId);
+
+    if (!campus) {
+      throw new Error("Campus not found");
+    }
+
+    // Delete the image from storage if it exists
+    if (campus.campusImageStorageId) {
+      await ctx.storage.delete(campus.campusImageStorageId);
+    }
+
+    // Delete the campus
     await ctx.db.delete(args.campusId);
   },
 });

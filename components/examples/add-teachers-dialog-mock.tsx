@@ -121,7 +121,6 @@ export function AddTeachersDialogMock({ campusId }: AddTeachersDialogMockProps) 
         <EntityDialog
             trigger={trigger}
             title="Add Teachers to Campus"
-            description="Select teachers to assign to this campus. You can select multiple teachers before saving."
             onSubmit={handleSubmit}
             submitLabel={`Add ${selectedTeacherIds.length} Teacher${selectedTeacherIds.length === 1 ? '' : 's'}`}
             maxWidth="700px"
