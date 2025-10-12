@@ -2,6 +2,9 @@
 
 import * as React from "react";
 import { useRouter, useParams } from "next/navigation";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -56,60 +59,41 @@ import {
 } from "@/components/ui/select";
 import type { UserStatus } from "@/convex/types";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 // Tipo para los datos de profesores
 export type Teacher = {
-  id: string;
+  _id: Id<"users">;
   fullName: string;
   email: string;
-  campus: string;
+  campus?: string;
+  campusId?: Id<"campuses">;
+  avatarStorageId?: Id<"_storage">;
+  firstName?: string;
+  lastName?: string;
   progressAvg: number;
-  status: "active" | "inactive" | "on_leave" | "terminated";
+  status: UserStatus;
 };
 
-// Datos de ejemplo (luego se reemplazará con datos de Convex)
-const data: Teacher[] = [
-  {
-    id: "1",
-    fullName: "María González",
-    email: "maria.gonzalez@cpca.edu",
-    campus: "DownTown Campus",
-    progressAvg: 85,
-    status: "active",
-  },
-  {
-    id: "2",
-    fullName: "Carlos Rodríguez",
-    email: "carlos.rodriguez@cpca.edu",
-    campus: "Neptune / High School",
-    progressAvg: 92,
-    status: "active",
-  },
-  {
-    id: "3",
-    fullName: "Ana Martínez",
-    email: "ana.martinez@cpca.edu",
-    campus: "Simpson Campus",
-    progressAvg: 78,
-    status: "on_leave",
-  },
-  {
-    id: "4",
-    fullName: "Roberto Silva",
-    email: "roberto.silva@cpca.edu",
-    campus: "Poinciana Campus",
-    progressAvg: 88,
-    status: "active",
-  },
-  {
-    id: "5",
-    fullName: "Laura Herrera",
-    email: "laura.herrera@cpca.edu",
-    campus: "Honduras Campus",
-    progressAvg: 95,
-    status: "active",
-  },
-];
+// Component to display teacher avatar with query
+function TeacherAvatar({ teacher }: { teacher: Teacher }) {
+  const avatarUrl = useQuery(
+    api.users.getAvatarUrl,
+    teacher.avatarStorageId ? { storageId: teacher.avatarStorageId } : "skip"
+  );
+
+  const initials = `${teacher.firstName?.charAt(0) || ""}${teacher.lastName?.charAt(0) || ""}`.toUpperCase();
+
+  return (
+    <Avatar className="h-8 w-8 lg:h-10 lg:w-10">
+      {avatarUrl && <AvatarImage src={avatarUrl} alt={teacher.fullName} />}
+      <AvatarFallback className="bg-deep-koamaru/10 text-deep-koamaru text-xs lg:text-sm font-medium">
+        {initials}
+      </AvatarFallback>
+    </Avatar>
+  );
+}
 
 export const columns: ColumnDef<Teacher>[] = [
   {
@@ -129,15 +113,20 @@ export const columns: ColumnDef<Teacher>[] = [
     cell: ({ row }) => {
       const teacher = row.original;
       return (
-        <div className="space-y-2 py-1">
-          <div className="font-medium text-sm lg:text-base">{row.getValue("fullName")}</div>
-          <div className="flex lg:hidden flex-col gap-1.5 text-xs lg:text-sm text-muted-foreground">
-            <span className="truncate">{teacher.email}</span>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <Badge className="bg-sky-500/15 text-sky-700 border border-sky-200 text-xs px-2 py-0.5">
-                {teacher.campus}
-              </Badge>
-              <TeacherStatusBadge status={teacher.status} />
+        <div className="flex items-center gap-3 py-1">
+          <TeacherAvatar teacher={teacher} />
+          <div className="space-y-2">
+            <div className="font-medium text-sm lg:text-base">{row.getValue("fullName")}</div>
+            <div className="flex lg:hidden flex-col gap-1.5 text-xs lg:text-sm text-muted-foreground">
+              <span className="truncate">{teacher.email}</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {teacher.campus && (
+                  <Badge className="bg-sky-500/15 text-sky-700 border border-sky-200 text-xs px-2 py-0.5">
+                    {teacher.campus}
+                  </Badge>
+                )}
+                <TeacherStatusBadge status={teacher.status} />
+              </div>
             </div>
           </div>
         </div>
@@ -380,6 +369,11 @@ export function TeachersTable() {
   const router = useRouter();
   const params = useParams();
   const locale = params.locale as string;
+
+  // Fetch teachers from Convex
+  const users = useQuery(api.users.getUsers, { role: "teacher" });
+  const campuses = useQuery(api.campuses.getCampuses, {});
+
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
@@ -390,6 +384,31 @@ export function TeachersTable() {
   const [statusFilter, setStatusFilter] = React.useState<UserStatus | "all">(
     "all",
   );
+
+  // Transform Convex data to table format
+  const data: Teacher[] = React.useMemo(() => {
+    if (!users || !campuses) return [];
+
+    return users.map(user => {
+      const campus = campuses.find(c => c._id === user.campusId);
+      const progressAvg = user.progressMetrics?.completedLessons && user.progressMetrics?.totalLessons
+        ? Math.round((user.progressMetrics.completedLessons / user.progressMetrics.totalLessons) * 100)
+        : 0;
+
+      return {
+        _id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        campus: campus?.name,
+        campusId: user.campusId,
+        avatarStorageId: user.avatarStorageId,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        progressAvg,
+        status: user.status,
+      };
+    });
+  }, [users, campuses]);
 
   const table = useReactTable({
     data,
@@ -418,6 +437,19 @@ export function TeachersTable() {
       table.getColumn("status")?.setFilterValue([statusFilter]);
     }
   }, [statusFilter, table]);
+
+  // Loading state
+  if (!users || !campuses) {
+    return (
+      <div className="w-full space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <Skeleton className="h-10 flex-1" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-6">
@@ -528,7 +560,7 @@ export function TeachersTable() {
                   data-state={row.getIsSelected() && "selected"}
                   className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
                   onClick={() => {
-                    const teacherId = row.original.id;
+                    const teacherId = row.original._id;
                     router.push(`/${locale}/admin/teachers/${teacherId}`);
                   }}
                 >
