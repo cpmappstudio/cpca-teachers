@@ -60,6 +60,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
   const deleteCampusMutation = useMutation(api.campuses.deleteCampus);
   const generateUploadUrl = useMutation(api.campuses.generateUploadUrl);
   const saveCampusImage = useMutation(api.campuses.saveCampusImage);
+  const deleteCampusImage = useMutation(api.campuses.deleteCampusImage);
 
   // Dialog state
   const [isOpen, setIsOpen] = useState(false);
@@ -81,6 +82,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
   );
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [deleteExistingImage, setDeleteExistingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Query para obtener usuarios que pueden ser directores (admins y superadmins)
@@ -103,6 +105,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
     const file = event.target.files?.[0];
     if (file) {
       setSelectedImage(file);
+      setDeleteExistingImage(false); // Cancel deletion if uploading new image
       const reader = new FileReader();
       reader.onload = (e) => {
         setImagePreview(e.target?.result as string);
@@ -117,6 +120,12 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  };
+
+  const handleDeleteExistingImage = () => {
+    setDeleteExistingImage(true);
+    setSelectedImage(null);
+    setImagePreview(null);
   };
 
   const triggerFileUpload = () => {
@@ -184,6 +193,14 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
     setIsSubmitting(true);
 
     try {
+      // Handle image deletion if marked for deletion
+      if (isEditing && deleteExistingImage && campus?._id && campus?.campusImageStorageId) {
+        await deleteCampusImage({
+          campusId: campus._id,
+          updatedBy: currentUser._id,
+        });
+      }
+
       // Upload image first if a new one is selected
       let uploadedImageStorageId: Id<"_storage"> | null = null;
       if (selectedImage) {
@@ -284,16 +301,27 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
           };
         }
 
-        // Solo hacer la actualización si hay cambios
-        if (Object.keys(updates).length > 0) {
-          await updateCampusMutation({
-            campusId: campus._id,
-            updates,
-            updatedBy: currentUser._id,
-          });
+        // Solo hacer la actualización si hay cambios o si se eliminó la imagen
+        const hasChanges = Object.keys(updates).length > 0;
+        const imageWasDeleted = deleteExistingImage && campus.campusImageStorageId;
+
+        if (hasChanges || imageWasDeleted) {
+          // Only call update if there are field changes
+          if (hasChanges) {
+            await updateCampusMutation({
+              campusId: campus._id,
+              updates,
+              updatedBy: currentUser._id,
+            });
+          }
 
           alert(`Success! Campus "${name}" has been updated successfully.`);
           console.log("Campus updated:", campus._id);
+
+          // Reset states
+          setDeleteExistingImage(false);
+          setSelectedImage(null);
+          setImagePreview(null);
 
           // Cerrar el dialog automáticamente después del éxito
           setIsOpen(false);
@@ -379,6 +407,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
         setSelectedCity("");
         setSelectedImage(null);
         setImagePreview(null);
+        setDeleteExistingImage(false);
 
         // Cerrar el dialog automáticamente después del éxito
         setIsOpen(false);
@@ -413,6 +442,11 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
 
         alert(`Success! Campus "${campus.name}" has been deleted.`);
         console.log("Campus deleted:", campus._id);
+
+        // Reset states
+        setDeleteExistingImage(false);
+        setSelectedImage(null);
+        setImagePreview(null);
 
         // Cerrar el dialog
         setIsOpen(false);
@@ -622,7 +656,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                     fill
                     className="h-full w-full rounded-lg object-cover"
                   />
-                ) : existingImageUrl ? (
+                ) : existingImageUrl && !deleteExistingImage ? (
                   <Image
                     src={existingImageUrl}
                     alt="Current campus image"
@@ -672,6 +706,18 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                   >
                     <Trash2 className="h-4 w-4" />
                     Remove
+                  </Button>
+                )}
+
+                {existingImageUrl && !deleteExistingImage && !imagePreview && isEditing && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDeleteExistingImage}
+                    className="gap-2 text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete Current Image
                   </Button>
                 )}
               </div>

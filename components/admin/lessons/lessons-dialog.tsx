@@ -66,13 +66,6 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
       label: `${curriculum.name}${curriculum.code ? ` (${curriculum.code})` : ""}`,
     })) || [];
 
-  const quarterOptions = [
-    { value: "1", label: "Quarter 1" },
-    { value: "2", label: "Quarter 2" },
-    { value: "3", label: "Quarter 3" },
-    { value: "4", label: "Quarter 4" },
-  ];
-
   const resourceTypeOptions = [
     { value: "document", label: "Document" },
     { value: "video", label: "Video" },
@@ -104,6 +97,36 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
   const [newResourceUrl, setNewResourceUrl] = useState("");
   const [newResourceType, setNewResourceType] = useState("");
   const [newResourceIsRequired, setNewResourceIsRequired] = useState(true);
+
+    // Get selected curriculum details
+  const selectedCurriculumData = curriculums?.find(
+    (c) => c._id === selectedCurriculum
+  );
+
+  // Get occupied orders for the selected curriculum and quarter
+  const occupiedOrders = useQuery(
+    api.lessons.getOccupiedOrders,
+    selectedCurriculum && selectedQuarter
+      ? {
+          curriculumId: selectedCurriculum as Id<"curriculums">,
+          quarter: parseInt(selectedQuarter),
+          excludeLessonId: lesson?._id,
+        }
+      : "skip"
+  );
+
+    // Generate quarter options based on selected curriculum
+  const quarterOptions = selectedCurriculumData
+    ? Array.from({ length: selectedCurriculumData.numberOfQuarters }, (_, i) => ({
+        value: (i + 1).toString(),
+        label: `Quarter ${i + 1}`,
+      }))
+    : [
+        { value: "1", label: "Quarter 1" },
+        { value: "2", label: "Quarter 2" },
+        { value: "3", label: "Quarter 3" },
+        { value: "4", label: "Quarter 4" },
+      ];
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -147,6 +170,15 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
 
     if (!orderInQuarter) {
       alert("Validation Error: Order in quarter is required.");
+      return;
+    }
+
+    // Client-side validation: Check if order is already occupied
+    const orderNum = parseInt(orderInQuarter);
+    if (occupiedOrders && occupiedOrders.includes(orderNum)) {
+      alert(
+        `Validation Error: Position ${orderNum} is already occupied in Quarter ${quarter}. Please choose a different order number.\n\nOccupied positions: ${occupiedOrders.join(", ")}`
+      );
       return;
     }
 
@@ -486,7 +518,17 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
                 <SelectDropdown
                   options={curriculumOptions || []}
                   value={selectedCurriculum}
-                  onValueChange={(value) => setSelectedCurriculum(value)}
+                  onValueChange={(value) => {
+                    setSelectedCurriculum(value);
+                    // Reset quarter when curriculum changes
+                    const newCurriculum = curriculums?.find((c) => c._id === value);
+                    if (newCurriculum && selectedQuarter) {
+                      const quarterNum = parseInt(selectedQuarter);
+                      if (quarterNum > newCurriculum.numberOfQuarters) {
+                        setSelectedQuarter("");
+                      }
+                    }
+                  }}
                   placeholder="Select curriculum..."
                   label="Curriculum Options"
                   disabled={(curriculumOptions || []).length === 0}
@@ -540,8 +582,9 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
                   options={quarterOptions}
                   value={selectedQuarter}
                   onValueChange={(value) => setSelectedQuarter(value)}
-                  placeholder="Select quarter..."
+                  placeholder={selectedCurriculum ? "Select quarter..." : "Select curriculum first"}
                   label="Quarter Options"
+                  disabled={!selectedCurriculum}
                 />
               </div>
               <div className="grid gap-3">
@@ -555,9 +598,15 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
                   type="number"
                   min={1}
                   defaultValue={lesson?.orderInQuarter || ""}
-                  placeholder={isEditing ? "" : "e.g., 1"}
+                  placeholder={selectedQuarter ? "Select order..." : "Select quarter first"}
                   required
+                  disabled={!selectedCurriculum || !selectedQuarter}
                 />
+                {occupiedOrders && occupiedOrders.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Occupied positions: {occupiedOrders.join(", ")}
+                  </p>
+                )}
               </div>
               <div className="grid gap-3">
                 <Label htmlFor="expectedDurationMinutes">Duration (min)</Label>
@@ -597,7 +646,7 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
         </div>
 
         {/* Learning Objectives */}
-        <div className="space-y-4">
+        {/* <div className="space-y-4">
           <h4 className="text-sm font-medium border-b pb-2">
             Learning Objectives
           </h4>
@@ -645,13 +694,12 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
               ))}
             </ul>
           </div>
-        </div>
+        </div> */}
 
         {/* Additional Resources */}
-        <div className="space-y-4">
+        {/* <div className="space-y-4">
           <h4 className="text-sm font-medium border-b pb-2">Resources</h4>
           <div className="space-y-4">
-            {/* Add Resource Form */}
             <div className="grid gap-4 p-4 border rounded-md bg-muted/20">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
@@ -712,8 +760,6 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
                 </div>
               </div>
             </div>
-
-            {/* Resources List */}
             <div className="space-y-2">
               {resources.length === 0 && (
                 <p className="text-xs text-muted-foreground">
@@ -772,7 +818,7 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
               ))}
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
     </EntityDialog>
   );

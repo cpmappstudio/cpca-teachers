@@ -68,6 +68,37 @@ export const saveCampusImage = mutation({
 });
 
 /**
+ * Delete campus image
+ * Removes the image from storage and clears the campusImageStorageId field
+ */
+export const deleteCampusImage = mutation({
+  args: {
+    campusId: v.id("campuses"),
+    updatedBy: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Get the campus to find the current image storage ID
+    const campus = await ctx.db.get(args.campusId);
+    
+    if (!campus) {
+      throw new Error("Campus not found");
+    }
+
+    // Delete the image from storage if it exists
+    if (campus.campusImageStorageId) {
+      await ctx.storage.delete(campus.campusImageStorageId);
+    }
+
+    // Clear the campusImageStorageId field
+    await ctx.db.patch(args.campusId, {
+      campusImageStorageId: undefined,
+      updatedAt: Date.now(),
+      updatedBy: args.updatedBy,
+    });
+  },
+});
+
+/**
  * Create new campus
  */
 export const createCampus = mutation({

@@ -481,7 +481,7 @@ export function CurriculumDialog({
         </div>
 
         {/* Syllabus Document */}
-        <div className="space-y-4">
+        {/* <div className="space-y-4">
           <h4 className="text-sm font-medium border-b pb-2">Syllabus</h4>
           <div className="grid gap-4">
             <div className="grid gap-3">
@@ -525,7 +525,6 @@ export function CurriculumDialog({
                 </div>
               )}
 
-              {/* Hidden file input */}
               <input
                 ref={syllabusInputRef}
                 type="file"
@@ -535,13 +534,12 @@ export function CurriculumDialog({
               />
             </div>
           </div>
-        </div>
+        </div> */}
 
         {/* Resources */}
-        <div className="space-y-4">
+        {/* <div className="space-y-4">
           <h4 className="text-sm font-medium border-b pb-2">Resources</h4>
           <div className="grid gap-4">
-            {/* Existing Resources */}
             {resources.length > 0 && (
               <div className="space-y-3">
                 <Label>Current Resources ({resources.length})</Label>
@@ -576,10 +574,10 @@ export function CurriculumDialog({
                   ))}
                 </div>
               </div>
-            )}
+            )} */}
 
             {/* Add New Resource */}
-            <div className="space-y-3">
+            {/* <div className="space-y-3">
               <div className="grid gap-3">
                 <div className="grid gap-2">
                   <Label htmlFor="resourceName" className="text-sm">
@@ -624,9 +622,9 @@ export function CurriculumDialog({
                   Add Resource
                 </Button>
               </div>
-            </div>
-          </div>
-        </div>
+            </div> */}
+          {/* </div> */}
+        {/* </div> */}
       </div>
     </EntityDialog>
   );

@@ -80,6 +80,60 @@ export const getLesson = query({
 });
 
 /**
+ * Check if a lesson with the same curriculum, quarter, and order already exists
+ */
+export const checkLessonExists = query({
+  args: {
+    curriculumId: v.id("curriculums"),
+    quarter: v.number(),
+    orderInQuarter: v.number(),
+    excludeLessonId: v.optional(v.id("curriculum_lessons")),
+  },
+  handler: async (ctx, args) => {
+    const lessons = await ctx.db
+      .query("curriculum_lessons")
+      .withIndex("by_curriculum_quarter", (q) =>
+        q.eq("curriculumId", args.curriculumId).eq("quarter", args.quarter)
+      )
+      .filter((q) => q.eq(q.field("orderInQuarter"), args.orderInQuarter))
+      .collect();
+
+    // If excluding a lesson (for updates), filter it out
+    const filteredLessons = args.excludeLessonId
+      ? lessons.filter((lesson) => lesson._id !== args.excludeLessonId)
+      : lessons;
+
+    return filteredLessons.length > 0 ? filteredLessons[0] : null;
+  },
+});
+
+/**
+ * Get occupied orders for a curriculum and quarter
+ */
+export const getOccupiedOrders = query({
+  args: {
+    curriculumId: v.id("curriculums"),
+    quarter: v.number(),
+    excludeLessonId: v.optional(v.id("curriculum_lessons")),
+  },
+  handler: async (ctx, args) => {
+    const lessons = await ctx.db
+      .query("curriculum_lessons")
+      .withIndex("by_curriculum_quarter", (q) =>
+        q.eq("curriculumId", args.curriculumId).eq("quarter", args.quarter)
+      )
+      .collect();
+
+    // If excluding a lesson (for updates), filter it out
+    const filteredLessons = args.excludeLessonId
+      ? lessons.filter((lesson) => lesson._id !== args.excludeLessonId)
+      : lessons;
+
+    return filteredLessons.map((lesson) => lesson.orderInQuarter).sort((a, b) => a - b);
+  },
+});
+
+/**
  * Create new lesson
  */
 export const createLesson = mutation({
@@ -105,6 +159,34 @@ export const createLesson = mutation({
     createdBy: v.id("users"),
   },
   handler: async (ctx, args) => {
+    // Validate curriculum exists and get its numberOfQuarters
+    const curriculum = await ctx.db.get(args.curriculumId);
+    if (!curriculum) {
+      throw new Error("Curriculum not found");
+    }
+
+    // Validate quarter is within curriculum's range
+    if (args.quarter < 1 || args.quarter > curriculum.numberOfQuarters) {
+      throw new Error(
+        `Invalid quarter. This curriculum has ${curriculum.numberOfQuarters} quarter(s). Please select a quarter between 1 and ${curriculum.numberOfQuarters}.`
+      );
+    }
+
+    // Check if lesson with same curriculum, quarter, and order already exists
+    const existingLesson = await ctx.db
+      .query("curriculum_lessons")
+      .withIndex("by_curriculum_quarter", (q) =>
+        q.eq("curriculumId", args.curriculumId).eq("quarter", args.quarter)
+      )
+      .filter((q) => q.eq(q.field("orderInQuarter"), args.orderInQuarter))
+      .first();
+
+    if (existingLesson) {
+      throw new Error(
+        `A lesson already exists at position ${args.orderInQuarter} in Quarter ${args.quarter} for this curriculum. Please choose a different order number.`
+      );
+    }
+
     const lessonId = await ctx.db.insert("curriculum_lessons", {
       curriculumId: args.curriculumId,
       title: args.title,
@@ -153,6 +235,50 @@ export const updateLesson = mutation({
     updatedBy: v.id("users"),
   },
   handler: async (ctx, args) => {
+    // Get the existing lesson
+    const existingLesson = await ctx.db.get(args.lessonId);
+    if (!existingLesson) {
+      throw new Error("Lesson not found");
+    }
+
+    // Get curriculum to validate quarter
+    const curriculum = await ctx.db.get(existingLesson.curriculumId);
+    if (!curriculum) {
+      throw new Error("Curriculum not found");
+    }
+
+    // If quarter is being updated, validate it's within curriculum's range
+    if (args.updates.quarter !== undefined) {
+      if (args.updates.quarter < 1 || args.updates.quarter > curriculum.numberOfQuarters) {
+        throw new Error(
+          `Invalid quarter. This curriculum has ${curriculum.numberOfQuarters} quarter(s). Please select a quarter between 1 and ${curriculum.numberOfQuarters}.`
+        );
+      }
+    }
+
+    // Check for duplicate if quarter or order is being changed
+    if (args.updates.quarter !== undefined || args.updates.orderInQuarter !== undefined) {
+      const newQuarter = args.updates.quarter ?? existingLesson.quarter;
+      const newOrder = args.updates.orderInQuarter ?? existingLesson.orderInQuarter;
+
+      // Only check for duplicates if the combination is different from current
+      if (newQuarter !== existingLesson.quarter || newOrder !== existingLesson.orderInQuarter) {
+        const duplicateLesson = await ctx.db
+          .query("curriculum_lessons")
+          .withIndex("by_curriculum_quarter", (q) =>
+            q.eq("curriculumId", existingLesson.curriculumId).eq("quarter", newQuarter)
+          )
+          .filter((q) => q.eq(q.field("orderInQuarter"), newOrder))
+          .first();
+
+        if (duplicateLesson && duplicateLesson._id !== args.lessonId) {
+          throw new Error(
+            `A lesson already exists at position ${newOrder} in Quarter ${newQuarter} for this curriculum. Please choose a different order number.`
+          );
+        }
+      }
+    }
+
     await ctx.db.patch(args.lessonId, {
       ...args.updates,
       updatedAt: Date.now(),
