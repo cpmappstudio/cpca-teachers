@@ -13,12 +13,18 @@ import {
 export function UniversityLogo() {
     const { state } = useSidebar()
     const t = useTranslations('university')
-    const isCollapsed = state === "collapsed"
+    const [mounted, setMounted] = React.useState(false)
+
+    React.useEffect(() => {
+        setMounted(true)
+    }, [])
+
+    const isCollapsed = mounted && state === "collapsed"
 
     return (
         <SidebarMenu>
             <SidebarMenuItem>
-                <div className={`flex w-full items-center gap-1 rounded-md pb-2 text-left text-sm ${isCollapsed ? 'px-0 justify-center' : 'px-1'}`}>
+                <div className={`flex w-full items-center gap-1 rounded-md pb-2 text-left text-sm ${isCollapsed ? 'justify-center px-0' : 'px-1'}`}>
                     <div className={`flex aspect-square items-center justify-center ${isCollapsed ? 'size-8' : 'size-14'}`}>
                         <Image
                             src="/cpca.png"
@@ -28,14 +34,16 @@ export function UniversityLogo() {
                             className="object-contain"
                         />
                     </div>
-                    <div className="grid flex-1 text-left text-sm antialiased leading-tight ">
-                        <span className="truncate font-medium text-base">
-                            {t('name')}
-                        </span>
-                        <span className="truncate text-xs font-semibold text-sidebar-accent-foreground tracking-wider">
-                            {t('academicRecords')}
-                        </span>
-                    </div>
+                    {!isCollapsed && (
+                        <div className="grid flex-1 text-left text-sm antialiased leading-tight">
+                            <span className="truncate font-medium text-base">
+                                {t('name')}
+                            </span>
+                            <span className="truncate text-xs font-semibold text-sidebar-accent-foreground tracking-wider">
+                                {t('academicRecords')}
+                            </span>
+                        </div>
+                    )}
                 </div>
             </SidebarMenuItem>
         </SidebarMenu>

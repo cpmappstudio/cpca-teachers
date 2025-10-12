@@ -21,7 +21,6 @@ export function CampusHeader({ campus, locale, hasHero = false, addressLabel }: 
                 <h1 className={`text-3xl font-semibold tracking-tight ${textColor}`}>
                     {campus.name}
                 </h1>
-                <p className={`${descriptionColor}`}>{addressLabel ?? "Campus details and academic overview"}</p>
             </div>
             <div className="flex items-center gap-3 pt-1 md:pt-0">
                 <Button variant="outline" className="gap-2" asChild>
