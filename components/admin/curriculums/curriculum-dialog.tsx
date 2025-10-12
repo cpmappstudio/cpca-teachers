@@ -15,8 +15,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Trash2, BookOpen, Upload, X, Link as LinkIcon } from "lucide-react";
-import { useState, useRef } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Edit, Trash2, X, ChevronDown, User, GraduationCap } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
 import { EntityDialog } from "@/components/ui/entity-dialog";
 import { useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
@@ -39,56 +48,47 @@ export function CurriculumDialog({
   const params = useParams();
   const locale = params.locale as string;
 
-  // Clerk user
   const { user: clerkUser } = useUser();
-
-  // Get current Convex user
   const currentUser = useQuery(
     api.users.getCurrentUser,
     clerkUser?.id ? { clerkId: clerkUser.id } : "skip",
   );
 
-  // Mutations
-  const createCurriculumMutation = useMutation(
-    api.curriculums.createCurriculum,
-  );
-  const updateCurriculumMutation = useMutation(
-    api.curriculums.updateCurriculum,
-  );
-  const deleteCurriculumMutation = useMutation(
-    api.curriculums.deleteCurriculum,
-  );
+  const createCurriculumMutation = useMutation(api.curriculums.createCurriculum);
+  const updateCurriculumMutation = useMutation(api.curriculums.updateCurriculum);
+  const deleteCurriculumMutation = useMutation(api.curriculums.deleteCurriculum);
 
-  // Dialog state
+  const allCampuses = useQuery(api.campuses.getCampuses, { isActive: true });
+  const availableCampuses = allCampuses || [];
+
   const [isOpen, setIsOpen] = useState(false);
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
-
-  // Loading state
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<string>(curriculum?.status || "");
 
-  const [selectedStatus, setSelectedStatus] = useState<string>(
-    curriculum?.status || "",
-  );
-
-  // Syllabus file management
-  const [selectedSyllabus, setSelectedSyllabus] = useState<File | null>(null);
-  const syllabusInputRef = useRef<HTMLInputElement>(null);
-
-  // Resources management
-  type Resource = {
-    name: string;
-    url: string;
-    type: string;
+  // Múltiples campus assignments
+  type CampusAssignment = {
+    campusId: Id<"campuses"> | "";
+    teacherIds: Id<"users">[];
+    gradeCodes: string[];
   };
 
-  const [resources, setResources] = useState<Resource[]>(
-    curriculum?.resources || []
-  );
-  const [newResourceName, setNewResourceName] = useState("");
-  const [newResourceUrl, setNewResourceUrl] = useState("");
-  const [newResourceType, setNewResourceType] = useState("");
+  const [campusAssignments, setCampusAssignments] = useState<CampusAssignment[]>([
+    { campusId: "", teacherIds: [], gradeCodes: [] }
+  ]);
 
-  // Curriculum status options
+  // Initialize campusAssignments when editing
+  useEffect(() => {
+    if (curriculum?.campusAssignments && curriculum.campusAssignments.length > 0) {
+      const initialAssignments = curriculum.campusAssignments.map(ca => ({
+        campusId: ca.campusId,
+        teacherIds: ca.assignedTeachers,
+        gradeCodes: ca.gradeCodes,
+      }));
+      setCampusAssignments(initialAssignments);
+    }
+  }, [curriculum]);
+
   const curriculumStatusOptions = [
     { value: "active", label: "Active" },
     { value: "draft", label: "Draft" },
@@ -96,57 +96,42 @@ export function CurriculumDialog({
     { value: "deprecated", label: "Deprecated" },
   ];
 
-  // Syllabus file handlers
-  const handleSyllabusUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setSelectedSyllabus(file);
-    }
+  const handleAddCampusAssignment = () => {
+    setCampusAssignments([...campusAssignments, { campusId: "", teacherIds: [], gradeCodes: [] }]);
   };
 
-  const handleSyllabusRemove = () => {
-    setSelectedSyllabus(null);
-    if (syllabusInputRef.current) {
-      syllabusInputRef.current.value = "";
-    }
+  const handleRemoveCampusAssignment = (index: number) => {
+    setCampusAssignments(campusAssignments.filter((_, i) => i !== index));
   };
 
-  const triggerSyllabusUpload = () => {
-    syllabusInputRef.current?.click();
+  const handleCampusChange = (index: number, campusId: Id<"campuses">) => {
+    const newAssignments = [...campusAssignments];
+    newAssignments[index] = { campusId, teacherIds: [], gradeCodes: [] };
+    setCampusAssignments(newAssignments);
   };
 
-  // Resource handlers
-  const handleAddResource = () => {
-    if (!newResourceName.trim() || !newResourceUrl.trim() || !newResourceType.trim()) {
-      toast.error("Validation Error", {
-        description: "Please fill in all resource fields (name, URL, and type).",
-      });
-      return;
-    }
-
-    const newResource: Resource = {
-      name: newResourceName.trim(),
-      url: newResourceUrl.trim(),
-      type: newResourceType.trim(),
-    };
-
-    setResources([...resources, newResource]);
-    setNewResourceName("");
-    setNewResourceUrl("");
-    setNewResourceType("");
+  const handleTeacherToggle = (index: number, teacherId: Id<"users">) => {
+    const newAssignments = [...campusAssignments];
+    const currentTeachers = newAssignments[index].teacherIds;
+    newAssignments[index].teacherIds = currentTeachers.includes(teacherId)
+      ? currentTeachers.filter(id => id !== teacherId)
+      : [...currentTeachers, teacherId];
+    setCampusAssignments(newAssignments);
   };
 
-  const handleRemoveResource = (index: number) => {
-    setResources(resources.filter((_, i) => i !== index));
+  const handleGradeToggle = (index: number, gradeCode: string) => {
+    const newAssignments = [...campusAssignments];
+    const currentGrades = newAssignments[index].gradeCodes;
+    newAssignments[index].gradeCodes = currentGrades.includes(gradeCode)
+      ? currentGrades.filter(code => code !== gradeCode)
+      : [...currentGrades, gradeCode];
+    setCampusAssignments(newAssignments);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    // Guardar referencia al formulario ANTES de cualquier operación asíncrona
     const form = event.currentTarget;
 
-    // Validar que tengamos el usuario actual
     if (!currentUser?._id) {
       toast.error("Authentication Error", {
         description: "User not authenticated. Please sign in again.",
@@ -155,14 +140,11 @@ export function CurriculumDialog({
     }
 
     const formData = new FormData(form);
-
-    // Obtener datos del formulario
     const name = formData.get("name") as string;
     const code = formData.get("code") as string | null;
     const description = formData.get("description") as string | null;
     const numberOfQuarters = formData.get("numberOfQuarters") as string | null;
 
-    // Validación básica
     if (!name?.trim()) {
       toast.error("Validation Error", {
         description: "Curriculum name is required.",
@@ -177,11 +159,7 @@ export function CurriculumDialog({
       return;
     }
 
-    if (
-      !numberOfQuarters ||
-      parseInt(numberOfQuarters) < 1 ||
-      parseInt(numberOfQuarters) > 4
-    ) {
+    if (!numberOfQuarters || parseInt(numberOfQuarters) < 1 || parseInt(numberOfQuarters) > 4) {
       toast.error("Validation Error", {
         description: "Number of quarters must be between 1 and 4.",
       });
@@ -192,36 +170,16 @@ export function CurriculumDialog({
 
     try {
       if (isEditing) {
-        // Actualizar curriculum existente
         if (!curriculum?._id) {
-          toast.error("Error", {
-            description: "Curriculum ID not found.",
-          });
+          toast.error("Error", { description: "Curriculum ID not found." });
           return;
         }
 
-        const updates: {
-          name?: string;
-          code?: string;
-          description?: string;
-          numberOfQuarters?: number;
-          status?: "draft" | "active" | "archived" | "deprecated";
-          resources?: Array<{
-            name: string;
-            url: string;
-            type: string;
-          }>;
-        } = {};
+        const updates: any = {};
 
-        // Solo incluir campos que han cambiado
         if (name.trim() !== curriculum.name) {
           updates.name = name.trim();
         }
-
-        // Code is not editable - skip update
-        // if (code?.trim() !== curriculum.code) {
-        //   updates.code = code?.trim() || undefined;
-        // }
 
         if (description?.trim() !== (curriculum.description || "")) {
           updates.description = description?.trim() || undefined;
@@ -233,111 +191,81 @@ export function CurriculumDialog({
         }
 
         if (selectedStatus !== curriculum.status) {
-          updates.status = selectedStatus as
-            | "draft"
-            | "active"
-            | "archived"
-            | "deprecated";
+          updates.status = selectedStatus as "draft" | "active" | "archived" | "deprecated";
         }
 
-        // Check if resources changed
-        if (JSON.stringify(resources) !== JSON.stringify(curriculum.resources || [])) {
-          updates.resources = resources.length > 0 ? resources : undefined;
+        // Campus assignments - simple structure
+        const validAssignments = campusAssignments
+          .filter(a => a.campusId && a.campusId !== "")
+          .map(a => ({
+            campusId: a.campusId as Id<"campuses">,
+            assignedTeachers: a.teacherIds,
+            gradeCodes: a.gradeCodes
+          }));
+
+        if (JSON.stringify(validAssignments) !== JSON.stringify(curriculum.campusAssignments || [])) {
+          updates.campusAssignments = validAssignments.length > 0 ? validAssignments : undefined;
         }
 
-        // Note: Syllabus file upload would need to be handled separately with Convex storage
-        // For now, we're not implementing the actual file upload in this update
-
-        // Solo hacer la actualización si hay cambios
         if (Object.keys(updates).length > 0) {
           await updateCurriculumMutation({
             curriculumId: curriculum._id,
             updates,
             updatedBy: currentUser._id,
           });
-
           toast.success("Curriculum updated successfully", {
             description: `"${name}" has been updated.`,
           });
-
-          // Cerrar el dialog automáticamente después del éxito
           setIsOpen(false);
-
-          // Recargar la página para mostrar los cambios
           router.refresh();
         } else {
-          toast.info("No changes detected", {
-            description: "Please make changes before updating.",
-          });
+          toast.info("No changes detected");
           setIsSubmitting(false);
           return;
         }
       } else {
-        // Crear curriculum
-        const curriculumData: {
-          name: string;
-          code?: string;
-          description?: string;
-          numberOfQuarters: number;
-          createdBy: Id<"users">;
-          resources?: Array<{
-            name: string;
-            url: string;
-            type: string;
-          }>;
-        } = {
+        const curriculumData: any = {
           name: name.trim(),
           numberOfQuarters: numberOfQuarters ? parseInt(numberOfQuarters) : 4,
           createdBy: currentUser._id,
         };
 
-        // Código opcional
         if (code?.trim()) {
           curriculumData.code = code.trim();
         }
 
-        // Descripción opcional
         if (description?.trim()) {
           curriculumData.description = description.trim();
         }
 
-        // Resources opcional
-        if (resources.length > 0) {
-          curriculumData.resources = resources;
+        // Campus assignments
+        const validAssignments = campusAssignments
+          .filter(a => a.campusId && a.campusId !== "")
+          .map(a => ({
+            campusId: a.campusId as Id<"campuses">,
+            assignedTeachers: a.teacherIds,
+            gradeCodes: a.gradeCodes
+          }));
+
+        if (validAssignments.length > 0) {
+          curriculumData.campusAssignments = validAssignments;
         }
 
-        // Note: Syllabus file upload would need to be handled separately with Convex storage
-        // For now, we're not implementing the actual file upload in creation
-
-        const curriculumId = await createCurriculumMutation(curriculumData);
+        await createCurriculumMutation(curriculumData);
 
         toast.success("Curriculum created successfully", {
           description: `"${name}" has been created.`,
         });
 
-        // Resetear formulario
         form.reset();
         setSelectedStatus("");
-        setResources([]);
-        setSelectedSyllabus(null);
-        setNewResourceName("");
-        setNewResourceUrl("");
-        setNewResourceType("");
-
-        // Cerrar el dialog automáticamente después del éxito
+        setCampusAssignments([{ campusId: "", teacherIds: [], gradeCodes: [] }]);
         setIsOpen(false);
-
-        // Recargar la página para mostrar el nuevo curriculum
         router.refresh();
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Failed to save curriculum. Please try again.";
-      toast.error("Error", {
-        description: errorMessage,
-      });
+      const errorMessage = error instanceof Error ? error.message : "Failed to save curriculum.";
+      toast.error("Error", { description: errorMessage });
     } finally {
       setIsSubmitting(false);
     }
@@ -354,29 +282,20 @@ export function CurriculumDialog({
         description: `"${curriculum.name}" has been deleted.`,
       });
 
-      // Cerrar el dialog
       setIsOpen(false);
       setShowDeleteAlert(false);
-
-      // Redirigir a la página de listado de curriculums con el locale correcto
       router.push(`/${locale}/admin/curriculums`);
       router.refresh();
     } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Failed to delete curriculum. Please try again.";
-      toast.error("Error", {
-        description: errorMessage,
-      });
+      const errorMessage = error instanceof Error ? error.message : "Failed to delete curriculum.";
+      toast.error("Error", { description: errorMessage });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Default triggers si no se proporciona uno custom
   const defaultTrigger = isEditing ? (
-    <Button className="gap-2 cursor-pointer">
+    <Button variant="ghost" size="sm" className="gap-2">
       <Edit className="h-4 w-4" />
       Edit curriculum
     </Button>
@@ -386,6 +305,173 @@ export function CurriculumDialog({
       <span className="hidden md:inline">Add Curriculum</span>
     </Button>
   );
+
+  // Campus Config Component (inline)
+  const CampusConfig = ({
+    assignment,
+    index,
+    selectedCampus,
+    campusGrades,
+  }: {
+    assignment: CampusAssignment;
+    index: number;
+    selectedCampus: Doc<"campuses"> | undefined;
+    campusGrades: { code: string; name: string }[];
+  }) => {
+    const teachers = useQuery(
+      api.campuses.getTeachersByCampus,
+      assignment.campusId ? { campusId: assignment.campusId } : "skip"
+    ) || [];
+
+    return (
+      <div className="border-2 border-muted rounded-lg p-4 space-y-4 bg-muted/30">
+        <h4 className="text-sm font-medium border-b pb-2">
+          Configuration for {selectedCampus?.name}
+        </h4>
+
+        {/* Teachers Section */}
+        <div className="space-y-3">
+          <Label>Teachers</Label>
+
+          {/* Teacher Dropdown */}
+          {teachers.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No teachers available for this campus</p>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  <span className="text-muted-foreground">Choose teachers...</span>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-80 max-h-80 overflow-y-auto" align="start">
+                <DropdownMenuLabel>Available Teachers ({teachers.length})</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {teachers.map((teacher) => {
+                  const isSelected = assignment.teacherIds.includes(teacher._id);
+                  return (
+                    <DropdownMenuItem
+                      key={teacher._id}
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        handleTeacherToggle(index, teacher._id);
+                      }}
+                      className={`${isSelected ? "bg-accent" : ""} cursor-pointer`}
+                    >
+                      <div className="flex items-center gap-2 w-full">
+                        <User className="h-4 w-4" />
+                        <span className="font-medium">{teacher.fullName}</span>
+                        {isSelected && (
+                          <Badge variant="secondary" className="text-xs ml-auto">Selected</Badge>
+                        )}
+                      </div>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Selected Teachers Badges - DEBAJO del dropdown */}
+          {assignment.teacherIds.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {assignment.teacherIds.map((teacherId) => {
+                const teacher = teachers.find(t => t._id === teacherId);
+                if (!teacher) return null;
+                return (
+                  <Badge
+                    key={teacherId}
+                    variant="outline"
+                    className="flex items-center gap-2 px-3 py-1.5"
+                  >
+                    <User className="h-3 w-3" />
+                    <span>{teacher.fullName}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleTeacherToggle(index, teacherId)}
+                      className="ml-1 rounded-full hover:bg-muted p-0.5"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Grades Section */}
+        {campusGrades.length > 0 && (
+          <div className="space-y-3">
+            <Label>Grades</Label>
+
+            {/* Grade Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  <span className="text-muted-foreground">Choose grades...</span>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-80 max-h-80 overflow-y-auto" align="start">
+                <DropdownMenuLabel>Available Grades ({campusGrades.length})</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {campusGrades.map((grade) => {
+                  const isSelected = assignment.gradeCodes.includes(grade.code);
+                  return (
+                    <DropdownMenuItem
+                      key={grade.code}
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        handleGradeToggle(index, grade.code);
+                      }}
+                      className={`${isSelected ? "bg-accent" : ""} cursor-pointer`}
+                    >
+                      <div className="flex items-center gap-2 w-full">
+                        <GraduationCap className="h-4 w-4" />
+                        <span className="font-medium">{grade.name}</span>
+                        <span className="text-xs text-muted-foreground">({grade.code})</span>
+                        {isSelected && (
+                          <Badge variant="secondary" className="text-xs ml-auto">Selected</Badge>
+                        )}
+                      </div>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Selected Grades Badges - DEBAJO del dropdown */}
+            {assignment.gradeCodes.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {assignment.gradeCodes.map((gradeCode) => {
+                  const grade = campusGrades.find(g => g.code === gradeCode);
+                  if (!grade) return null;
+                  return (
+                    <Badge
+                      key={gradeCode}
+                      variant="outline"
+                      className="flex items-center gap-2 px-3 py-1.5"
+                    >
+                      <GraduationCap className="h-3 w-3" />
+                      <span>{grade.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleGradeToggle(index, gradeCode)}
+                        className="ml-1 rounded-full hover:bg-muted p-0.5"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -412,22 +498,15 @@ export function CurriculumDialog({
         }
       >
         <div className="grid gap-6">
-          {/* Hidden input para status */}
           <input type="hidden" name="status" value={selectedStatus} />
 
           {/* Basic Information */}
           <div className="space-y-4">
-            <h4 className="text-sm font-medium border-b pb-2">
-              Basic Information
-            </h4>
+            <h4 className="text-sm font-medium border-b pb-2">Basic Information</h4>
             <div className="grid gap-4">
-              {/* Name and Code - First row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-3">
-                  <Label htmlFor="name">
-                    Name
-                    <span className="text-red-500">*</span>
-                  </Label>
+                  <Label htmlFor="name">Name<span className="text-red-500">*</span></Label>
                   <Input
                     id="name"
                     name="name"
@@ -449,18 +528,13 @@ export function CurriculumDialog({
                 </div>
               </div>
 
-              {/* Description - Full width */}
               <div className="grid gap-3">
                 <Label htmlFor="description">Description</Label>
                 <Textarea
                   id="description"
                   name="description"
                   defaultValue={curriculum?.description || ""}
-                  placeholder={
-                    isEditing
-                      ? ""
-                      : "Provide a brief description of the curriculum..."
-                  }
+                  placeholder={isEditing ? "" : "Provide a brief description..."}
                   rows={4}
                   className="resize-none"
                 />
@@ -468,10 +542,7 @@ export function CurriculumDialog({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-3">
-                  <Label htmlFor="numberOfQuarters">
-                    Number of Quarters
-                    <span className="text-red-500">*</span>
-                  </Label>
+                  <Label htmlFor="numberOfQuarters">Number of Quarters<span className="text-red-500">*</span></Label>
                   <Input
                     id="numberOfQuarters"
                     name="numberOfQuarters"
@@ -479,17 +550,12 @@ export function CurriculumDialog({
                     min="1"
                     max="4"
                     defaultValue={curriculum?.numberOfQuarters || 4}
-                    placeholder={
-                      isEditing ? "" : "Enter number of quarters (1-4)"
-                    }
+                    placeholder={isEditing ? "" : "Enter number of quarters (1-4)"}
                     required
                   />
                 </div>
                 <div className="grid gap-3">
-                  <Label htmlFor="status">
-                    Status
-                    <span className="text-red-500">*</span>
-                  </Label>
+                  <Label htmlFor="status">Status<span className="text-red-500">*</span></Label>
                   <SelectDropdown
                     options={curriculumStatusOptions}
                     value={selectedStatus}
@@ -502,151 +568,77 @@ export function CurriculumDialog({
             </div>
           </div>
 
-          {/* Syllabus Document */}
-          {/* <div className="space-y-4">
-          <h4 className="text-sm font-medium border-b pb-2">Syllabus</h4>
-          <div className="grid gap-4">
-            <div className="grid gap-3">
-              <p className="text-sm text-muted-foreground">
-                Upload the official syllabus document for this curriculum (PDF, DOC, DOCX).
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={triggerSyllabusUpload}
-                  className="gap-2"
-                >
-                  <Upload className="h-4 w-4" />
-                  {selectedSyllabus ? "Change File" : "Upload Syllabus"}
-                </Button>
+          {/* Campus & Teachers - MULTIPLE */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium border-b pb-2">Campus & Teachers</h4>
 
-                {selectedSyllabus && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleSyllabusRemove}
-                    className="gap-2 text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Remove
-                  </Button>
-                )}
-              </div>
+            {campusAssignments.map((assignment, index) => {
+              const selectedCampus = availableCampuses.find(c => c._id === assignment.campusId);
+              const campusGrades = selectedCampus?.grades || [];
 
-              {selectedSyllabus && (
-                <div className="text-sm text-muted-foreground">
-                  Selected: {selectedSyllabus.name} (
-                  {Math.round(selectedSyllabus.size / 1024)}KB)
-                </div>
-              )}
+              // Get campuses already assigned (excluding current)
+              const assignedCampusIds = campusAssignments
+                .map((a, i) => i !== index ? a.campusId : null)
+                .filter(id => id && id !== "");
+              const availableForThis = availableCampuses.filter(
+                campus => !assignedCampusIds.includes(campus._id)
+              );
 
-              {curriculum?.syllabusStorageId && !selectedSyllabus && (
-                <div className="text-sm text-muted-foreground">
-                  Current syllabus document is stored in the system.
-                </div>
-              )}
+              return (
+                <div key={index} className="space-y-3">
+                  {/* Campus Selector */}
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 grid gap-3">
+                      <Label>Campus {campusAssignments.length > 1 ? `${index + 1}` : ""}</Label>
+                      <SelectDropdown
+                        options={availableForThis.map(campus => ({
+                          value: campus._id,
+                          label: `${campus.name}${campus.code ? ` (${campus.code})` : ''}`
+                        }))}
+                        value={assignment.campusId || ""}
+                        onValueChange={(value) => handleCampusChange(index, value as Id<"campuses">)}
+                        placeholder="Choose a campus..."
+                        label="Campus Options"
+                      />
+                    </div>
 
-              <input
-                ref={syllabusInputRef}
-                type="file"
-                accept=".pdf,.doc,.docx"
-                onChange={handleSyllabusUpload}
-                className="hidden"
-              />
-            </div>
-          </div>
-        </div> */}
-
-          {/* Resources */}
-          {/* <div className="space-y-4">
-          <h4 className="text-sm font-medium border-b pb-2">Resources</h4>
-          <div className="grid gap-4">
-            {resources.length > 0 && (
-              <div className="space-y-3">
-                <Label>Current Resources ({resources.length})</Label>
-                <div className="space-y-2">
-                  {resources.map((resource, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50"
-                    >
-                      <LinkIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">
-                          {resource.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {resource.url}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Type: {resource.type}
-                        </p>
-                      </div>
+                    {/* Remove button - only show if more than one campus */}
+                    {campusAssignments.length > 1 && (
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleRemoveResource(index)}
-                        className="flex-shrink-0"
+                        onClick={() => handleRemoveCampusAssignment(index)}
+                        className="mt-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                       >
                         <X className="h-4 w-4" />
                       </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )} */}
+                    )}
+                  </div>
 
-          {/* Add New Resource */}
-          {/* <div className="space-y-3">
-              <div className="grid gap-3">
-                <div className="grid gap-2">
-                  <Label htmlFor="resourceName" className="text-sm">
-                    Name
-                  </Label>
-                  <Input
-                    id="resourceName"
-                    value={newResourceName}
-                    onChange={(e) => setNewResourceName(e.target.value)}
-                    placeholder="Enter resource name"
-                  />
+                  {/* Campus Configuration Box */}
+                  {assignment.campusId && <CampusConfig assignment={assignment} index={index} selectedCampus={selectedCampus} campusGrades={campusGrades} />}
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="resourceUrl" className="text-sm">
-                    URL
-                  </Label>
-                  <Input
-                    id="resourceUrl"
-                    value={newResourceUrl}
-                    onChange={(e) => setNewResourceUrl(e.target.value)}
-                    placeholder="Enter resource URL"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="resourceType" className="text-sm">
-                    Type
-                  </Label>
-                  <Input
-                    id="resourceType"
-                    value={newResourceType}
-                    onChange={(e) => setNewResourceType(e.target.value)}
-                    placeholder="Enter resource type (e.g., Book, Article)"
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleAddResource}
-                  className="gap-2 self-start"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Resource
-                </Button>
-              </div>
-            </div> */}
-          {/* </div> */}
-          {/* </div> */}
+              );
+            })}
+
+            {/* Add Another Campus Button */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleAddCampusAssignment}
+              className="w-full gap-2"
+              disabled={
+                // Deshabilitar si hay algún campus sin seleccionar
+                campusAssignments.some(a => a.campusId === "") ||
+                // O si ya se seleccionaron todos los campuses disponibles
+                campusAssignments.filter(a => a.campusId !== "").length >= availableCampuses.length
+              }
+            >
+              <Plus className="h-4 w-4" />
+              Add Another Campus
+            </Button>
+          </div>
         </div>
       </EntityDialog>
 

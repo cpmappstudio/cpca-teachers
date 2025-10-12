@@ -215,6 +215,13 @@ export default defineSchema({
     // Academic organization
     numberOfQuarters: v.number(), // 1-4 typically
 
+    // Campus assignments - each campus can have its own teachers and grades
+    campusAssignments: v.optional(v.array(v.object({
+      campusId: v.id("campuses"),
+      assignedTeachers: v.array(v.id("users")), // Teachers from this specific campus
+      gradeCodes: v.array(v.string()), // Grade codes taught at this campus
+    }))),
+
     // Metrics (denormalized)
     metrics: v.optional(v.object({
       totalLessons: v.number(),

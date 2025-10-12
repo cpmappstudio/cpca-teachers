@@ -44,22 +44,33 @@ export const createCurriculum = mutation({
       url: v.string(),
       type: v.string(),
     }))),
+    campusAssignments: v.optional(v.array(v.object({
+      campusId: v.id("campuses"),
+      assignedTeachers: v.array(v.id("users")),
+      gradeCodes: v.array(v.string()),
+    }))),
     createdBy: v.id("users"),
   },
   handler: async (ctx, args) => {
+    // Calculate total assigned teachers across all campuses
+    const totalAssignedTeachers = args.campusAssignments?.reduce((acc, assignment) => {
+      return acc + assignment.assignedTeachers.length;
+    }, 0) || 0;
+
     const curriculumId = await ctx.db.insert("curriculums", {
       name: args.name,
       code: args.code,
       description: args.description,
       numberOfQuarters: args.numberOfQuarters,
       resources: args.resources,
+      campusAssignments: args.campusAssignments,
       isActive: true,
       status: "draft",
       createdAt: Date.now(),
       createdBy: args.createdBy,
       metrics: {
         totalLessons: 0,
-        assignedTeachers: 0,
+        assignedTeachers: totalAssignedTeachers,
         averageProgress: 0,
         lastUpdated: Date.now(),
       },
@@ -85,6 +96,11 @@ export const updateCurriculum = mutation({
         url: v.string(),
         type: v.string(),
       }))),
+      campusAssignments: v.optional(v.array(v.object({
+        campusId: v.id("campuses"),
+        assignedTeachers: v.array(v.id("users")),
+        gradeCodes: v.array(v.string()),
+      }))),
       status: v.optional(v.union(
         v.literal("draft"),
         v.literal("active"),
@@ -95,8 +111,26 @@ export const updateCurriculum = mutation({
     updatedBy: v.id("users"),
   },
   handler: async (ctx, args) => {
+    // Update metrics if campusAssignments changed
+    let metricsUpdate = {};
+    if (args.updates.campusAssignments !== undefined) {
+      const totalAssignedTeachers = args.updates.campusAssignments?.reduce((acc, assignment) => {
+        return acc + assignment.assignedTeachers.length;
+      }, 0) || 0;
+
+      metricsUpdate = {
+        metrics: {
+          totalLessons: 0,
+          assignedTeachers: totalAssignedTeachers,
+          averageProgress: 0,
+          lastUpdated: Date.now(),
+        },
+      };
+    }
+
     await ctx.db.patch(args.curriculumId, {
       ...args.updates,
+      ...metricsUpdate,
       updatedAt: Date.now(),
       updatedBy: args.updatedBy,
     });
