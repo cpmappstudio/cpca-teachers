@@ -257,11 +257,82 @@ export const getTeachersByCampus = query({
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const teachers = await ctx.db
       .query("users")
       .withIndex("by_campus_active", (q) =>
         q.eq("campusId", args.campusId).eq("isActive", args.isActive ?? true)
       )
       .collect();
+
+    // Calculate real progress for each teacher from lesson_progress
+    const teachersWithProgress = await Promise.all(
+      teachers.map(async (teacher) => {
+        // Get all active assignments for this teacher
+        const assignments = await ctx.db
+          .query("teacher_assignments")
+          .withIndex("by_teacher_active", (q) =>
+            q.eq("teacherId", teacher._id).eq("isActive", true)
+          )
+          .collect();
+
+        if (assignments.length === 0) {
+          // No assignments, return teacher with 0 progress
+          return {
+            ...teacher,
+            progressMetrics: {
+              totalLessons: 0,
+              completedLessons: 0,
+              progressPercentage: 0,
+              lastUpdated: Date.now(),
+            },
+          };
+        }
+
+        // Get all lessons for all assigned curriculums
+        let totalLessons = 0;
+        let completedLessons = 0;
+
+        for (const assignment of assignments) {
+          // Get curriculum lessons
+          const lessons = await ctx.db
+            .query("curriculum_lessons")
+            .withIndex("by_curriculum_active", (q) =>
+              q.eq("curriculumId", assignment.curriculumId).eq("isActive", true)
+            )
+            .collect();
+
+          totalLessons += lessons.length;
+
+          // Get completed lessons for this assignment
+          const progressRecords = await ctx.db
+            .query("lesson_progress")
+            .withIndex("by_assignment_status", (q) =>
+              q.eq("assignmentId", assignment._id)
+            )
+            .collect();
+
+          const completed = progressRecords.filter(
+            (p) => p.status === "completed"
+          ).length;
+
+          completedLessons += completed;
+        }
+
+        const progressPercentage =
+          totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+
+        return {
+          ...teacher,
+          progressMetrics: {
+            totalLessons,
+            completedLessons,
+            progressPercentage,
+            lastUpdated: Date.now(),
+          },
+        };
+      })
+    );
+
+    return teachersWithProgress;
   },
 });
