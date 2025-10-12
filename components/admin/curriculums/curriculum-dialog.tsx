@@ -233,7 +233,6 @@ export function CurriculumDialog({
           });
 
           alert(`Success! Curriculum "${name}" has been updated successfully.`);
-          console.log("Curriculum updated:", curriculum._id);
 
           // Cerrar el dialog automáticamente después del éxito
           setIsOpen(false);
@@ -285,7 +284,6 @@ export function CurriculumDialog({
         const curriculumId = await createCurriculumMutation(curriculumData);
 
         alert(`Success! Curriculum "${name}" has been created successfully.`);
-        console.log("Curriculum created with ID:", curriculumId);
 
         // Resetear formulario
         form.reset();
@@ -303,7 +301,6 @@ export function CurriculumDialog({
         router.refresh();
       }
     } catch (error) {
-      console.error("Error saving curriculum:", error);
       const errorMessage =
         error instanceof Error
           ? error.message
@@ -327,7 +324,6 @@ export function CurriculumDialog({
         await deleteCurriculumMutation({ curriculumId: curriculum._id });
 
         alert(`Success! Curriculum "${curriculum.name}" has been deleted.`);
-        console.log("Curriculum deleted:", curriculum._id);
 
         // Cerrar el dialog
         setIsOpen(false);
@@ -336,7 +332,6 @@ export function CurriculumDialog({
         router.push(`/${locale}/admin/curriculums`);
         router.refresh();
       } catch (error) {
-        console.error("Error deleting curriculum:", error);
         const errorMessage =
           error instanceof Error
             ? error.message
@@ -355,7 +350,7 @@ export function CurriculumDialog({
       Edit curriculum
     </Button>
   ) : (
-    <Button className="bg-deep-koamaru h-9 dark:text-white gap-2">
+    <Button className="bg-sidebar-accent h-9 dark:text-white gap-2">
       <Plus className="h-4 w-4" />
       <span className="hidden md:inline">Add Curriculum</span>
     </Button>
@@ -576,8 +571,8 @@ export function CurriculumDialog({
               </div>
             )} */}
 
-            {/* Add New Resource */}
-            {/* <div className="space-y-3">
+        {/* Add New Resource */}
+        {/* <div className="space-y-3">
               <div className="grid gap-3">
                 <div className="grid gap-2">
                   <Label htmlFor="resourceName" className="text-sm">
@@ -623,7 +618,7 @@ export function CurriculumDialog({
                 </Button>
               </div>
             </div> */}
-          {/* </div> */}
+        {/* </div> */}
         {/* </div> */}
       </div>
     </EntityDialog>

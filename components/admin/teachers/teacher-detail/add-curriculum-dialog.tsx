@@ -135,16 +135,6 @@ export function AddCurriculumDialog({ teacherId }: AddCurriculumDialogProps) {
     const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault()
 
-        console.log("Adding curriculums to teacher:", {
-            teacherId,
-            curriculumIds: selectedCurriculumIds,
-            selectedCurriculums: selectedCurriculums.map(c => ({
-                id: c._id,
-                name: c.name,
-                code: c.code
-            }))
-        })
-
         // Simular éxito
         alert(`Successfully added ${selectedCurriculums.length} curriculum(s) to the teacher!`)
 
@@ -259,7 +249,6 @@ export function AddCurriculumDialog({ teacherId }: AddCurriculumDialogProps) {
                             className="gap-2 self-start"
                             onClick={() => {
                                 alert("Create Curriculum functionality coming soon!")
-                                console.log("Create new curriculum clicked")
                             }}
                         >
                             <FileText className="h-4 w-4" />

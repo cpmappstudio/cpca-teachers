@@ -517,7 +517,7 @@ export function LessonsTable() {
                     </TableBody>
                 </Table>
             </div>
-            <div className="flex items-center justify-between gap-4 py-4">
+            <div className="flex items-center justify-between gap-4">
                 <div className="text-sm text-muted-foreground">
                     Showing {table.getRowModel().rows.length} of {lessons?.length ?? 0} lesson(s)
                 </div>

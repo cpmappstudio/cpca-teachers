@@ -230,7 +230,7 @@
 //  * Calculate metrics for a campus
 //  */
 // export async function calculateCampusMetrics(
-//     db: DbReader,
+//     db: DatabaseReader,
 //     campusId: Id<"campuses">
 // ): Promise<CampusMetrics> {
 //     // Get all teachers in this campus

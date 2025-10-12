@@ -42,8 +42,6 @@ export function CampusOverviewCard({ campus, addressLabel }: CampusOverviewCardP
         }
     ];
 
-    console.log("Campus image storage ID:", campus.campusImageStorageId);
-
     return (
         <OverviewCard
             title="Campus summary"

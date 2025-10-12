@@ -110,7 +110,6 @@ export function AddTeachersDialog({ campusId }: AddTeachersDialogProps) {
             // Actualizar los IDs iniciales
             setInitialTeacherIds(selectedTeacherIds)
         } catch (error) {
-            console.error("Error updating teachers:", error)
             toast.error("Error updating teachers", {
                 description: "There was a problem updating the teachers. Please try again."
             })

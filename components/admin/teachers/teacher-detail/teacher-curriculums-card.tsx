@@ -737,7 +737,7 @@ export function TeacherCurriculumsCard({
                     </div>
                     <AddCurriculumDialog teacherId={teacherId} />
                 </div>
-                <div className="overflow-hidden  border my-4">
+                <div className="overflow-hidden  border">
                     <Table>
                         <TableHeader className="bg-deep-koamaru text-white">
                             {table.getHeaderGroups().map((headerGroup) => (

@@ -45,15 +45,6 @@ export function TeacherDialog({ lesson, trigger }: TeacherDialogProps) {
     }
 
     // TODO: Implement actual file upload logic
-    console.log("Uploading lesson proof:", {
-      lessonId: lesson?.id,
-      lessonTitle: lesson?.title,
-      file: selectedFile.name,
-      fileSize: selectedFile.size,
-      fileType: selectedFile.type,
-      comment: comment.trim(),
-    })
-
     alert(`File "${selectedFile.name}" would be uploaded here`)
 
     // Reset form

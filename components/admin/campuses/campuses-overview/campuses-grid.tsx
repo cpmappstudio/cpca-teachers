@@ -26,12 +26,12 @@ function CampusListItem({ campus }: CampusListItemProps) {
     const locale = useLocale();
     return (
         <Link href={`/${locale}/admin/campuses/${campus.id}`}>
-            <Card className="group relative overflow-hidden border-border/60 bg-card shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
-                <div className="flex items-center p-5">
+            <Card className="group relative py-0 overflow-hidden border-border/60 bg-card shadow-sm cursor-pointer">
+                <div className="flex items-center py-5 px-2">
                     {/* Small hero thumbnail */}
-                    <div className="mr-4 h-16 w-24 flex-shrink-0 overflow-hidden rounded-lg">
-                        <CampusHeroSmall 
-                            hero={campus.hero} 
+                    <div className="mr-4 h-16 w-24 flex-shrink-0 overflow-hidden rounded-sm">
+                        <CampusHeroSmall
+                            hero={campus.hero}
                             name={campus.name}
                             campusImageStorageId={campus.campusImageStorageId}
                         />

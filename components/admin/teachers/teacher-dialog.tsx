@@ -142,7 +142,6 @@ export function TeacherDialog({ teacher, trigger, defaultCampusId }: TeacherDial
             const { storageId } = await result.json()
             return storageId as Id<"_storage">
         } catch (error) {
-            console.error("Error uploading image:", error)
             throw error
         }
     }
@@ -242,7 +241,7 @@ export function TeacherDialog({ teacher, trigger, defaultCampusId }: TeacherDial
                     email?: string
                     phone?: string
                     avatarStorageId?: Id<"_storage"> | null // Allow null to delete image
-                    campusId?: Id<"campuses">
+                    campusId?: Id<"campuses"> | null // Allow null/undefined to unassign campus
                     status?: "active" | "inactive" | "on_leave" | "terminated"
                 } = {}
 
@@ -268,8 +267,13 @@ export function TeacherDialog({ teacher, trigger, defaultCampusId }: TeacherDial
                     updates.phone = phone?.trim() || undefined
                 }
 
-                if (selectedCampusId !== teacher.campusId) {
-                    updates.campusId = selectedCampusId
+                // Handle campus assignment/unassignment
+                // Check if campus has changed (including undefined to remove assignment)
+                const campusChanged = selectedCampusId !== teacher.campusId;
+                if (campusChanged) {
+                    // If selectedCampusId is undefined, we want to unassign the campus
+                    // Use null to explicitly remove the campus assignment
+                    updates.campusId = selectedCampusId === undefined ? null : selectedCampusId;
                 }
 
                 if (selectedStatus !== teacher.status) {
@@ -287,15 +291,12 @@ export function TeacherDialog({ teacher, trigger, defaultCampusId }: TeacherDial
                 if (hasChanges) {
                     await updateUserWithClerk({
                         userId: teacher._id,
-                        updates,
+                        updates: updates as any, // Type assertion needed until Convex regenerates types
                     })
 
                     toast.success("Teacher updated successfully", {
-                        description: `"${firstName} ${lastName}" has been updated in both Convex and Clerk.`,
-                    })
-                    console.log("Teacher updated:", teacher._id)
-
-                    // Reset states
+                        description: `"${firstName} ${lastName}" has been updated successfully.`,
+                    })                    // Reset states
                     setDeleteExistingImage(false)
                     setSelectedImage(null)
                     setImagePreview(null)
@@ -326,28 +327,11 @@ export function TeacherDialog({ teacher, trigger, defaultCampusId }: TeacherDial
 
                 const result = await createTeacherWithClerk(teacherData)
 
-                const successDescription = selectedCampusId && selectedCampus
-                    ? `"${firstName} ${lastName}" has been created in Clerk and assigned to ${selectedCampus.name}.`
-                    : `"${firstName} ${lastName}" has been created in Clerk.`
-
                 toast.success("Teacher created successfully", {
-                    description: successDescription,
+                    description: `"${firstName} ${lastName}" has been created successfully.`,
                 })
 
-                // Informar sobre la invitación
-                if (result.invitationSent) {
-                    toast.success("Invitation sent", {
-                        description: `An invitation email has been sent to ${email}. The teacher can now set up their account.`,
-                        duration: 8000,
-                    })
-                } else {
-                    toast.info("Manual invitation needed", {
-                        description: `Please send an invitation to ${email} manually from Clerk Dashboard.`,
-                        duration: 8000,
-                    })
-                }
-
-                console.log("Teacher created:", result)                // Resetear formulario
+                // Resetear formulario
                 form.reset()
                 // Mantener el campus preseleccionado si se pasó como defaultCampusId
                 setSelectedCampusId(defaultCampusId || undefined)
@@ -363,8 +347,6 @@ export function TeacherDialog({ teacher, trigger, defaultCampusId }: TeacherDial
                 router.refresh()
             }
         } catch (error) {
-            console.error("Error saving teacher:", error)
-
             // Proporcionar mensajes de error más específicos
             let errorMessage = "Failed to save teacher. Please try again."
 
@@ -403,7 +385,6 @@ export function TeacherDialog({ teacher, trigger, defaultCampusId }: TeacherDial
                 toast.success("Teacher deleted successfully", {
                     description: `"${teacher.fullName}" has been deleted.`,
                 })
-                console.log("Teacher deleted:", teacher._id)
 
                 // Reset states
                 setDeleteExistingImage(false)
@@ -417,8 +398,6 @@ export function TeacherDialog({ teacher, trigger, defaultCampusId }: TeacherDial
                 router.push(`/${locale}/admin/teachers`)
                 router.refresh()
             } catch (error) {
-                console.error("Error deleting teacher:", error)
-
                 let errorMessage = "Failed to delete teacher. Please try again."
 
                 if (error instanceof Error) {
@@ -447,7 +426,7 @@ export function TeacherDialog({ teacher, trigger, defaultCampusId }: TeacherDial
             Edit teacher
         </Button>
     ) : (
-        <Button className="bg-deep-koamaru h-9 dark:text-white gap-2">
+        <Button className="bg-sidebar-accent h-9 dark:text-white gap-2">
             <Plus className="h-4 w-4" />
             <span className="hidden md:inline">Add Teacher</span>
         </Button>

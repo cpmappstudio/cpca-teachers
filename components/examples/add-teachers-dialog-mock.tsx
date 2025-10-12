@@ -103,16 +103,6 @@ export function AddTeachersDialogMock({ campusId }: AddTeachersDialogMockProps) 
     const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault()
 
-        console.log("Adding teachers to campus:", {
-            campusId,
-            teacherIds: selectedTeacherIds,
-            selectedTeachers: selectedTeachers.map(t => ({
-                id: t._id,
-                name: t.fullName,
-                email: t.email
-            }))
-        })
-
         // Simular éxito
         alert(`Successfully added ${selectedTeachers.length} teacher(s) to the campus!`)
 
@@ -228,7 +218,6 @@ export function AddTeachersDialogMock({ campusId }: AddTeachersDialogMockProps) 
                             className="gap-2 self-start"
                             onClick={() => {
                                 alert("Create Teacher functionality coming soon!")
-                                console.log("Create new teacher clicked")
                             }}
                         >
                             <UserPlus className="h-4 w-4" />

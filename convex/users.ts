@@ -169,7 +169,7 @@ export const updateUser = mutation({
       email: v.optional(v.string()),
       phone: v.optional(v.string()),
       avatarStorageId: v.optional(v.union(v.id("_storage"), v.null())), // Allow null to delete image
-      campusId: v.optional(v.id("campuses")),
+      campusId: v.optional(v.union(v.id("campuses"), v.null())), // Allow null to unassign campus
       role: v.optional(v.union(
         v.literal("teacher"),
         v.literal("admin"),
@@ -184,21 +184,88 @@ export const updateUser = mutation({
     }),
   },
   handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
     const updates: any = { ...args.updates, updatedAt: Date.now() };
+
+    // Track if campus changed to update metrics
+    const oldCampusId = user.campusId;
+    const newCampusId = updates.campusId;
+    const campusChanged = oldCampusId !== newCampusId;
 
     // Convert null to undefined for Convex schema compatibility
     if (updates.avatarStorageId === null) {
       updates.avatarStorageId = undefined;
     }
+    if (updates.campusId === null) {
+      updates.campusId = undefined;
+    }
 
     if (args.updates.firstName || args.updates.lastName) {
-      const user = await ctx.db.get(args.userId);
       if (user) {
         updates.fullName = `${args.updates.firstName || user.firstName} ${args.updates.lastName || user.lastName}`;
       }
     }
 
     await ctx.db.patch(args.userId, updates);
+
+    // Update campus metrics if campus assignment changed
+    if (campusChanged && user.role === "teacher") {
+      // Update old campus metrics if exists
+      if (oldCampusId) {
+        const oldCampus = await ctx.db.get(oldCampusId);
+        if (oldCampus && "metrics" in oldCampus) {
+          const teachers = await ctx.db
+            .query("users")
+            .withIndex("by_campus_active", (q) =>
+              q.eq("campusId", oldCampusId).eq("isActive", true)
+            )
+            .filter((q) => q.eq(q.field("role"), "teacher"))
+            .collect();
+
+          const totalTeachers = teachers.length;
+          const activeTeachers = teachers.filter((t) => t.status === "active").length;
+
+          await ctx.db.patch(oldCampusId, {
+            metrics: {
+              totalTeachers,
+              activeTeachers,
+              averageProgress: oldCampus.metrics?.averageProgress || 0,
+              lastUpdated: Date.now(),
+            },
+          });
+        }
+      }
+
+      // Update new campus metrics if exists
+      if (newCampusId) {
+        const newCampus = await ctx.db.get(newCampusId);
+        if (newCampus && "metrics" in newCampus) {
+          const teachers = await ctx.db
+            .query("users")
+            .withIndex("by_campus_active", (q) =>
+              q.eq("campusId", newCampusId).eq("isActive", true)
+            )
+            .filter((q) => q.eq(q.field("role"), "teacher"))
+            .collect();
+
+          const totalTeachers = teachers.length;
+          const activeTeachers = teachers.filter((t) => t.status === "active").length;
+
+          await ctx.db.patch(newCampusId, {
+            metrics: {
+              totalTeachers,
+              activeTeachers,
+              averageProgress: newCampus.metrics?.averageProgress || 0,
+              lastUpdated: Date.now(),
+            },
+          });
+        }
+      }
+    }
   },
 });
 
@@ -215,7 +282,7 @@ export const updateUserWithClerk = action({
       email: v.optional(v.string()),
       phone: v.optional(v.string()),
       avatarStorageId: v.optional(v.union(v.id("_storage"), v.null())), // Allow null to delete image
-      campusId: v.optional(v.id("campuses")),
+      campusId: v.optional(v.union(v.id("campuses"), v.null())), // Allow null to unassign campus
       status: v.optional(v.union(
         v.literal("active"),
         v.literal("inactive"),
@@ -500,6 +567,32 @@ export const createTeacher = mutation({
       updatedAt: Date.now(),
     });
 
+    // Update campus metrics if teacher is assigned to a campus
+    if (args.campusId) {
+      const campus = await ctx.db.get(args.campusId);
+      if (campus && "metrics" in campus) {
+        const teachers = await ctx.db
+          .query("users")
+          .withIndex("by_campus_active", (q) =>
+            q.eq("campusId", args.campusId!).eq("isActive", true)
+          )
+          .filter((q) => q.eq(q.field("role"), "teacher"))
+          .collect();
+
+        const totalTeachers = teachers.length;
+        const activeTeachers = teachers.filter((t) => t.status === "active").length;
+
+        await ctx.db.patch(args.campusId, {
+          metrics: {
+            totalTeachers,
+            activeTeachers,
+            averageProgress: campus.metrics?.averageProgress || 0,
+            lastUpdated: Date.now(),
+          },
+        });
+      }
+    }
+
     return userId;
   },
 });
@@ -510,12 +603,16 @@ export const createTeacher = mutation({
 export const deleteUser = mutation({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    // Get the user to find the avatar storage ID
+    // Get the user to find the avatar storage ID and campus
     const user = await ctx.db.get(args.userId);
 
     if (!user) {
       throw new Error("User not found");
     }
+
+    // Store campusId before deletion for metrics update
+    const campusId = user.campusId;
+    const isTeacher = user.role === "teacher";
 
     // Delete the avatar from storage if it exists
     if (user.avatarStorageId) {
@@ -528,6 +625,32 @@ export const deleteUser = mutation({
 
     // Delete the user
     await ctx.db.delete(args.userId);
+
+    // Update campus metrics if the deleted user was a teacher assigned to a campus
+    if (isTeacher && campusId) {
+      const campus = await ctx.db.get(campusId);
+      if (campus && "metrics" in campus) {
+        const teachers = await ctx.db
+          .query("users")
+          .withIndex("by_campus_active", (q) =>
+            q.eq("campusId", campusId).eq("isActive", true)
+          )
+          .filter((q) => q.eq(q.field("role"), "teacher"))
+          .collect();
+
+        const totalTeachers = teachers.length;
+        const activeTeachers = teachers.filter((t) => t.status === "active").length;
+
+        await ctx.db.patch(campusId, {
+          metrics: {
+            totalTeachers,
+            activeTeachers,
+            averageProgress: campus.metrics?.averageProgress || 0,
+            lastUpdated: Date.now(),
+          },
+        });
+      }
+    }
   },
 });
 

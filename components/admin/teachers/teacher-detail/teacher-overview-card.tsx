@@ -15,6 +15,12 @@ export function TeacherOverviewCard({ teacherId }: TeacherOverviewCardProps) {
     // Get real teacher data from Convex
     const teacher = useQuery(api.users.getUser, { userId: teacherId as Id<"users"> });
 
+    // Get campus data if teacher has a campus assigned
+    const campus = useQuery(
+        api.campuses.getCampus,
+        teacher?.campusId ? { campusId: teacher.campusId } : "skip"
+    );
+
     if (!teacher) {
         return null; // or a loading skeleton
     }
@@ -28,6 +34,15 @@ export function TeacherOverviewCard({ teacherId }: TeacherOverviewCardProps) {
 
     const statusStyle = statusStyles[teacher.status] ?? statusStyles.inactive;
     const joinedDate = teacher.createdAt ? new Date(teacher.createdAt).toLocaleDateString() : "-";
+
+    // Format campus display
+    const campusDisplay = campus
+        ? campus.code
+            ? `${campus.name} (${campus.code})`
+            : campus.name
+        : teacher.campusId
+            ? "Loading campus..."
+            : "Not assigned";
 
     const rows = [
         {
@@ -57,7 +72,7 @@ export function TeacherOverviewCard({ teacherId }: TeacherOverviewCardProps) {
         {
             icon: <Building2 className="h-4 w-4 text-primary" />,
             label: "Campus",
-            value: teacher.campusId ? "Assigned to campus" : "Not assigned"
+            value: campusDisplay
         },
         {
             icon: <Calendar className="h-4 w-4 text-primary" />,

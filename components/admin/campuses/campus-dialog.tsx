@@ -154,7 +154,6 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
       const { storageId } = await result.json();
       return storageId as Id<"_storage">;
     } catch (error) {
-      console.error("Error uploading image:", error);
       throw error;
     }
   };
@@ -332,7 +331,6 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
           toast.success("Campus updated successfully", {
             description: `"${name}" has been updated.`,
           });
-          console.log("Campus updated:", campus._id);
 
           // Reset states
           setDeleteExistingImage(false);
@@ -417,7 +415,6 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
         toast.success("Campus created successfully", {
           description: `"${name}" has been created.`,
         });
-        console.log("Campus created with ID:", campusId);
 
         // Resetear formulario usando la referencia guardada
         // Ahora usamos 'form' en lugar de 'event.currentTarget'
@@ -437,7 +434,6 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
         router.refresh();
       }
     } catch (error) {
-      console.error("Error saving campus:", error);
       const errorMessage =
         error instanceof Error
           ? error.message
@@ -465,7 +461,6 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
         toast.success("Campus deleted successfully", {
           description: `"${campus.name}" has been deleted.`,
         });
-        console.log("Campus deleted:", campus._id);
 
         // Reset states
         setDeleteExistingImage(false);
@@ -479,7 +474,6 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
         router.push(`/${locale}/admin/campuses`);
         router.refresh();
       } catch (error) {
-        console.error("Error deleting campus:", error);
         const errorMessage =
           error instanceof Error
             ? error.message

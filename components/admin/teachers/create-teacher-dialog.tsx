@@ -23,8 +23,6 @@ export function CreateTeacherDialog({ campusId }: CreateTeacherDialogProps) {
         const formData = new FormData(event.currentTarget)
 
         // TODO: Implement Convex mutation to create teacher
-        console.log("Creating teacher:", Object.fromEntries(formData))
-        console.log("Campus ID:", campusId)
     }
 
     const trigger = (

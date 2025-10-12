@@ -386,20 +386,20 @@ export function CurriculumLessonsCard({
                                 ((table
                                     .getColumn("title")
                                     ?.getFilterValue() as string)?.length ?? 0) > 0) && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                        setStatusFilter("all")
-                                        setQuarterFilter("all")
-                                        setMandatoryFilter("all")
-                                        table.getColumn("title")?.setFilterValue("")
-                                    }}
-                                    className="h-10 px-3"
-                                >
-                                    Clear all
-                                </Button>
-                            )}
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            setStatusFilter("all")
+                                            setQuarterFilter("all")
+                                            setMandatoryFilter("all")
+                                            table.getColumn("title")?.setFilterValue("")
+                                        }}
+                                        className="h-10 px-3"
+                                    >
+                                        Clear all
+                                    </Button>
+                                )}
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button
@@ -489,9 +489,9 @@ export function CurriculumLessonsCard({
                                                 onValueChange={(value) =>
                                                     setMandatoryFilter(
                                                         value as
-                                                            | "mandatory"
-                                                            | "optional"
-                                                            | "all"
+                                                        | "mandatory"
+                                                        | "optional"
+                                                        | "all"
                                                     )
                                                 }
                                             >
@@ -521,12 +521,12 @@ export function CurriculumLessonsCard({
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         </div>
-                        <Button className="bg-deep-koamaru h-10 dark:text-white gap-2">
+                        <Button className="bg-sidebar-accent h-10 dark:text-white gap-2">
                             <Plus className="h-4 w-4" />
                             <span className="hidden md:inline">Add Lesson</span>
                         </Button>
                     </div>
-                    <div className="overflow-hidden rounded-md border mx-4 md:mx-6 my-4">
+                    <div className="overflow-hidden rounded-md border mx-4 md:mx-6">
                         <Table>
                             <TableHeader className="bg-deep-koamaru text-white">
                                 {table.getHeaderGroups().map((headerGroup) => (
@@ -538,17 +538,16 @@ export function CurriculumLessonsCard({
                                             return (
                                                 <TableHead
                                                     key={header.id}
-                                                    className={`py-3 px-0 lg:px-5 ${
-                                                        header.column.columnDef.meta
-                                                            ?.className || ""
-                                                    }`}
+                                                    className={`py-3 px-0 lg:px-5 ${header.column.columnDef.meta
+                                                        ?.className || ""
+                                                        }`}
                                                 >
                                                     {header.isPlaceholder
                                                         ? null
                                                         : flexRender(
-                                                              header.column.columnDef.header,
-                                                              header.getContext()
-                                                          )}
+                                                            header.column.columnDef.header,
+                                                            header.getContext()
+                                                        )}
                                                 </TableHead>
                                             )
                                         })}
@@ -565,16 +564,14 @@ export function CurriculumLessonsCard({
                                             onClick={() => {
                                                 const lessonId = row.original._id
                                                 // TODO: Navigate to lesson detail when page is created
-                                                console.log("Navigate to lesson:", lessonId)
                                             }}
                                         >
                                             {row.getVisibleCells().map((cell) => (
                                                 <TableCell
                                                     key={cell.id}
-                                                    className={`py-4 px-2 lg:px-5 ${
-                                                        cell.column.columnDef.meta
-                                                            ?.className || ""
-                                                    }`}
+                                                    className={`py-4 px-2 lg:px-5 ${cell.column.columnDef.meta
+                                                        ?.className || ""
+                                                        }`}
                                                 >
                                                     {flexRender(
                                                         cell.column.columnDef.cell,

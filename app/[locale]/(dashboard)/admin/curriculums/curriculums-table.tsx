@@ -290,7 +290,7 @@ export function CurriculumsTable() {
     }, [statusFilter, table])
 
     return (
-        <div className="w-full  space-y-6">
+        <div className="w-full  space-y-4">
             {/* Filters */}
             <div className="flex items-center justify-between gap-4">
                 <div className="flex flex-1 items-center gap-4">
@@ -432,7 +432,7 @@ export function CurriculumsTable() {
                     </TableBody>
                 </Table>
             </div>
-            <div className="flex items-center justify-between gap-4 py-4">
+            <div className="flex items-center justify-between gap-4">
                 <div className="text-sm text-muted-foreground">
                     Showing {table.getRowModel().rows.length} of {data.length} curriculum(s)
                 </div>

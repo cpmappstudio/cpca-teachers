@@ -98,7 +98,7 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
   const [newResourceType, setNewResourceType] = useState("");
   const [newResourceIsRequired, setNewResourceIsRequired] = useState(true);
 
-    // Get selected curriculum details
+  // Get selected curriculum details
   const selectedCurriculumData = curriculums?.find(
     (c) => c._id === selectedCurriculum
   );
@@ -108,25 +108,25 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
     api.lessons.getOccupiedOrders,
     selectedCurriculum && selectedQuarter
       ? {
-          curriculumId: selectedCurriculum as Id<"curriculums">,
-          quarter: parseInt(selectedQuarter),
-          excludeLessonId: lesson?._id,
-        }
+        curriculumId: selectedCurriculum as Id<"curriculums">,
+        quarter: parseInt(selectedQuarter),
+        excludeLessonId: lesson?._id,
+      }
       : "skip"
   );
 
-    // Generate quarter options based on selected curriculum
+  // Generate quarter options based on selected curriculum
   const quarterOptions = selectedCurriculumData
     ? Array.from({ length: selectedCurriculumData.numberOfQuarters }, (_, i) => ({
-        value: (i + 1).toString(),
-        label: `Quarter ${i + 1}`,
-      }))
+      value: (i + 1).toString(),
+      label: `Quarter ${i + 1}`,
+    }))
     : [
-        { value: "1", label: "Quarter 1" },
-        { value: "2", label: "Quarter 2" },
-        { value: "3", label: "Quarter 3" },
-        { value: "4", label: "Quarter 4" },
-      ];
+      { value: "1", label: "Quarter 1" },
+      { value: "2", label: "Quarter 2" },
+      { value: "3", label: "Quarter 3" },
+      { value: "4", label: "Quarter 4" },
+    ];
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -267,7 +267,6 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
           });
 
           alert(`Success! Lesson "${title}" has been updated successfully.`);
-          console.log("Lesson updated:", lesson._id);
 
           // Cerrar el dialog automáticamente después del éxito
           setIsOpen(false);
@@ -333,7 +332,6 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
         const lessonId = await createLessonMutation(lessonData);
 
         alert(`Success! Lesson "${title}" has been created successfully.`);
-        console.log("Lesson created with ID:", lessonId);
 
         // Resetear formulario
         form.reset();
@@ -355,7 +353,6 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
         router.refresh();
       }
     } catch (error) {
-      console.error("Error saving lesson:", error);
       const errorMessage =
         error instanceof Error
           ? error.message
@@ -379,7 +376,6 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
         await deleteLessonMutation({ lessonId: lesson._id });
 
         alert(`Success! Lesson "${lesson.title}" has been deleted.`);
-        console.log("Lesson deleted:", lesson._id);
 
         // Cerrar el dialog
         setIsOpen(false);
@@ -388,7 +384,6 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
         router.push(`/${locale}/admin/lessons`);
         router.refresh();
       } catch (error) {
-        console.error("Error deleting lesson:", error);
         const errorMessage =
           error instanceof Error
             ? error.message
@@ -448,7 +443,7 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
       Edit lesson
     </Button>
   ) : (
-    <Button className="bg-deep-koamaru h-9 dark:text-white gap-2">
+    <Button className="bg-sidebar-accent h-9 dark:text-white gap-2">
       <Plus className="h-4 w-4" />
       <span className="hidden md:inline">Add Lesson</span>
     </Button>

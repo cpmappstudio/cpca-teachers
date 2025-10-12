@@ -29,8 +29,6 @@ export function RadialChart({
 }: RadialChartProps) {
     const chartData = [{ value: value, fill: fill }];
 
-    console.log("RadialChart rendering:", { value, label, fill, chartData }); // Debug
-
     return (
         <div className="w-full h-full flex items-center justify-center">
             <ChartContainer config={config} className={className}>
