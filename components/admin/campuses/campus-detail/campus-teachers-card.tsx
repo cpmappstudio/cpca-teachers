@@ -15,9 +15,12 @@ import {
   VisibilityState,
 } from "@tanstack/react-table";
 import { ArrowUpDown, ChevronDown, Filter, Search } from "lucide-react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
-import type { Doc } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import type { UserStatus } from "@/convex/types";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,6 +67,25 @@ declare module "@tanstack/react-table" {
   }
 }
 
+// Component to display teacher avatar with query
+function TeacherAvatar({ teacher }: { teacher: Teacher }) {
+  const avatarUrl = useQuery(
+    api.users.getAvatarUrl,
+    teacher.avatarStorageId ? { storageId: teacher.avatarStorageId } : "skip"
+  );
+
+  const initials = `${teacher.firstName?.charAt(0) || ""}${teacher.lastName?.charAt(0) || ""}`.toUpperCase();
+
+  return (
+    <Avatar className="h-8 w-8 lg:h-10 lg:w-10">
+      {avatarUrl && <AvatarImage src={avatarUrl} alt={teacher.fullName} />}
+      <AvatarFallback className="bg-deep-koamaru/10 text-deep-koamaru text-xs lg:text-sm font-medium">
+        {initials}
+      </AvatarFallback>
+    </Avatar>
+  );
+}
+
 const teacherColumns: ColumnDef<Teacher>[] = [
   {
     accessorKey: "fullName",
@@ -82,14 +104,17 @@ const teacherColumns: ColumnDef<Teacher>[] = [
     cell: ({ row }) => {
       const teacher = row.original;
       return (
-        <div className="space-y-2 py-1">
-          <div className="font-medium text-sm lg:text-base">
-            {teacher.fullName ?? `${teacher.firstName} ${teacher.lastName}`}
-          </div>
-          <div className="flex lg:hidden flex-col gap-1.5 text-xs lg:text-sm text-muted-foreground">
-            <span className="truncate">{teacher.email ?? "-"}</span>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <TeacherStatusBadge status={teacher.status} />
+        <div className="flex items-center gap-3 py-1">
+          <TeacherAvatar teacher={teacher} />
+          <div className="space-y-2">
+            <div className="font-medium text-sm lg:text-base">
+              {teacher.fullName ?? `${teacher.firstName} ${teacher.lastName}`}
+            </div>
+            <div className="flex lg:hidden flex-col gap-1.5 text-xs lg:text-sm text-muted-foreground">
+              <span className="truncate">{teacher.email ?? "-"}</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <TeacherStatusBadge status={teacher.status} />
+              </div>
             </div>
           </div>
         </div>
@@ -200,17 +225,21 @@ const statusOptions = [
 ];
 
 interface CampusTeachersCardProps {
-  teachers: Doc<"users">[];
   campusId: string;
 }
 
 export function CampusTeachersCard({
-  teachers,
   campusId,
 }: CampusTeachersCardProps) {
   const router = useRouter();
   const params = useParams();
   const locale = params.locale as string;
+
+  // Query en tiempo real de Convex
+  const teachers = useQuery(api.campuses.getTeachersByCampus, {
+    campusId: campusId as Id<"campuses">
+  }) || [];
+
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
@@ -277,20 +306,20 @@ export function CampusTeachersCard({
           </div>
           <div className="flex items-center gap-3">
             {/* Botón Clear all - visible solo cuando hay filtros activos */}
-            {(statusFilter !== "all" || 
+            {(statusFilter !== "all" ||
               (table.getColumn("fullName")?.getFilterValue() as string)?.length > 0) && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setStatusFilter("all");
-                  table.getColumn("fullName")?.setFilterValue("");
-                }}
-                className="h-9 px-3"
-              >
-                Clear all
-              </Button>
-            )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setStatusFilter("all");
+                    table.getColumn("fullName")?.setFilterValue("");
+                  }}
+                  className="h-9 px-3"
+                >
+                  Clear all
+                </Button>
+              )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="lg" className="h-9 bg-card">
@@ -335,7 +364,7 @@ export function CampusTeachersCard({
           </div>
         </div>
 
-  <div className="overflow-hidden rounded-lg border mx-4 md:mx-6">
+        <div className="overflow-hidden border mx-0">
           <Table>
             <TableHeader className="bg-deep-koamaru text-white">
               {table.getHeaderGroups().map((headerGroup) => (
@@ -349,9 +378,9 @@ export function CampusTeachersCard({
                         {header.isPlaceholder
                           ? null
                           : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
                       </TableHead>
                     );
                   })}
@@ -397,7 +426,7 @@ export function CampusTeachersCard({
         </div>
 
         {/* Pagination */}
-  <div className="flex items-center justify-between px-4 md:px-6 py-4 gap-2">
+        <div className="flex items-center justify-between px-4 md:px-6 py-4 gap-2">
           <div className="text-sm text-muted-foreground min-w-0 truncate">
             Showing {table.getRowModel().rows.length} of {teachers.length}{" "}
             teacher(s)

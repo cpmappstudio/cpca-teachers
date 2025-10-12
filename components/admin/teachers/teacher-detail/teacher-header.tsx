@@ -17,46 +17,22 @@ export function TeacherHeader({ teacherId }: TeacherHeaderProps) {
     const params = useParams();
     const locale = params.locale as string;
 
-    // TODO: Create query to get teacher by ID
-    // For now, using mock data
-    const mockTeacher = {
-        _id: teacherId as Id<"users">,
-        _creationTime: Date.now(),
-        clerkId: "clerk_2abc123def456",
-        email: "maria.garcia@alefuniversity.edu",
-        firstName: "María",
-        lastName: "García López",
-        fullName: "María García López",
-        avatarStorageId: undefined,
-        phone: "+1 (555) 123-4567",
-        role: "teacher" as const,
-        campusId: undefined,
-        isActive: true,
-        status: "active" as const,
-        progressMetrics: {
-            totalLessons: 120,
-            completedLessons: 96,
-            progressPercentage: 80,
-            lastUpdated: Date.now(),
-        },
-        createdAt: Date.now(),
-        createdBy: undefined,
-        updatedAt: undefined,
-        lastLoginAt: Date.now(),
-        hashedPassword: undefined,
-    };
+    // Get teacher data from Convex
+    const teacher = useQuery(api.users.getUser, { userId: teacherId as Id<"users"> });
 
-    const subtitle = `${mockTeacher.role} profile and progress overview`;
+    if (!teacher) {
+        return null; // or a loading skeleton
+    }
+
+    const subtitle = `${teacher.role} profile and progress overview`;
 
     return (
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between px-2 md:px-0">
             <div className="space-y-1.5">
                 <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">
-                    {mockTeacher.fullName}
+                    {teacher.fullName}
                 </h1>
-                <p className="text-sm text-muted-foreground capitalize leading-relaxed">
-                    {subtitle}
-                </p>
+
             </div>
             <div className="flex items-center gap-3 pt-1">
                 <Button variant="outline" className="gap-2" asChild>
@@ -65,7 +41,7 @@ export function TeacherHeader({ teacherId }: TeacherHeaderProps) {
                         Back to teachers
                     </Link>
                 </Button>
-                <TeacherDialog teacher={mockTeacher} />
+                <TeacherDialog teacher={teacher} />
             </div>
         </div>
     );

@@ -420,9 +420,9 @@ export function TeachersTable() {
   }, [statusFilter, table]);
 
   return (
-    <div className="w-full">
+    <div className="w-full space-y-6">
       {/* Filters */}
-      <div className="flex items-center justify-between gap-4 py-5">
+      <div className="flex items-center justify-between gap-4 ">
         <div className="flex flex-1 items-center gap-4">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -435,29 +435,29 @@ export function TeachersTable() {
               }
               placeholder="Search teachers by name or campus"
               aria-label="Search teachers"
-              className="pl-10 pr-4 rounded-l bg-card h-10"
+              className="pl-10 pr-4 rounded-l bg-card"
             />
           </div>
         </div>
         <div className="flex items-center gap-3">
           {/* Botón Clear all - visible solo cuando hay filtros activos */}
-          {(statusFilter !== "all" || 
+          {(statusFilter !== "all" ||
             (table.getColumn("fullName")?.getFilterValue() as string)?.length > 0) && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setStatusFilter("all");
-                table.getColumn("fullName")?.setFilterValue("");
-              }}
-              className="h-10 px-3"
-            >
-              Clear all
-            </Button>
-          )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setStatusFilter("all");
+                  table.getColumn("fullName")?.setFilterValue("");
+                }}
+                className="px-3"
+              >
+                Clear all
+              </Button>
+            )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="lg" className="h-10 px-3 bg-card">
+              <Button variant="outline" size="lg" className="px-3 bg-card">
                 <Filter className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -511,9 +511,9 @@ export function TeachersTable() {
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
                     </TableHead>
                   );
                 })}

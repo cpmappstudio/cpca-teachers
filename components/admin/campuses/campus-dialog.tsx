@@ -29,6 +29,7 @@ import { useQuery, useMutation } from "convex/react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
+import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { EntityDialog } from "@/components/ui/entity-dialog";
@@ -167,7 +168,9 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
 
     // Validar que tengamos el usuario actual
     if (!currentUser?._id) {
-      alert("Error: User not authenticated. Please sign in again.");
+      toast.error("User not authenticated", {
+        description: "Please sign in again to continue.",
+      });
       return;
     }
 
@@ -181,24 +184,33 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
 
     // Validación básica
     if (!name?.trim()) {
-      alert("Validation Error: Campus name is required.");
+      toast.error("Validation Error", {
+        description: "Campus name is required.",
+      });
       return;
     }
 
     if (!isEditing && !selectedStatus) {
-      alert("Validation Error: Campus status is required.");
+      toast.error("Validation Error", {
+        description: "Campus status is required.",
+      });
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // Handle image deletion if marked for deletion
-      if (isEditing && deleteExistingImage && campus?._id && campus?.campusImageStorageId) {
-        await deleteCampusImage({
-          campusId: campus._id,
-          updatedBy: currentUser._id,
-        });
+      // Handle image deletion or replacement
+      if (isEditing && campus?._id && campus?.campusImageStorageId) {
+        // Delete existing image if:
+        // 1. User explicitly marked it for deletion, OR
+        // 2. User is uploading a new image to replace it
+        if (deleteExistingImage || selectedImage) {
+          await deleteCampusImage({
+            campusId: campus._id,
+            updatedBy: currentUser._id,
+          });
+        }
       }
 
       // Upload image first if a new one is selected
@@ -210,7 +222,9 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
       if (isEditing) {
         // Actualizar campus existente
         if (!campus?._id) {
-          alert("Error: Campus ID not found.");
+          toast.error("Error", {
+            description: "Campus ID not found.",
+          });
           return;
         }
 
@@ -315,7 +329,9 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
             });
           }
 
-          alert(`Success! Campus "${name}" has been updated successfully.`);
+          toast.success("Campus updated successfully", {
+            description: `"${name}" has been updated.`,
+          });
           console.log("Campus updated:", campus._id);
 
           // Reset states
@@ -329,7 +345,9 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
           // Recargar la página para mostrar los cambios
           router.refresh();
         } else {
-          alert("No changes detected.");
+          toast.info("No changes detected", {
+            description: "Please make changes before updating.",
+          });
           setIsSubmitting(false);
           return;
         }
@@ -396,7 +414,9 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
 
         const campusId = await createCampusMutation(campusData);
 
-        alert(`Success! Campus "${name}" has been created successfully.`);
+        toast.success("Campus created successfully", {
+          description: `"${name}" has been created.`,
+        });
         console.log("Campus created with ID:", campusId);
 
         // Resetear formulario usando la referencia guardada
@@ -422,7 +442,9 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
         error instanceof Error
           ? error.message
           : "Failed to save campus. Please try again.";
-      alert(`Error: ${errorMessage}`);
+      toast.error("Error saving campus", {
+        description: errorMessage,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -440,7 +462,9 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
         setIsSubmitting(true);
         await deleteCampusMutation({ campusId: campus._id });
 
-        alert(`Success! Campus "${campus.name}" has been deleted.`);
+        toast.success("Campus deleted successfully", {
+          description: `"${campus.name}" has been deleted.`,
+        });
         console.log("Campus deleted:", campus._id);
 
         // Reset states
@@ -460,7 +484,9 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
           error instanceof Error
             ? error.message
             : "Failed to delete campus. Please try again.";
-        alert(`Error: ${errorMessage}`);
+        toast.error("Error deleting campus", {
+          description: errorMessage,
+        });
       } finally {
         setIsSubmitting(false);
       }

@@ -55,6 +55,12 @@ export function EntityDialog({
     open,
     onOpenChange
 }: EntityDialogProps) {
+    const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault()
+        event.stopPropagation() // Prevenir propagación a formularios padres
+        onSubmit(event)
+    }
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogTrigger asChild>
@@ -64,7 +70,7 @@ export function EntityDialog({
                 className="w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden"
                 style={{ maxWidth }}
             >
-                <form onSubmit={onSubmit} className="flex flex-col h-full">
+                <form onSubmit={handleFormSubmit} className="flex flex-col h-full">
                     {/* Fixed Header */}
                     <DialogHeader className="px-6 pt-6 pb-4 border-b bg-background flex-shrink-0">
                         <DialogTitle>{title}</DialogTitle>

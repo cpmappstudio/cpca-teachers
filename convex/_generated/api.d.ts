@@ -17,6 +17,7 @@ import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
 import type * as campuses from "../campuses.js";
 import type * as curriculums from "../curriculums.js";
+import type * as http from "../http.js";
 import type * as lessons from "../lessons.js";
 import type * as types from "../types.js";
 import type * as users from "../users.js";
@@ -34,6 +35,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   campuses: typeof campuses;
   curriculums: typeof curriculums;
+  http: typeof http;
   lessons: typeof lessons;
   types: typeof types;
   users: typeof users;

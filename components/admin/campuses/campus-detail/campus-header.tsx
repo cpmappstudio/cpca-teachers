@@ -16,7 +16,7 @@ export function CampusHeader({ campus, locale, hasHero = false, addressLabel }: 
     const descriptionColor = hasHero ? "text-sm text-white/90" : "text-sm text-muted-foreground";
 
     return (
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between px-2 md:px-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between ">
             <div className="space-y-1.5">
                 <h1 className={`text-3xl font-semibold tracking-tight ${textColor}`}>
                     {campus.name}

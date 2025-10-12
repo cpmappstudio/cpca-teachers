@@ -16,7 +16,7 @@ import {
 } from "@/lib/campuses/campus-detail";
 
 interface CampusDetailPageProps {
-    params: { locale: string; campusId: string };
+    params: Promise<{ locale: string; campusId: string }>;
 }
 
 export const metadata: Metadata = {
@@ -24,13 +24,10 @@ export const metadata: Metadata = {
 };
 
 export default async function CampusDetailPage({ params }: CampusDetailPageProps) {
-    const { locale, campusId } = params;
+    const { locale, campusId } = await params;
 
     const convex = createConvexClient();
-    const [campus, teachers] = await Promise.all([
-        fetchCampus(convex, campusId),
-        fetchCampusTeachers(convex, campusId),
-    ]);
+    const campus = await fetchCampus(convex, campusId);
 
     if (!campus) {
         notFound();
@@ -40,7 +37,7 @@ export default async function CampusDetailPage({ params }: CampusDetailPageProps
     const lastUpdatedLabel = campus.metrics?.lastUpdated
         ? formatRelativeTime(campus.metrics.lastUpdated)
         : "-";
-        
+
 
     return (
         <PageTransition>
@@ -61,7 +58,7 @@ export default async function CampusDetailPage({ params }: CampusDetailPageProps
                             className="lg:col-span-2"
                         /> */}
                     </div>
-                    <CampusTeachersCard teachers={teachers} campusId={campusId} />
+                    <CampusTeachersCard campusId={campusId} />
                 </div>
             </div>
         </PageTransition>

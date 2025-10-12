@@ -11,86 +11,14 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import { Plus, ChevronDown, User, UserPlus, X } from "lucide-react"
-import { useState } from "react"
-import { useQuery } from "convex/react"
+import { Plus, ChevronDown, User, UserPlus, X, ListCheck } from "lucide-react"
+import { useState, useEffect } from "react"
+import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { EntityDialog } from "@/components/ui/entity-dialog"
-
-// Mock data para profesores - TEMPORAL PARA TESTING
-const mockTeachers = [
-    {
-        _id: "teacher_1" as Id<"users">,
-        fullName: "María García López",
-        email: "maria.garcia@alefuniversity.edu",
-        role: "teacher" as const,
-        campusId: undefined
-    },
-    {
-        _id: "teacher_2" as Id<"users">,
-        fullName: "Carlos Rodríguez Martín",
-        email: "carlos.rodriguez@alefuniversity.edu",
-        role: "teacher" as const,
-        campusId: undefined
-    },
-    {
-        _id: "teacher_3" as Id<"users">,
-        fullName: "Ana Isabel Fernández",
-        email: "ana.fernandez@alefuniversity.edu",
-        role: "teacher" as const,
-        campusId: undefined
-    },
-    {
-        _id: "teacher_4" as Id<"users">,
-        fullName: "José Miguel Hernández",
-        email: "jose.hernandez@alefuniversity.edu",
-        role: "teacher" as const,
-        campusId: undefined
-    },
-    {
-        _id: "teacher_5" as Id<"users">,
-        fullName: "Carmen Dolores Ruiz",
-        email: "carmen.ruiz@alefuniversity.edu",
-        role: "teacher" as const,
-        campusId: undefined
-    },
-    {
-        _id: "teacher_6" as Id<"users">,
-        fullName: "Francisco Javier Torres",
-        email: "francisco.torres@alefuniversity.edu",
-        role: "teacher" as const,
-        campusId: undefined
-    },
-    {
-        _id: "teacher_7" as Id<"users">,
-        fullName: "Lucía Montero Vázquez",
-        email: "lucia.montero@alefuniversity.edu",
-        role: "teacher" as const,
-        campusId: undefined
-    },
-    {
-        _id: "teacher_8" as Id<"users">,
-        fullName: "Roberto Silva Jiménez",
-        email: "roberto.silva@alefuniversity.edu",
-        role: "teacher" as const,
-        campusId: undefined
-    },
-    {
-        _id: "teacher_9" as Id<"users">,
-        fullName: "Elena Morales Vega",
-        email: "elena.morales@alefuniversity.edu",
-        role: "teacher" as const,
-        campusId: undefined
-    },
-    {
-        _id: "teacher_10" as Id<"users">,
-        fullName: "David Sánchez Ruiz",
-        email: "david.sanchez@alefuniversity.edu",
-        role: "teacher" as const,
-        campusId: undefined
-    }
-]
+import { toast } from "sonner"
+import { TeacherDialog } from "@/components/admin/teachers/teacher-dialog"
 
 interface AddTeachersDialogProps {
     campusId: Id<"campuses">
@@ -98,15 +26,27 @@ interface AddTeachersDialogProps {
 
 export function AddTeachersDialog({ campusId }: AddTeachersDialogProps) {
     const [selectedTeacherIds, setSelectedTeacherIds] = useState<Id<"users">[]>([])
+    const [initialTeacherIds, setInitialTeacherIds] = useState<Id<"users">[]>([])
 
-    // Query para obtener profesores disponibles (comentado temporalmente)
-    // const allUsers = useQuery(api.admin.getPotentialDirectors)
-    // const availableTeachers = allUsers?.filter(user =>
-    //     user.role === "teacher"
-    // ) || []
+    // Query para obtener profesores disponibles
+    const allUsers = useQuery(api.users.getUsers, { role: "teacher", isActive: true })
+    const availableTeachers = allUsers || []
 
-    // Usando mock data temporalmente
-    const availableTeachers = mockTeachers
+    // Query para obtener profesores ya asignados al campus
+    const campusTeachers = useQuery(api.campuses.getTeachersByCampus, { campusId })
+
+    // Mutation para actualizar profesores
+    const updateUser = useMutation(api.users.updateUser)
+    const removeTeacherFromCampus = useMutation(api.users.removeTeacherFromCampus)
+
+    // Inicializar con los profesores ya asignados al campus
+    useEffect(() => {
+        if (campusTeachers) {
+            const teacherIds = campusTeachers.map(t => t._id)
+            setSelectedTeacherIds(teacherIds)
+            setInitialTeacherIds(teacherIds)
+        }
+    }, [campusTeachers])
 
     const selectedTeachers = availableTeachers.filter(teacher =>
         selectedTeacherIds.includes(teacher._id)
@@ -124,30 +64,63 @@ export function AddTeachersDialog({ campusId }: AddTeachersDialogProps) {
         setSelectedTeacherIds(prev => prev.filter(id => id !== teacherId))
     }
 
-    const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault()
 
-        console.log("Adding teachers to campus:", {
-            campusId,
-            teacherIds: selectedTeacherIds,
-            selectedTeachers: selectedTeachers.map(t => ({
-                id: t._id,
-                name: t.fullName,
-                email: t.email
-            }))
-        })
+        try {
+            // Determinar qué profesores añadir y cuáles remover
+            const teachersToAdd = selectedTeacherIds.filter(id => !initialTeacherIds.includes(id))
+            const teachersToRemove = initialTeacherIds.filter(id => !selectedTeacherIds.includes(id))
 
-        // Simular éxito
-        alert(`Successfully added ${selectedTeachers.length} teacher(s) to the campus!`)
+            // Añadir profesores al campus
+            await Promise.all(
+                teachersToAdd.map(teacherId =>
+                    updateUser({
+                        userId: teacherId,
+                        updates: { campusId }
+                    })
+                )
+            )
 
-        // Reset selection after submit
-        setSelectedTeacherIds([])
+            // Remover profesores del campus
+            await Promise.all(
+                teachersToRemove.map(teacherId =>
+                    removeTeacherFromCampus({ userId: teacherId })
+                )
+            )
+
+            if (teachersToAdd.length > 0 || teachersToRemove.length > 0) {
+                const message = []
+                if (teachersToAdd.length > 0) {
+                    message.push(`${teachersToAdd.length} teacher${teachersToAdd.length === 1 ? '' : 's'} added`)
+                }
+                if (teachersToRemove.length > 0) {
+                    message.push(`${teachersToRemove.length} teacher${teachersToRemove.length === 1 ? '' : 's'} removed`)
+                }
+
+                toast.success("Teachers updated successfully", {
+                    description: message.join(' and ') + '.'
+                })
+            } else {
+                toast.info("No changes detected", {
+                    description: "No teachers were added or removed."
+                })
+            }
+
+            // Actualizar los IDs iniciales
+            setInitialTeacherIds(selectedTeacherIds)
+        } catch (error) {
+            console.error("Error updating teachers:", error)
+            toast.error("Error updating teachers", {
+                description: "There was a problem updating the teachers. Please try again."
+            })
+        }
     }
 
     const trigger = (
         <Button className="bg-sidebar-accent h-9 dark:text-white gap-2">
-            <Plus className="h-4 w-4" />
-            <span className="hidden md:inline">Add Teacher</span>
+            <ListCheck className="h-4 w-4" />
+            <span className="hidden md:inline">Update Teachers</span>
         </Button>
     )
 
@@ -157,7 +130,7 @@ export function AddTeachersDialog({ campusId }: AddTeachersDialogProps) {
             title="Add Teachers to Campus"
             description="Select teachers to assign to this campus. You can select multiple teachers before saving."
             onSubmit={handleSubmit}
-            submitLabel={`Add ${selectedTeacherIds.length} Teacher${selectedTeacherIds.length === 1 ? '' : 's'}`}
+            submitLabel="Update Teachers"
             maxWidth="700px"
         >
             <div className="grid gap-6">
@@ -245,19 +218,21 @@ export function AddTeachersDialog({ campusId }: AddTeachersDialogProps) {
                     <div className="flex flex-col gap-3">
                         <p className="text-sm text-muted-foreground">
                             If the teacher you want to assign isn't in the system yet, you can create a new teacher profile.
+                            The teacher will be automatically assigned to this campus.
                         </p>
-                        <Button
-                            type="submit"
-                            variant="outline"
-                            className="gap-2 self-start"
-                            onClick={() => {
-                                alert("Create Teacher functionality coming soon!")
-                                console.log("Create new teacher clicked")
-                            }}
-                        >
-                            <UserPlus className="h-4 w-4" />
-                            Create Teacher
-                        </Button>
+                        <TeacherDialog
+                            defaultCampusId={campusId}
+                            trigger={
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="gap-2 self-start"
+                                >
+                                    <UserPlus className="h-4 w-4" />
+                                    Create Teacher
+                                </Button>
+                            }
+                        />
                     </div>
                 </div>
             </div>

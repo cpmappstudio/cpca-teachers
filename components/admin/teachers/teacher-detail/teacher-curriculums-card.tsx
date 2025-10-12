@@ -22,6 +22,9 @@ import {
     BookOpen,
     Calendar,
 } from "lucide-react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id, Doc } from "@/convex/_generated/dataModel";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -80,92 +83,33 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import type { Id, Doc } from "@/convex/_generated/dataModel";
 import { AddCurriculumDialog } from "./add-curriculum-dialog";
 
-// Tipo para los datos de curriculums
-export type Curriculum = {
-    id: string;
+// Tipo para los datos de curriculums con información de asignación
+type CurriculumWithAssignment = {
+    _id: Id<"curriculums">;
     name: string;
-    grade:
-    | "Pre-K"
-    | "K"
-    | "1st"
-    | "2nd"
-    | "3rd"
-    | "4th"
-    | "5th"
-    | "6th"
-    | "7th"
-    | "8th"
-    | "9th"
-    | "10th"
-    | "11th"
-    | "12th";
+    code?: string;
+    status: "draft" | "active" | "archived" | "deprecated";
+    numberOfQuarters: number;
+    assignmentId: Id<"teacher_assignments">;
+    assignmentType: "primary" | "substitute" | "assistant" | "co_teacher";
+    assignmentStatus: "active" | "pending" | "completed" | "cancelled";
+    grade: {
+        id: Id<"grades">;
+        name: string;
+        level: number;
+    } | null;
     lessonsCount: number;
-    status: "active" | "inactive" | "draft" | "archived";
     quarters: number;
+    progressSummary?: {
+        totalLessons: number;
+        completedLessons: number;
+        progressPercentage: number;
+        lastLessonDate?: number;
+        lastUpdated: number;
+    };
 };
-
-// Datos de ejemplo (luego se reemplazará con datos de Convex)
-const data: Curriculum[] = [
-    {
-        id: "MATH-10-001",
-        name: "Mathematics Grade 10",
-        grade: "10th",
-        lessonsCount: 45,
-        status: "active",
-        quarters: 4,
-    },
-    {
-        id: "SCI-09-001",
-        name: "General Science",
-        grade: "9th",
-        lessonsCount: 38,
-        status: "active",
-        quarters: 4,
-    },
-    {
-        id: "ENG-11-001",
-        name: "English Literature",
-        grade: "11th",
-        lessonsCount: 52,
-        status: "active",
-        quarters: 4,
-    },
-    {
-        id: "HIST-12-001",
-        name: "World History",
-        grade: "12th",
-        lessonsCount: 40,
-        status: "draft",
-        quarters: 4,
-    },
-    {
-        id: "ART-08-001",
-        name: "Visual Arts",
-        grade: "8th",
-        lessonsCount: 30,
-        status: "active",
-        quarters: 2,
-    },
-    {
-        id: "PE-09-001",
-        name: "Physical Education",
-        grade: "9th",
-        lessonsCount: 25,
-        status: "inactive",
-        quarters: 4,
-    },
-    {
-        id: "CHEM-11-001",
-        name: "Chemistry Advanced",
-        grade: "11th",
-        lessonsCount: 48,
-        status: "active",
-        quarters: 4,
-    },
-];
 
 // Extend the meta type for custom className
 declare module "@tanstack/react-table" {
@@ -174,9 +118,9 @@ declare module "@tanstack/react-table" {
     }
 }
 
-export const columns: ColumnDef<Curriculum>[] = [
+export const columns: ColumnDef<CurriculumWithAssignment>[] = [
     {
-        accessorKey: "id",
+        accessorKey: "code",
         header: ({ column }) => {
             return (
                 <Button
@@ -190,7 +134,7 @@ export const columns: ColumnDef<Curriculum>[] = [
             );
         },
         cell: ({ row }) => (
-            <div className="text-sm hidden lg:block py-1">{row.getValue("id")}</div>
+            <div className="text-sm hidden lg:block py-1">{row.original.code || "-"}</div>
         ),
         meta: {
             className: "hidden lg:table-cell",
@@ -215,14 +159,16 @@ export const columns: ColumnDef<Curriculum>[] = [
             return (
                 <div className="space-y-2 py-1">
                     <div className="font-medium text-sm lg:text-base">
-                        {row.getValue("name")}
+                        {curriculum.name}
                     </div>
                     <div className="flex lg:hidden flex-col gap-1.5 text-xs lg:text-sm text-muted-foreground">
-                        <span className="text-xs">{curriculum.id}</span>
+                        <span className="text-xs">{curriculum.code || "-"}</span>
                         <div className="flex items-center gap-1.5 flex-wrap">
-                            <Badge className="bg-sky-500/15 text-sky-700 border border-sky-200 text-xs px-2 py-0.5">
-                                {curriculum.grade}
-                            </Badge>
+                            {curriculum.grade && (
+                                <Badge className="bg-sky-500/15 text-sky-700 border border-sky-200 text-xs px-2 py-0.5">
+                                    {curriculum.grade.name}
+                                </Badge>
+                            )}
                             <CurriculumStatusBadge status={curriculum.status} />
                         </div>
                     </div>
@@ -230,8 +176,8 @@ export const columns: ColumnDef<Curriculum>[] = [
             );
         },
         filterFn: (row, id, value) => {
-            const name = row.getValue("name") as string;
-            const code = row.getValue("id") as string;
+            const name = row.original.name;
+            const code = row.original.code || "";
             const searchValue = value.toLowerCase();
             return (
                 name.toLowerCase().includes(searchValue) ||
@@ -255,14 +201,16 @@ export const columns: ColumnDef<Curriculum>[] = [
         },
         cell: ({ row }) => (
             <div className="text-sm hidden lg:block py-1">
-                {row.getValue("grade")}
+                {row.original.grade?.name || "-"}
             </div>
         ),
         meta: {
             className: "hidden lg:table-cell",
         },
-        filterFn: (row, id, value) => {
-            return value.includes(row.getValue(id));
+        sortingFn: (rowA, rowB) => {
+            const levelA = rowA.original.grade?.level ?? 0;
+            const levelB = rowB.original.grade?.level ?? 0;
+            return levelA - levelB;
         },
     },
     {
@@ -280,7 +228,7 @@ export const columns: ColumnDef<Curriculum>[] = [
             );
         },
         cell: ({ row }) => {
-            const lessons = parseInt(row.getValue("lessonsCount"));
+            const lessons = row.original.lessonsCount;
             const quarters = row.original.quarters;
             return (
                 <div className="flex items-center gap-2 py-1">
@@ -320,9 +268,9 @@ export const columns: ColumnDef<Curriculum>[] = [
 
 const statusOptions = [
     { label: "Active", value: "active", color: "bg-green-600" },
-    { label: "Inactive", value: "inactive", color: "bg-gray-600" },
     { label: "Draft", value: "draft", color: "bg-amber-600" },
     { label: "Archived", value: "archived", color: "bg-rose-600" },
+    { label: "Deprecated", value: "deprecated", color: "bg-gray-600" },
 ];
 
 interface TeacherCurriculumsCardProps {
@@ -335,6 +283,15 @@ export function TeacherCurriculumsCard({
     const router = useRouter();
     const params = useParams();
     const locale = params.locale as string;
+
+    // Query curriculums from database
+    const curriculums = useQuery(api.curriculums.getCurriculumsByTeacher, {
+        teacherId: teacherId as Id<"users">,
+        isActive: true,
+    }) as CurriculumWithAssignment[] | undefined;
+
+    const data = curriculums || [];
+
     const [sorting, setSorting] = React.useState<SortingState>([]);
     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
         [],
@@ -343,11 +300,9 @@ export function TeacherCurriculumsCard({
         React.useState<VisibilityState>({});
     const [rowSelection, setRowSelection] = React.useState({});
     const [statusFilter, setStatusFilter] = React.useState<
-        "active" | "inactive" | "draft" | "archived" | "all"
+        "active" | "draft" | "archived" | "deprecated" | "all"
     >("all");
-    const [gradeFilter, setGradeFilter] = React.useState<
-        Curriculum["grade"] | "all"
-    >("all");
+    const [gradeFilter, setGradeFilter] = React.useState<string>("all");
 
     const table = useReactTable({
         data,
@@ -382,7 +337,12 @@ export function TeacherCurriculumsCard({
         if (gradeFilter === "all") {
             table.getColumn("grade")?.setFilterValue(undefined);
         } else {
-            table.getColumn("grade")?.setFilterValue([gradeFilter]);
+            // Filter by grade name
+            table.setGlobalFilter((rows: any) => {
+                return rows.filter((row: any) =>
+                    row.original.grade?.name === gradeFilter || gradeFilter === "all"
+                );
+            });
         }
     }, [gradeFilter, table]);
 
@@ -390,12 +350,12 @@ export function TeacherCurriculumsCard({
     const days = ["mon", "tue", "wed", "thu", "fri"];
     const daysFull = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
-    // Mock lessons per curriculum (could be fetched)
+    // Mock lessons per curriculum (could be fetched from database)
     const lessonsByCurriculum = React.useMemo(() => {
         const map: Record<string, { value: string; label: string }[]> = {};
         data.forEach((c) => {
-            map[c.id] = Array.from({ length: 6 }).map((_, i) => ({
-                value: `${c.id}-lesson-${i + 1}`,
+            map[c._id] = Array.from({ length: 6 }).map((_, i) => ({
+                value: `${c._id}-lesson-${i + 1}`,
                 label: `${c.name} - Lesson ${i + 1}`,
             }));
         });
@@ -719,29 +679,20 @@ export function TeacherCurriculumsCard({
                                         </label>
                                         <Select
                                             value={gradeFilter}
-                                            onValueChange={(value) =>
-                                                setGradeFilter(value as Curriculum["grade"] | "all")
-                                            }
+                                            onValueChange={(value) => setGradeFilter(value)}
                                         >
                                             <SelectTrigger className="w-full">
                                                 <SelectValue placeholder="All Curriculums" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="all">All Curriculums</SelectItem>
-                                                <SelectItem value="Pre-K">Pre-K</SelectItem>
-                                                <SelectItem value="K">K</SelectItem>
-                                                <SelectItem value="1st">1st</SelectItem>
-                                                <SelectItem value="2nd">2nd</SelectItem>
-                                                <SelectItem value="3rd">3rd</SelectItem>
-                                                <SelectItem value="4th">4th</SelectItem>
-                                                <SelectItem value="5th">5th</SelectItem>
-                                                <SelectItem value="6th">6th</SelectItem>
-                                                <SelectItem value="7th">7th</SelectItem>
-                                                <SelectItem value="8th">8th</SelectItem>
-                                                <SelectItem value="9th">9th</SelectItem>
-                                                <SelectItem value="10th">10th</SelectItem>
-                                                <SelectItem value="11th">11th</SelectItem>
-                                                <SelectItem value="12th">12th</SelectItem>
+                                                <SelectItem value="all">All Grades</SelectItem>
+                                                {Array.from(new Set(data.map(c => c.grade?.name).filter(Boolean)))
+                                                    .sort()
+                                                    .map((gradeName) => (
+                                                        <SelectItem key={gradeName} value={gradeName!}>
+                                                            {gradeName}
+                                                        </SelectItem>
+                                                    ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -755,10 +706,10 @@ export function TeacherCurriculumsCard({
                                                 setStatusFilter(
                                                     value as
                                                     | "active"
-                                                    | "inactive"
                                                     | "draft"
                                                     | "archived"
-                                                    | "all",
+                                                    | "deprecated"
+                                                    | "all"
                                                 )
                                             }
                                         >
@@ -786,7 +737,7 @@ export function TeacherCurriculumsCard({
                     </div>
                     <AddCurriculumDialog teacherId={teacherId} />
                 </div>
-                <div className="overflow-hidden rounded-md border mx-4 md:mx-6 my-4">
+                <div className="overflow-hidden  border my-4">
                     <Table>
                         <TableHeader className="bg-deep-koamaru text-white">
                             {table.getHeaderGroups().map((headerGroup) => (
@@ -820,8 +771,8 @@ export function TeacherCurriculumsCard({
                                         data-state={row.getIsSelected() && "selected"}
                                         className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
                                         onClick={() => {
-                                            const curriculumId = row.original.id;
-                                            router.push(`/${locale}/curriculums/${curriculumId}`);
+                                            const curriculumId = row.original._id;
+                                            router.push(`/${locale}/admin/curriculums/${curriculumId}`);
                                         }}
                                     >
                                         {row.getVisibleCells().map((cell) => (
@@ -882,13 +833,13 @@ export function TeacherCurriculumsCard({
 function CurriculumStatusBadge({
     status,
 }: {
-    status: "active" | "inactive" | "draft" | "archived";
+    status: "draft" | "active" | "archived" | "deprecated";
 }) {
     const styles: Record<string, string> = {
         active: "bg-emerald-500/10 text-emerald-700",
-        inactive: "bg-gray-500/15 text-gray-700",
         draft: "bg-amber-500/15 text-amber-700",
         archived: "bg-rose-500/20 text-rose-700",
+        deprecated: "bg-gray-500/15 text-gray-700",
     };
 
     const capitalize = (str: string) =>
@@ -896,7 +847,7 @@ function CurriculumStatusBadge({
 
     return (
         <Badge
-            className={`rounded-full px-3 py-0.5 text-xs font-medium inline-flex ${styles[status] ?? styles.inactive}`}
+            className={`rounded-full px-3 py-0.5 text-xs font-medium inline-flex ${styles[status] ?? styles.draft}`}
         >
             {capitalize(status)}
         </Badge>

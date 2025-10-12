@@ -78,7 +78,7 @@ export const columns: ColumnDef<LessonWithCurriculum>[] = [
                 <Button
                     variant="ghost"
                     onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                    className="hidden lg:flex lg:items-center h-10 px-4 text-white hover:bg-white/10 hover:text-white"
+                    className="hidden lg:flex lg:items-center  px-4 text-white hover:bg-white/10 hover:text-white"
                 >
                     Curriculum
                     <ArrowUpDown className="h-4 w-4 text-white" />
@@ -115,7 +115,7 @@ export const columns: ColumnDef<LessonWithCurriculum>[] = [
                 <Button
                     variant="ghost"
                     onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                    className="h-10 px-2 lg:px-4 text-white hover:bg-white/10 hover:text-white"
+                    className=" px-2 lg:px-4 text-white hover:bg-white/10 hover:text-white"
                 >
                     Lesson
                     <ArrowUpDown className="h-4 w-4 text-white" />
@@ -161,7 +161,7 @@ export const columns: ColumnDef<LessonWithCurriculum>[] = [
                 <Button
                     variant="ghost"
                     onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                    className="hidden lg:flex items-center h-10 px-4 text-white hover:bg-white/10 hover:text-white"
+                    className="hidden lg:flex items-center  px-4 text-white hover:bg-white/10 hover:text-white"
                 >
                     Quarter (Order)
                     <ArrowUpDown className="h-4 w-4 text-white" />
@@ -191,7 +191,7 @@ export const columns: ColumnDef<LessonWithCurriculum>[] = [
                 <Button
                     variant="ghost"
                     onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                    className="hidden lg:flex items-center h-10 px-5 text-white hover:bg-white/10 hover:text-white"
+                    className="hidden lg:flex items-center  px-5 text-white hover:bg-white/10 hover:text-white"
                 >
                     Status
                     <ArrowUpDown className="h-4 w-4 text-white" />
@@ -219,7 +219,7 @@ export const columns: ColumnDef<LessonWithCurriculum>[] = [
                 <Button
                     variant="ghost"
                     onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                    className="h-10 px-2 lg:px-5 text-white hover:bg-white/10 hover:text-white"
+                    className=" px-2 lg:px-5 text-white hover:bg-white/10 hover:text-white"
                 >
                     Mandatory
                     <ArrowUpDown className="h-4 w-4 text-white" />
@@ -316,9 +316,9 @@ export function LessonsTable() {
     }, [mandatoryFilter, table])
 
     return (
-        <div className="w-full">
+        <div className="w-full space-y-4">
             {/* Filters */}
-            <div className="flex items-center justify-between gap-4 py-5">
+            <div className="flex items-center justify-between gap-4">
                 <div className="flex flex-1 items-center gap-4">
                     <div className="relative flex-1">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -331,7 +331,7 @@ export function LessonsTable() {
                             }
                             placeholder="Search by lesson title or curriculum"
                             aria-label="Search lessons"
-                            className="pl-10 pr-4 rounded-l bg-card h-10"
+                            className="pl-10 pr-4 rounded-l bg-card "
                         />
                     </div>
                 </div>
@@ -350,14 +350,14 @@ export function LessonsTable() {
                                     setMandatoryFilter("all");
                                     table.getColumn("title")?.setFilterValue("");
                                 }}
-                                className="h-10 px-3"
+                                className=" px-3"
                             >
                                 Clear all
                             </Button>
                         )}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="lg" className="h-10 px-3 bg-card">
+                            <Button variant="outline" size="lg" className=" px-3 bg-card">
                                 <Filter className="h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>

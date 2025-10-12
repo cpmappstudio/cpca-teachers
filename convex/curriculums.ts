@@ -130,3 +130,63 @@ export const getLessonsByCurriculum = query({
       .collect();
   },
 });
+
+/**
+ * Get curriculums assigned to a teacher
+ */
+export const getCurriculumsByTeacher = query({
+  args: {
+    teacherId: v.id("users"),
+    isActive: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    // Get teacher assignments
+    const assignments = await ctx.db
+      .query("teacher_assignments")
+      .withIndex("by_teacher_active", (q) =>
+        q.eq("teacherId", args.teacherId).eq("isActive", args.isActive ?? true)
+      )
+      .collect();
+
+    // Get curriculum details for each assignment
+    const curriculumsWithDetails = await Promise.all(
+      assignments.map(async (assignment) => {
+        const curriculum = await ctx.db.get(assignment.curriculumId);
+        if (!curriculum) return null;
+
+        // Get grade info if gradeId exists
+        let gradeInfo = null;
+        if (assignment.gradeId) {
+          const grade = await ctx.db.get(assignment.gradeId);
+          gradeInfo = grade ? {
+            id: grade._id,
+            name: grade.name,
+            level: grade.level,
+          } : null;
+        }
+
+        // Get total lessons count
+        const lessons = await ctx.db
+          .query("curriculum_lessons")
+          .withIndex("by_curriculum_active", (q) =>
+            q.eq("curriculumId", assignment.curriculumId).eq("isActive", true)
+          )
+          .collect();
+
+        return {
+          ...curriculum,
+          assignmentId: assignment._id,
+          assignmentType: assignment.assignmentType,
+          assignmentStatus: assignment.status,
+          grade: gradeInfo,
+          lessonsCount: lessons.length,
+          quarters: curriculum.numberOfQuarters,
+          progressSummary: assignment.progressSummary,
+        };
+      })
+    );
+
+    // Filter out nulls and return
+    return curriculumsWithDetails.filter((c) => c !== null);
+  },
+});

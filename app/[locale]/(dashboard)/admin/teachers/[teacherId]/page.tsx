@@ -8,14 +8,14 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface TeacherPageProps {
-    params: {
+    params: Promise<{
         teacherId: string
         locale: string
-    }
+    }>
 }
 
-export default function TeacherPage({ params }: TeacherPageProps) {
-    const { teacherId } = params
+export default async function TeacherPage({ params }: TeacherPageProps) {
+    const { teacherId } = await params
 
     return (
         <div className="flex flex-col gap-6 px-2 md:px-4 pb-8">
