@@ -181,6 +181,10 @@ export function CurriculumDialog({
           updates.name = name.trim();
         }
 
+        if (code?.trim() !== (curriculum.code || "")) {
+          updates.code = code?.trim() || undefined;
+        }
+
         if (description?.trim() !== (curriculum.description || "")) {
           updates.description = description?.trim() || undefined;
         }
@@ -227,6 +231,7 @@ export function CurriculumDialog({
         const curriculumData: any = {
           name: name.trim(),
           numberOfQuarters: numberOfQuarters ? parseInt(numberOfQuarters) : 4,
+          status: selectedStatus as "draft" | "active" | "archived" | "deprecated",
           createdBy: currentUser._id,
         };
 
@@ -295,7 +300,7 @@ export function CurriculumDialog({
   };
 
   const defaultTrigger = isEditing ? (
-    <Button variant="ghost" size="sm" className="gap-2">
+    <Button variant="ghost" size="sm" className="gap-2 hover:text-white cursor-pointer hover:bg-sidebar-accent/90  bg-sidebar-accent text-white">
       <Edit className="h-4 w-4" />
       Edit curriculum
     </Button>

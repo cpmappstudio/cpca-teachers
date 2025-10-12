@@ -284,8 +284,8 @@ export function TeacherCurriculumsCard({
     const params = useParams();
     const locale = params.locale as string;
 
-    // Query curriculums from database
-    const curriculums = useQuery(api.curriculums.getCurriculumsByTeacher, {
+    // Query curriculums from database using new campusAssignments structure
+    const curriculums = useQuery(api.curriculums.getCurriculumsByTeacherNew, {
         teacherId: teacherId as Id<"users">,
         isActive: true,
     }) as CurriculumWithAssignment[] | undefined;

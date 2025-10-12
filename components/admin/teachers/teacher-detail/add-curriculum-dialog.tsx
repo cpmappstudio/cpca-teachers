@@ -11,9 +11,9 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import { Plus, ChevronDown, BookOpen, FileText, X } from "lucide-react"
-import { useState } from "react"
-import { useQuery } from "convex/react"
+import { Plus, ChevronDown, BookOpen, FileText, X, ListCheck } from "lucide-react"
+import { useState, useEffect } from "react"
+import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { EntityDialog } from "@/components/ui/entity-dialog"
@@ -26,6 +26,10 @@ interface AddCurriculumDialogProps {
 
 export function AddCurriculumDialog({ teacherId }: AddCurriculumDialogProps) {
     const [selectedCurriculumIds, setSelectedCurriculumIds] = useState<Id<"curriculums">[]>([])
+    const [initialCurriculumIds, setInitialCurriculumIds] = useState<Id<"curriculums">[]>([])
+
+    // Query para obtener información del teacher (necesitamos su campusId)
+    const teacher = useQuery(api.users.getUser, { userId: teacherId as Id<"users"> })
 
     // Query para obtener curriculums disponibles
     const allCurriculums = useQuery(api.curriculums.getCurriculums, { isActive: true })
@@ -33,6 +37,25 @@ export function AddCurriculumDialog({ teacherId }: AddCurriculumDialogProps) {
     const availableCurriculums = allCurriculums?.filter(curriculum =>
         curriculum.status === "active" || curriculum.status === "draft"
     ) || []
+
+    // Query para obtener curriculums ya asignados al profesor
+    const teacherCurriculums = useQuery(api.curriculums.getCurriculumsByTeacherNew, {
+        teacherId: teacherId as Id<"users">,
+        isActive: true,
+    })
+
+    // Mutations
+    const addTeacherToCurriculum = useMutation(api.curriculums.addTeacherToCurriculum)
+    const removeTeacherFromCurriculum = useMutation(api.curriculums.removeTeacherFromCurriculum)
+
+    // Inicializar con los curriculums ya asignados al profesor
+    useEffect(() => {
+        if (teacherCurriculums) {
+            const curriculumIds = teacherCurriculums.map(c => c._id)
+            setSelectedCurriculumIds(curriculumIds)
+            setInitialCurriculumIds(curriculumIds)
+        }
+    }, [teacherCurriculums])
 
     const selectedCurriculums = availableCurriculums.filter(curriculum =>
         selectedCurriculumIds.includes(curriculum._id)
@@ -50,22 +73,74 @@ export function AddCurriculumDialog({ teacherId }: AddCurriculumDialogProps) {
         setSelectedCurriculumIds(prev => prev.filter(id => id !== curriculumId))
     }
 
-    const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault()
 
-        // TODO: Implement actual curriculum assignment logic
-        toast.success("Curriculums added successfully", {
-            description: `${selectedCurriculums.length} curriculum${selectedCurriculums.length === 1 ? '' : 's'} added to the teacher.`
-        })
+        try {
+            // Determinar qué curriculums añadir y cuáles remover
+            const curriculumsToAdd = selectedCurriculumIds.filter(id => !initialCurriculumIds.includes(id))
+            const curriculumsToRemove = initialCurriculumIds.filter(id => !selectedCurriculumIds.includes(id))
 
-        // Reset selection after submit
-        setSelectedCurriculumIds([])
+            // Verificar que el teacher tiene un campus asignado para poder añadir curriculums
+            if (curriculumsToAdd.length > 0 && !teacher?.campusId) {
+                toast.error("Cannot assign curriculums", {
+                    description: "This teacher must be assigned to a campus before adding curriculums."
+                })
+                return
+            }
+
+            // Añadir teacher a los curriculums seleccionados
+            await Promise.all(
+                curriculumsToAdd.map(curriculumId =>
+                    addTeacherToCurriculum({
+                        curriculumId,
+                        teacherId: teacherId as Id<"users">,
+                        campusId: teacher!.campusId!,
+                    })
+                )
+            )
+
+            // Remover teacher de los curriculums deseleccionados
+            await Promise.all(
+                curriculumsToRemove.map(curriculumId =>
+                    removeTeacherFromCurriculum({
+                        curriculumId,
+                        teacherId: teacherId as Id<"users">,
+                    })
+                )
+            )
+
+            if (curriculumsToAdd.length > 0 || curriculumsToRemove.length > 0) {
+                const message = []
+                if (curriculumsToAdd.length > 0) {
+                    message.push(`${curriculumsToAdd.length} curriculum${curriculumsToAdd.length === 1 ? '' : 's'} added`)
+                }
+                if (curriculumsToRemove.length > 0) {
+                    message.push(`${curriculumsToRemove.length} curriculum${curriculumsToRemove.length === 1 ? '' : 's'} removed`)
+                }
+
+                toast.success("Curriculums updated successfully", {
+                    description: message.join(' and ') + '.'
+                })
+            } else {
+                toast.info("No changes detected", {
+                    description: "No curriculums were added or removed."
+                })
+            }
+
+            // Actualizar los IDs iniciales
+            setInitialCurriculumIds(selectedCurriculumIds)
+        } catch (error) {
+            toast.error("Error updating curriculums", {
+                description: "There was a problem updating the curriculums. Please try again."
+            })
+        }
     }
 
     const trigger = (
         <Button className="bg-sidebar-accent h-9 dark:text-white gap-2">
-            <Plus className="h-4 w-4" />
-            <span className="hidden md:inline">Add Curriculum</span>
+            <ListCheck className="h-4 w-4" />
+            <span className="hidden md:inline">Update Curriculums</span>
         </Button>
     )
 
@@ -74,10 +149,11 @@ export function AddCurriculumDialog({ teacherId }: AddCurriculumDialogProps) {
             trigger={trigger}
             title="Add Curriculums to Teacher"
             onSubmit={handleSubmit}
-            submitLabel={`Add ${selectedCurriculumIds.length} Curriculum${selectedCurriculumIds.length === 1 ? '' : 's'}`}
+            submitLabel="Update Curriculums"
             maxWidth="700px"
         >
             <div className="grid gap-6">
+
 
                 {/* Curriculum Selection */}
                 <div className="space-y-4">
@@ -118,7 +194,7 @@ export function AddCurriculumDialog({ teacherId }: AddCurriculumDialogProps) {
                                                 </div>
                                                 <div className="flex items-center justify-between ml-6">
                                                     <span className="text-sm text-muted-foreground">
-                                                        {curriculum.metrics?.totalLessons} lessons • {curriculum.status}
+                                                        {curriculum.metrics?.totalLessons || 0} lessons • {curriculum.status}
                                                     </span>
                                                 </div>
                                             </div>
