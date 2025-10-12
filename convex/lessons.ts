@@ -80,6 +80,26 @@ export const getLesson = query({
 });
 
 /**
+ * Get lesson progress for a specific teacher and lesson
+ */
+export const getLessonProgress = query({
+  args: {
+    lessonId: v.id("curriculum_lessons"),
+    teacherId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const progress = await ctx.db
+      .query("lesson_progress")
+      .withIndex("by_teacher_lesson", (q) =>
+        q.eq("teacherId", args.teacherId).eq("lessonId", args.lessonId)
+      )
+      .first();
+
+    return progress;
+  },
+});
+
+/**
  * Check if a lesson with the same curriculum, quarter, and order already exists
  */
 export const checkLessonExists = query({
@@ -380,5 +400,115 @@ export const getLessonsWithCurriculum = query({
     );
 
     return lessonsWithCurriculum;
+  },
+});
+
+/**
+ * Generate upload URL for lesson evidence
+ * This is used to upload files directly to Convex storage
+ */
+export const generateUploadUrl = mutation(async (ctx) => {
+  return await ctx.storage.generateUploadUrl();
+});
+
+/**
+ * Save lesson evidence after file upload
+ * Updates the lesson progress with the storage ID and marks as completed
+ */
+export const saveLessonEvidence = mutation({
+  args: {
+    lessonId: v.id("curriculum_lessons"),
+    storageId: v.id("_storage"),
+    teacherId: v.id("users"),
+    assignmentId: v.id("teacher_assignments"),
+  },
+  handler: async (ctx, args) => {
+    // Get the assignment to get curriculum and campus info
+    const assignment = await ctx.db.get(args.assignmentId);
+    if (!assignment) {
+      throw new Error("Assignment not found");
+    }
+
+    // Get the lesson to get quarter info
+    const lesson = await ctx.db.get(args.lessonId);
+    if (!lesson) {
+      throw new Error("Lesson not found");
+    }
+
+    // Check if progress record already exists
+    const existingProgress = await ctx.db
+      .query("lesson_progress")
+      .withIndex("by_teacher_lesson", (q) =>
+        q.eq("teacherId", args.teacherId).eq("lessonId", args.lessonId)
+      )
+      .first();
+
+    if (existingProgress) {
+      // Update existing progress
+      await ctx.db.patch(existingProgress._id, {
+        evidenceDocumentStorageId: args.storageId,
+        status: "completed",
+        completedAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      return existingProgress._id;
+    } else {
+      // Create new progress record
+      const progressId = await ctx.db.insert("lesson_progress", {
+        teacherId: args.teacherId,
+        lessonId: args.lessonId,
+        assignmentId: args.assignmentId,
+        curriculumId: assignment.curriculumId,
+        campusId: assignment.campusId,
+        quarter: lesson.quarter,
+        status: "completed",
+        evidenceDocumentStorageId: args.storageId,
+        completedAt: Date.now(),
+        isVerified: false,
+        createdAt: Date.now(),
+      });
+
+      return progressId;
+    }
+  },
+});
+
+/**
+ * Delete lesson evidence
+ * Removes the uploaded file from storage and updates the lesson progress
+ */
+export const deleteLessonEvidence = mutation({
+  args: {
+    lessonId: v.id("curriculum_lessons"),
+    teacherId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Find the progress record
+    const progressRecord = await ctx.db
+      .query("lesson_progress")
+      .withIndex("by_teacher_lesson", (q) =>
+        q.eq("teacherId", args.teacherId).eq("lessonId", args.lessonId)
+      )
+      .first();
+
+    if (!progressRecord) {
+      throw new Error("Progress record not found");
+    }
+
+    // Delete the file from storage if it exists
+    if (progressRecord.evidenceDocumentStorageId) {
+      await ctx.storage.delete(progressRecord.evidenceDocumentStorageId);
+    }
+
+    // Update the progress record to remove evidence and reset status
+    await ctx.db.patch(progressRecord._id, {
+      evidenceDocumentStorageId: undefined,
+      status: "not_started",
+      completedAt: undefined,
+      updatedAt: Date.now(),
+    });
+
+    return { success: true };
   },
 });

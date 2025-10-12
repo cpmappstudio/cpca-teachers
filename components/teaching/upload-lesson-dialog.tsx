@@ -1,10 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useMutation, useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
   DialogContent,
@@ -14,20 +16,62 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Upload, FileUp } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Upload, FileUp, Loader2, Trash2, FileCheck } from "lucide-react"
+import { toast } from "sonner"
+import { useCurrentUser } from "@/hooks/use-current-user"
 
 interface TeacherDialogProps {
   lesson?: {
     id: string
     title: string
   }
+  assignmentId?: Id<"teacher_assignments">
   trigger?: React.ReactNode
 }
 
-export function TeacherDialog({ lesson, trigger }: TeacherDialogProps) {
+export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogProps) {
+  const { user } = useCurrentUser()
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [comment, setComment] = useState("")
   const [open, setOpen] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  // Query to get existing lesson progress
+  const lessonProgress = useQuery(
+    api.lessons.getLessonProgress,
+    user && lesson?.id
+      ? {
+          lessonId: lesson.id as Id<"curriculum_lessons">,
+          teacherId: user._id,
+        }
+      : "skip"
+  )
+
+  // Convex mutations
+  const generateUploadUrl = useMutation(api.lessons.generateUploadUrl)
+  const saveLessonEvidence = useMutation(api.lessons.saveLessonEvidence)
+  const deleteLessonEvidence = useMutation(api.lessons.deleteLessonEvidence)
+
+  // Check if evidence exists
+  const hasEvidence = !!lessonProgress?.evidenceDocumentStorageId
+
+  // Reset file selection when dialog opens/closes
+  useEffect(() => {
+    if (!open) {
+      setSelectedFile(null)
+    }
+  }, [open])
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -36,27 +80,102 @@ export function TeacherDialog({ lesson, trigger }: TeacherDialogProps) {
     }
   }
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    if (!selectedFile) {
-      alert("Please select a file to upload")
+  const handleDeleteEvidence = async () => {
+    if (!user || !lesson?.id) {
+      toast.error("Missing required information")
       return
     }
 
-    // TODO: Implement actual file upload logic
-    alert(`File "${selectedFile.name}" would be uploaded here`)
+    setIsDeleting(true)
 
-    // Reset form
-    setSelectedFile(null)
-    setComment("")
-    setOpen(false)
+    try {
+      await deleteLessonEvidence({
+        lessonId: lesson.id as Id<"curriculum_lessons">,
+        teacherId: user._id,
+      })
+
+      toast.success("Evidence deleted successfully!")
+      setShowDeleteConfirm(false)
+    } catch (error) {
+      console.error("Delete error:", error)
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete evidence"
+      )
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!selectedFile) {
+      toast.error("Please select a file to upload")
+      return
+    }
+
+    if (!user) {
+      toast.error("You must be logged in to upload evidence")
+      return
+    }
+
+    if (!lesson?.id) {
+      toast.error("Lesson information is missing")
+      return
+    }
+
+    if (!assignmentId) {
+      toast.error("Assignment information is missing")
+      return
+    }
+
+    setIsUploading(true)
+
+    try {
+      // Step 1: Get upload URL from Convex
+      const uploadUrl = await generateUploadUrl()
+
+      // Step 2: Upload file to Convex storage
+      const result = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": selectedFile.type },
+        body: selectedFile,
+      })
+
+      if (!result.ok) {
+        throw new Error(`Upload failed: ${result.statusText}`)
+      }
+
+      const { storageId } = await result.json()
+
+      // Step 3: Save evidence and mark lesson as completed
+      await saveLessonEvidence({
+        lessonId: lesson.id as Id<"curriculum_lessons">,
+        storageId: storageId as Id<"_storage">,
+        teacherId: user._id,
+        assignmentId: assignmentId,
+      })
+
+      toast.success("Evidence uploaded successfully! Lesson marked as completed.")
+
+      // Reset form and close dialog
+      setSelectedFile(null)
+      setOpen(false)
+    } catch (error) {
+      console.error("Upload error:", error)
+      toast.error(
+        error instanceof Error ? error.message : "Failed to upload evidence"
+      )
+    } finally {
+      setIsUploading(false)
+    }
   }
 
   const handleCancel = () => {
-    setSelectedFile(null)
-    setComment("")
-    setOpen(false)
+    if (!isUploading && !isDeleting) {
+      setSelectedFile(null)
+      setOpen(false)
+    }
   }
 
   const defaultTrigger = (
@@ -67,87 +186,158 @@ export function TeacherDialog({ lesson, trigger }: TeacherDialogProps) {
   )
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger || defaultTrigger}</DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader className="pb-6">
-            <DialogTitle className="text-lg font-semibold tracking-tight">
-              Upload Lesson Proof
-            </DialogTitle>
-            <DialogDescription className="text-sm text-muted-foreground">
-              {lesson
-                ? `Upload your completion proof for "${lesson.title}"`
-                : "Upload your lesson completion proof"}
-            </DialogDescription>
-          </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>{trigger || defaultTrigger}</DialogTrigger>
+        <DialogContent className="sm:max-w-[500px]">
+          <form onSubmit={handleSubmit}>
+            <DialogHeader className="pb-6">
+              <DialogTitle className="text-lg font-semibold tracking-tight">
+                {hasEvidence ? "Manage Lesson Evidence" : "Upload Lesson Evidence"}
+              </DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground">
+                {lesson
+                  ? `${hasEvidence ? "View or replace" : "Upload"} completion evidence for "${lesson.title}"`
+                  : "Upload your lesson completion evidence"}
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="grid gap-6">
-            {/* File Input */}
-            <div className="space-y-4">
-              <h4 className="text-sm font-medium border-b pb-2">File Upload</h4>
-              <div className="grid gap-3">
-                <Label htmlFor="file-upload" className="text-sm font-medium">
-                  Select File
-                  <span className="text-red-500">*</span>
-                </Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="file-upload"
-                    type="file"
-                    onChange={handleFileChange}
-                    className="cursor-pointer"
-                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                    required
-                  />
-                </div>
-                {selectedFile && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <FileUp className="h-3 w-3" />
-                    {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)
+            <div className="grid gap-6">
+              {/* Existing Evidence Display */}
+              {hasEvidence && (
+                <div className="space-y-4">
+                  <h4 className="text-sm font-medium border-b pb-2">Current Evidence</h4>
+                  <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1">
+                        <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg">
+                          <FileCheck className="h-5 w-5 text-green-700 dark:text-green-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-green-900 dark:text-green-100">
+                            Evidence Uploaded
+                          </p>
+                          <p className="text-xs text-green-700 dark:text-green-400 mt-1">
+                            Lesson marked as completed
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setShowDeleteConfirm(true)}
+                        disabled={isDeleting}
+                        className="gap-2"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    To upload a new evidence file, you must first delete the existing one.
                   </p>
-                )}
-              </div>
+                </div>
+              )}
+
+              {/* File Input - Only shown if no evidence exists */}
+              {!hasEvidence && (
+                <div className="space-y-4">
+                  <h4 className="text-sm font-medium border-b pb-2">File Upload</h4>
+                  <div className="grid gap-3">
+                    <Label htmlFor="file-upload" className="text-sm font-medium">
+                      Select File
+                      <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="file-upload"
+                        type="file"
+                        onChange={handleFileChange}
+                        className="cursor-pointer"
+                        accept="*/*"
+                        required
+                        disabled={isUploading}
+                      />
+                    </div>
+                    {selectedFile && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <FileUp className="h-3 w-3" />
+                        {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Comment Textarea */}
-            <div className="space-y-4">
-              <h4 className="text-sm font-medium border-b pb-2">Additional Information</h4>
-              <div className="grid gap-3">
-                <Label htmlFor="comment" className="text-sm font-medium">
-                  Comments (Optional)
-                </Label>
-                <Textarea
-                  id="comment"
-                  placeholder="Add any notes or context about this submission..."
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  className="min-h-[100px] resize-none"
-                />
-              </div>
-            </div>
-          </div>
+            <DialogFooter className="pt-6 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCancel}
+                className="min-w-[100px]"
+                disabled={isUploading || isDeleting}
+              >
+                {hasEvidence ? "Close" : "Cancel"}
+              </Button>
+              {!hasEvidence && (
+                <Button
+                  type="submit"
+                  className="bg-deep-koamaru dark:text-white min-w-[100px] gap-2"
+                  disabled={!selectedFile || isUploading}
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4" />
+                      Add Evidence
+                    </>
+                  )}
+                </Button>
+              )}
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-          <DialogFooter className="pt-6 gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleCancel}
-              className="min-w-[100px]"
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Evidence</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this evidence? This action cannot be undone.
+              The lesson will be marked as incomplete.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteEvidence}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              className="bg-deep-koamaru dark:text-white min-w-[100px] gap-2"
-              disabled={!selectedFile}
-            >
-              <Upload className="h-4 w-4" />
-              Upload
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Evidence
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

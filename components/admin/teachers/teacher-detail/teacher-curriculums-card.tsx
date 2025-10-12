@@ -8,14 +8,13 @@ import {
     Filter,
     Search,
     BookOpen,
-    Calendar,
-    Plus,
     ExternalLink,
+    FileText,
+    ChevronRight,
 } from "lucide-react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { Id, Doc } from "@/convex/_generated/dataModel";
-import { toast } from "sonner";
+import type { Id } from "@/convex/_generated/dataModel";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,11 +34,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-} from "@/components/ui/accordion";
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
     Select,
     SelectContent,
@@ -47,6 +45,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 import { AddCurriculumDialog } from "./add-curriculum-dialog";
 
 // Tipo para los datos de asignaciones de curriculum con progreso real del profesor
@@ -122,12 +121,21 @@ export function TeacherCurriculumsCard({
     const router = useRouter();
     const params = useParams();
     const locale = params.locale as string;
+    const [expandedCurriculum, setExpandedCurriculum] = React.useState<string | null>(null);
+    const [expandedQuarter, setExpandedQuarter] = React.useState<string | null>(null);
 
     // Query teacher assignments with real progress from database
     const assignments = useQuery(api.progress.getTeacherAssignmentsWithProgress, {
         teacherId: teacherId as Id<"users">,
         isActive: true,
     }) as TeacherAssignmentWithProgress[] | undefined;
+
+    // Get detailed lesson progress when curriculum is expanded
+    const selectedAssignment = assignments?.find(a => a._id === expandedCurriculum);
+    const assignmentLessonProgress = useQuery(
+        api.progress.getAssignmentLessonProgress,
+        selectedAssignment ? { assignmentId: selectedAssignment._id } : "skip"
+    );
 
     const allData = assignments || [];
 
@@ -164,6 +172,19 @@ export function TeacherCurriculumsCard({
             return true;
         });
     }, [allData, statusFilter, gradeFilter, searchQuery]);
+
+    const getStatusText = (status: string) => {
+        switch (status) {
+            case "completed":
+                return "Completed";
+            case "in_progress":
+                return "In Progress";
+            case "not_started":
+                return "Pending";
+            default:
+                return "Pending";
+        }
+    };
 
     return (
         <Card className="overflow-hidden">
@@ -288,362 +309,224 @@ export function TeacherCurriculumsCard({
 
                 {/* Accordion with assignments and their lessons */}
                 {data.length === 0 ? (
-                    <div className="flex items-center justify-center py-12 text-muted-foreground">
+                    <div className="flex items-center justify-center py-8 text-muted-foreground">
                         No curriculum assignments found
                     </div>
                 ) : (
-                    <Accordion type="single" collapsible className="w-full px-2 md:px-6 space-y-3 pb-4">
-                        {data.map((assignment, index) => (
-                            <AccordionItem
-                                key={assignment._id}
-                                value={assignment._id}
-                                className="border rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors px-3 md:px-4 data-[state=open]:bg-muted/60"
-                            >
-                                <AccordionTrigger className="hover:no-underline py-3 md:py-4">
-                                    <div className="flex items-start justify-between w-full pr-2 md:pr-4 gap-2">
-                                        <div className="flex flex-col items-start gap-2 flex-1 min-w-0">
-                                            {/* Title row */}
-                                            <div className="flex items-center gap-2 flex-wrap w-full">
-                                                <span className="font-semibold text-sm md:text-base">
-                                                    {assignment.name}
-                                                </span>
-                                                {assignment.code && (
-                                                    <Badge variant="outline" className="text-xs shrink-0">
-                                                        {assignment.code}
-                                                    </Badge>
-                                                )}
-                                                <CurriculumStatusBadge status={assignment.status} />
-                                            </div>
-
-                                            {/* View Details button - mobile first */}
-                                            <span
-                                                className="inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-7 px-2 md:px-3 cursor-pointer shrink-0"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    router.push(`/${locale}/admin/curriculums/${assignment.curriculumId}`);
-                                                }}
-                                            >
-                                                <ExternalLink className="h-3 w-3" />
-                                                <span className="hidden sm:inline">View Details</span>
-                                                <span className="sm:hidden">Details</span>
-                                            </span>
-
-                                            {/* Stats row */}
-                                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-xs md:text-sm text-muted-foreground w-full">
-                                                {assignment.grade && (
-                                                    <span className="flex items-center gap-1">
-                                                        <Badge className="bg-sky-500/15 text-sky-700 border border-sky-200 text-xs px-2 py-0.5 shrink-0">
-                                                            {assignment.grade.name}
+                    <div className="space-y-6 px-2 md:px-6 pb-4">
+                        {data.map((assignment) => {
+                            const isExpanded = expandedCurriculum === assignment._id;
+                            const progressByQuarter = assignment.progressByQuarter || {};
+                            const lessons = isExpanded && assignmentLessonProgress
+                                ? assignmentLessonProgress.lessons
+                                : [];
+                            
+                            return (
+                                <Collapsible
+                                    key={assignment._id}
+                                    open={isExpanded}
+                                    onOpenChange={(open) => {
+                                        setExpandedCurriculum(open ? assignment._id : null);
+                                        setExpandedQuarter(null);
+                                    }}
+                                    className="border rounded-lg bg-card shadow-sm"
+                                >
+                                    <CollapsibleTrigger asChild>
+                                        <div className="flex items-start justify-between w-full p-4 hover:bg-muted/50 transition-colors cursor-pointer rounded-lg">
+                                            <div className="flex flex-col items-start gap-2 flex-1 min-w-0">
+                                                {/* Title row */}
+                                                <div className="flex items-center gap-2 flex-wrap w-full">
+                                                    <ChevronRight
+                                                        className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
+                                                            isExpanded ? "rotate-90" : ""
+                                                        }`}
+                                                    />
+                                                    <span className="font-semibold text-sm md:text-base">
+                                                        {assignment.name}
+                                                    </span>
+                                                    {assignment.code && (
+                                                        <Badge variant="outline" className="text-xs shrink-0">
+                                                            {assignment.code}
                                                         </Badge>
-                                                    </span>
-                                                )}
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <span className="whitespace-nowrap">
-                                                        {assignment.progressSummary.completedLessons}/{assignment.progressSummary.totalLessons} lessons
-                                                    </span>
-                                                    <span className="font-medium text-primary whitespace-nowrap">
-                                                        {assignment.progressSummary.progressPercentage}% complete
-                                                    </span>
+                                                    )}
+                                                    <CurriculumStatusBadge status={assignment.status} />
+                                                </div>
+
+                                                {/* View Details button */}
+                                                <span
+                                                    className="inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-7 px-2 md:px-3 cursor-pointer shrink-0"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        router.push(`/${locale}/admin/curriculums/${assignment.curriculumId}`);
+                                                    }}
+                                                >
+                                                    <ExternalLink className="h-3 w-3" />
+                                                    <span className="hidden sm:inline">View Details</span>
+                                                    <span className="sm:hidden">Details</span>
+                                                </span>
+
+                                                {/* Stats row */}
+                                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-xs md:text-sm text-muted-foreground w-full">
+                                                    {assignment.grade && (
+                                                        <span className="flex items-center gap-1">
+                                                            <Badge className="bg-sky-500/15 text-sky-700 border border-sky-200 text-xs px-2 py-0.5 shrink-0">
+                                                                {assignment.grade.name}
+                                                            </Badge>
+                                                        </span>
+                                                    )}
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className="whitespace-nowrap">
+                                                            {assignment.progressSummary.completedLessons}/{assignment.progressSummary.totalLessons} lessons
+                                                        </span>
+                                                        <span className="font-medium text-primary whitespace-nowrap">
+                                                            {assignment.progressSummary.progressPercentage}% complete
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </AccordionTrigger>
-                                <AccordionContent className="pb-3 md:pb-4 px-0 border-t">
-                                    <LessonsList assignmentId={assignment._id} teacherId={teacherId} />
-                                </AccordionContent>
-                            </AccordionItem>
-                        ))}
-                    </Accordion>
+                                    </CollapsibleTrigger>
+                                    
+                                    <CollapsibleContent className="border-t">
+                                        <div className="p-4 space-y-4">
+                                            {/* Quarter Timeline with Progress */}
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                                {[1, 2, 3, 4].slice(0, assignment.numberOfQuarters).map((quarterNum) => {
+                                                    const quarterData = progressByQuarter[quarterNum] || {
+                                                        total: 0,
+                                                        completed: 0,
+                                                        inProgress: 0,
+                                                        notStarted: 0,
+                                                    };
+                                                    const quarterProgress = quarterData.total > 0
+                                                        ? Math.round((quarterData.completed / quarterData.total) * 100)
+                                                        : 0;
+                                                    const quarterKey = `${assignment._id}-Q${quarterNum}`;
+                                                    const isQuarterExpanded = expandedQuarter === quarterKey;
+
+                                                    return (
+                                                        <Card
+                                                            key={quarterNum}
+                                                            className="hover:shadow-md transition-shadow cursor-pointer"
+                                                            onClick={() => {
+                                                                setExpandedQuarter(
+                                                                    isQuarterExpanded ? null : quarterKey
+                                                                );
+                                                            }}
+                                                        >
+                                                            <CardContent className="p-4">
+                                                                <div className="flex items-center justify-between mb-2">
+                                                                    <h4 className="font-semibold text-sm">
+                                                                        Quarter {quarterNum}
+                                                                    </h4>
+                                                                    <ChevronRight
+                                                                        className={`h-4 w-4 transition-transform ${
+                                                                            isQuarterExpanded ? "rotate-90" : ""
+                                                                        }`}
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    <Progress
+                                                                        value={quarterProgress}
+                                                                        className="bg-gray-200 [&>div]:bg-deep-koamaru h-2"
+                                                                    />
+                                                                    <p className="text-xs text-muted-foreground">
+                                                                        {quarterData.completed}/{quarterData.total} lessons
+                                                                        completed ({quarterProgress}%)
+                                                                    </p>
+                                                                </div>
+                                                            </CardContent>
+                                                        </Card>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {/* Lessons by Quarter */}
+                                            {[1, 2, 3, 4].slice(0, assignment.numberOfQuarters).map((quarterNum) => {
+                                                const quarterKey = `${assignment._id}-Q${quarterNum}`;
+                                                const isQuarterExpanded = expandedQuarter === quarterKey;
+                                                const quarterLessons = lessons.filter(
+                                                    (lesson) => lesson.quarter === quarterNum
+                                                );
+
+                                                if (!isQuarterExpanded) return null;
+
+                                                return (
+                                                    <div key={quarterNum} className="space-y-3 mt-4">
+                                                        <div className="flex items-center justify-between border-b pb-2">
+                                                            <h4 className="font-semibold text-sm">
+                                                                Quarter {quarterNum} - Lessons
+                                                            </h4>
+                                                        </div>
+
+                                                        <div className="space-y-2">
+                                                            {quarterLessons.map((lesson) => {
+                                                                const hasEvidence = !!lesson.progress?.evidencePhotoStorageId || !!lesson.progress?.evidenceDocumentStorageId;
+                                                                
+                                                                return (
+                                                                    <Card
+                                                                        key={lesson.lessonId}
+                                                                        className={`transition-all ${
+                                                                            hasEvidence
+                                                                                ? "border-green-200 bg-green-50/50"
+                                                                                : "border-gray-200"
+                                                                        }`}
+                                                                    >
+                                                                        <CardContent className="p-3 sm:p-4">
+                                                                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                                                                                <div className="flex-1 space-y-1 min-w-0">
+                                                                                    <div className="flex items-start gap-2">
+                                                                                        <span className="font-medium text-sm break-words">
+                                                                                            {lesson.orderInQuarter}. {lesson.title}
+                                                                                        </span>
+                                                                                        {hasEvidence && (
+                                                                                            <Badge
+                                                                                                variant="outline"
+                                                                                                className="bg-green-100 text-green-800 border-green-300 shrink-0"
+                                                                                            >
+                                                                                                Evidence Uploaded
+                                                                                            </Badge>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    {lesson.description && (
+                                                                                        <p className="text-xs text-muted-foreground line-clamp-2">
+                                                                                            {lesson.description}
+                                                                                        </p>
+                                                                                    )}
+                                                                                </div>
+
+                                                                                <div className="flex items-center gap-2 shrink-0">
+                                                                                    <Badge
+                                                                                        variant={
+                                                                                            hasEvidence
+                                                                                                ? "default"
+                                                                                                : "secondary"
+                                                                                        }
+                                                                                        className="text-xs"
+                                                                                    >
+                                                                                        {lesson.progress?.status
+                                                                                            ? getStatusText(lesson.progress.status)
+                                                                                            : "Pending"}
+                                                                                    </Badge>
+                                                                                </div>
+                                                                            </div>
+                                                                        </CardContent>
+                                                                    </Card>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </CollapsibleContent>
+                                </Collapsible>
+                            );
+                        })}
+                    </div>
                 )}
             </CardContent>
         </Card>
-    );
-}
-
-// Component to display lessons for an assignment with upload functionality
-function LessonsList({ assignmentId, teacherId }: { assignmentId: Id<"teacher_assignments">, teacherId: string }) {
-    const [uploadingLessonId, setUploadingLessonId] = React.useState<Id<"curriculum_lessons"> | null>(null);
-
-    // Query to get assignment lessons with progress
-    const assignmentData = useQuery(api.progress.getAssignmentLessonProgress, {
-        assignmentId,
-    });
-
-    // Mutation to update lesson progress
-    const updateProgress = useMutation(api.progress.updateLessonProgress);
-
-    if (!assignmentData) {
-        return <div className="py-4 text-center text-muted-foreground">Loading lessons...</div>;
-    }
-
-    const { lessons } = assignmentData;
-
-    // Group lessons by quarter
-    const lessonsByQuarter = lessons.reduce((acc, lesson) => {
-        const quarter = lesson.quarter;
-        if (!acc[quarter]) {
-            acc[quarter] = [];
-        }
-        acc[quarter].push(lesson);
-        return acc;
-    }, {} as Record<number, typeof lessons>);
-
-    const handleFileUpload = async (lessonId: Id<"curriculum_lessons">, file: File) => {
-        try {
-            setUploadingLessonId(lessonId);
-
-            // TODO: Upload to Convex Storage
-            // For now, we'll just mark as completed without photo
-            await updateProgress({
-                teacherId: teacherId as Id<"users">,
-                lessonId,
-                assignmentId,
-                status: "completed",
-            });
-
-            toast.success("Lesson marked as completed!");
-        } catch (error) {
-            console.error("Upload error:", error);
-            toast.error("Failed to upload photo");
-        } finally {
-            setUploadingLessonId(null);
-        }
-    };
-
-    const handleStatusChange = async (
-        lessonId: Id<"curriculum_lessons">,
-        status: "not_started" | "in_progress" | "completed"
-    ) => {
-        try {
-            await updateProgress({
-                teacherId: teacherId as Id<"users">,
-                lessonId,
-                assignmentId,
-                status,
-            });
-            toast.success(`Lesson status updated to ${status}`);
-        } catch (error) {
-            console.error("Status update error:", error);
-            toast.error("Failed to update status");
-        }
-    };
-
-    return (
-        <div className="space-y-6 mt-4 px-2 md:px-4">
-            {Object.keys(lessonsByQuarter)
-                .sort((a, b) => parseInt(a) - parseInt(b))
-                .map((quarter) => (
-                    <div key={quarter} className="space-y-3">
-                        <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
-                            Quarter {quarter}
-                        </h4>
-                        <div className="space-y-2">
-                            {lessonsByQuarter[parseInt(quarter)].map((lesson) => {
-                                const progress = lesson.progress;
-                                const status = progress?.status || "not_started";
-
-                                return (
-                                    <div
-                                        key={lesson.lessonId}
-                                        className="border rounded-lg p-3 md:p-4 hover:bg-accent/50 transition-colors"
-                                    >
-                                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-                                            {/* Left side: Title, description, status */}
-                                            <div className="flex-1 min-w-0 space-y-3">
-                                                {/* Title and badge */}
-                                                <div className="flex items-start justify-between gap-2">
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                                            <span className="font-medium text-sm">
-                                                                {lesson.orderInQuarter}. {lesson.title}
-                                                            </span>
-                                                            {lesson.isMandatory && (
-                                                                <Badge className="bg-orange-500/15 text-orange-700 border border-orange-200 text-xs px-2 py-0.5 shrink-0">
-                                                                    Required
-                                                                </Badge>
-                                                            )}
-                                                        </div>
-                                                        {lesson.description && (
-                                                            <p className="text-xs md:text-sm text-muted-foreground mb-3">
-                                                                {lesson.description}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                {/* Status and date */}
-                                                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                                                    <Select
-                                                        value={status}
-                                                        onValueChange={(value) =>
-                                                            handleStatusChange(
-                                                                lesson.lessonId,
-                                                                value as "not_started" | "in_progress" | "completed"
-                                                            )
-                                                        }
-                                                    >
-                                                        <SelectTrigger className="w-full sm:w-[160px] h-8 text-xs">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="not_started">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="w-2 h-2 rounded-full bg-gray-500"></div>
-                                                                    Not Started
-                                                                </div>
-                                                            </SelectItem>
-                                                            <SelectItem value="in_progress">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="w-2 h-2 rounded-full bg-amber-500"></div>
-                                                                    In Progress
-                                                                </div>
-                                                            </SelectItem>
-                                                            <SelectItem value="completed">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                                                                    Completed
-                                                                </div>
-                                                            </SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-
-                                                    {progress?.completedAt && (
-                                                        <span className="text-xs text-muted-foreground">
-                                                            Completed on{" "}
-                                                            {new Date(progress.completedAt).toLocaleDateString()}
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                {/* Photo upload section - mobile only */}
-                                                <div className="flex flex-col gap-2 md:hidden">
-                                                    {progress?.evidencePhotoStorageId ? (
-                                                        <>
-                                                            <Badge className="bg-green-500/15 text-green-700 border border-green-200 text-xs px-2 py-1 w-fit">
-                                                                📷 Evidence uploaded
-                                                            </Badge>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="h-8 w-full"
-                                                                onClick={() => {
-                                                                    // TODO: Show photo preview
-                                                                    toast.info("Photo preview coming soon");
-                                                                }}
-                                                            >
-                                                                View
-                                                            </Button>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <input
-                                                                type="file"
-                                                                accept="image/*"
-                                                                className="hidden"
-                                                                id={`file-${lesson.lessonId}`}
-                                                                onChange={(e) => {
-                                                                    const file = e.target.files?.[0];
-                                                                    if (file) {
-                                                                        handleFileUpload(lesson.lessonId, file);
-                                                                    }
-                                                                }}
-                                                                disabled={uploadingLessonId === lesson.lessonId}
-                                                            />
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="h-8 w-full"
-                                                                onClick={() => {
-                                                                    document.getElementById(`file-${lesson.lessonId}`)?.click();
-                                                                }}
-                                                                disabled={uploadingLessonId === lesson.lessonId}
-                                                            >
-                                                                {uploadingLessonId === lesson.lessonId ? (
-                                                                    "Uploading..."
-                                                                ) : (
-                                                                    <>
-                                                                        <Plus className="h-3 w-3 mr-1" />
-                                                                        Upload Evidence
-                                                                    </>
-                                                                )}
-                                                            </Button>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* Right side: Photo upload - desktop only */}
-                                            <div className="hidden md:flex md:flex-col md:items-end gap-2 shrink-0">
-                                                {progress?.evidencePhotoStorageId ? (
-                                                    <>
-                                                        <Badge className="bg-green-500/15 text-green-700 border border-green-200 text-xs px-2 py-1">
-                                                            📷 Evidence uploaded
-                                                        </Badge>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="h-8"
-                                                            onClick={() => {
-                                                                // TODO: Show photo preview
-                                                                toast.info("Photo preview coming soon");
-                                                            }}
-                                                        >
-                                                            View
-                                                        </Button>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <input
-                                                            type="file"
-                                                            accept="image/*"
-                                                            className="hidden"
-                                                            id={`file-desktop-${lesson.lessonId}`}
-                                                            onChange={(e) => {
-                                                                const file = e.target.files?.[0];
-                                                                if (file) {
-                                                                    handleFileUpload(lesson.lessonId, file);
-                                                                }
-                                                            }}
-                                                            disabled={uploadingLessonId === lesson.lessonId}
-                                                        />
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="h-8"
-                                                            onClick={() => {
-                                                                document.getElementById(`file-desktop-${lesson.lessonId}`)?.click();
-                                                            }}
-                                                            disabled={uploadingLessonId === lesson.lessonId}
-                                                        >
-                                                            {uploadingLessonId === lesson.lessonId ? (
-                                                                "Uploading..."
-                                                            ) : (
-                                                                <>
-                                                                    <Plus className="h-3 w-3 mr-1" />
-                                                                    Upload Evidence
-                                                                </>
-                                                            )}
-                                                        </Button>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {progress?.notes && (
-                                            <div className="mt-3 pt-3 border-t">
-                                                <p className="text-xs text-muted-foreground">
-                                                    <strong>Notes:</strong> {progress.notes}
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                ))}
-        </div>
     );
 }
 
