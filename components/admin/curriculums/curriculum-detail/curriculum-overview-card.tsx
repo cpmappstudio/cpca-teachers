@@ -5,7 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { OverviewCard } from "@/components/ui/overview-card";
 import { Badge } from "@/components/ui/badge";
-import { Book, Hash, Calendar, FileText, Layers } from "lucide-react";
+import { Book, Hash, Calendar, FileText, Layers, MapPin, Users, GraduationCap } from "lucide-react";
 import { CurriculumLessonsCard } from "./curriculum-lessons-card";
 
 interface CurriculumOverviewCardProps {
@@ -17,6 +17,12 @@ export function CurriculumOverviewCard({ curriculumId }: CurriculumOverviewCardP
     const curriculum = useQuery(
         api.curriculums.getCurriculum,
         { curriculumId: curriculumId as Id<"curriculums"> }
+    );
+
+    // Get campus and teacher details for campus assignments
+    const campusAssignmentsDetails = useQuery(
+        api.curriculums.getCurriculumCampusAssignments,
+        curriculum ? { curriculumId: curriculumId as Id<"curriculums"> } : "skip"
     );
 
     // Show loading state while fetching data
@@ -74,7 +80,70 @@ export function CurriculumOverviewCard({ curriculumId }: CurriculumOverviewCardP
             icon: <Calendar className="h-4 w-4 text-primary" />,
             label: "Created on",
             value: createdDate
-        }
+        },
+        // Campus Assignments
+        ...(campusAssignmentsDetails && campusAssignmentsDetails.length > 0 ? [{
+            icon: <MapPin className="h-4 w-4 text-primary" />,
+            label: "Campus Assignments",
+            value: (
+                <div className="space-y-3 w-full">
+                    {campusAssignmentsDetails.map((assignment, index) => (
+                        <div key={assignment.campusId} className="border rounded-lg p-3 bg-muted/30">
+                            <div className="flex items-center gap-2 mb-2">
+                                <MapPin className="h-4 w-4 text-primary" />
+                                <span className="font-medium">{assignment.campusName}</span>
+                                {assignment.campusCode && (
+                                    <Badge variant="outline" className="text-xs">
+                                        {assignment.campusCode}
+                                    </Badge>
+                                )}
+                            </div>
+
+                            {/* Teachers */}
+                            {assignment.teachers.length > 0 && (
+                                <div className="ml-6 mb-2">
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                                        <Users className="h-3 w-3" />
+                                        <span className="font-medium">Teachers:</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5 ml-5">
+                                        {assignment.teachers.map((teacher: any) => (
+                                            <Badge key={teacher._id} variant="secondary" className="text-xs">
+                                                {teacher.fullName}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Grades */}
+                            {assignment.gradeNames.length > 0 && (
+                                <div className="ml-6">
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                                        <GraduationCap className="h-3 w-3" />
+                                        <span className="font-medium">Grades:</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5 ml-5">
+                                        {assignment.gradeNames.map((gradeName, idx) => (
+                                            <Badge key={idx} variant="outline" className="text-xs">
+                                                {gradeName}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* No teachers or grades assigned */}
+                            {assignment.teachers.length === 0 && assignment.gradeNames.length === 0 && (
+                                <div className="ml-6 text-sm text-muted-foreground">
+                                    No teachers or grades assigned yet
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )
+        }] : [])
     ];
 
     return (

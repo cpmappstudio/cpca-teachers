@@ -142,3 +142,86 @@ export const getPotentialDirectors = query({
         }));
     },
 });
+
+/**
+ * Migración: Crear teacher_assignments para asignaciones existentes en campusAssignments
+ * Esta función solo debe ejecutarse una vez para migrar datos existentes
+ */
+export const migrateTeacherAssignments = mutation({
+    args: {},
+    handler: async (ctx) => {
+        // Get the current user
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const currentUser = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .first();
+
+        if (!currentUser) {
+            throw new Error("User not found");
+        }
+
+        // Get all active curriculums with campus assignments
+        const curriculums = await ctx.db
+            .query("curriculums")
+            .collect();
+
+        let created = 0;
+        let skipped = 0;
+
+        for (const curriculum of curriculums) {
+            if (!curriculum.campusAssignments || curriculum.campusAssignments.length === 0) {
+                continue;
+            }
+
+            for (const campusAssignment of curriculum.campusAssignments) {
+                for (const teacherId of campusAssignment.assignedTeachers) {
+                    // Check if teacher_assignment already exists
+                    const existingAssignments = await ctx.db
+                        .query("teacher_assignments")
+                        .withIndex("by_teacher_active", (q) =>
+                            q.eq("teacherId", teacherId).eq("isActive", true)
+                        )
+                        .collect();
+
+                    const exists = existingAssignments.some(
+                        (a) => a.curriculumId === curriculum._id && a.campusId === campusAssignment.campusId
+                    );
+
+                    if (!exists) {
+                        // Create the teacher_assignment
+                        const currentYear = new Date().getFullYear();
+                        const academicYear = `${currentYear}-${currentYear + 1}`;
+
+                        await ctx.db.insert("teacher_assignments", {
+                            teacherId,
+                            curriculumId: curriculum._id,
+                            campusId: campusAssignment.campusId,
+                            academicYear,
+                            assignmentType: "primary",
+                            status: "active",
+                            isActive: true,
+                            startDate: Date.now(),
+                            assignedAt: Date.now(),
+                            assignedBy: currentUser._id,
+                        });
+
+                        created++;
+                    } else {
+                        skipped++;
+                    }
+                }
+            }
+        }
+
+        return {
+            created,
+            skipped,
+            message: `Migration completed: ${created} teacher_assignments created, ${skipped} already existed.`,
+        };
+    },
+});

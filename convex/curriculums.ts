@@ -82,6 +82,29 @@ export const createCurriculum = mutation({
       },
     });
 
+    // Create teacher_assignments for all assigned teachers
+    if (args.campusAssignments && args.campusAssignments.length > 0) {
+      const currentYear = new Date().getFullYear();
+      const academicYear = `${currentYear}-${currentYear + 1}`;
+
+      for (const campusAssignment of args.campusAssignments) {
+        for (const teacherId of campusAssignment.assignedTeachers) {
+          await ctx.db.insert("teacher_assignments", {
+            teacherId,
+            curriculumId,
+            campusId: campusAssignment.campusId,
+            academicYear,
+            assignmentType: "primary",
+            status: "active",
+            isActive: true,
+            startDate: Date.now(),
+            assignedAt: Date.now(),
+            assignedBy: args.createdBy,
+          });
+        }
+      }
+    }
+
     return curriculumId;
   },
 });
@@ -102,11 +125,14 @@ export const updateCurriculum = mutation({
         url: v.string(),
         type: v.string(),
       }))),
-      campusAssignments: v.optional(v.array(v.object({
-        campusId: v.id("campuses"),
-        assignedTeachers: v.array(v.id("users")),
-        gradeCodes: v.array(v.string()),
-      }))),
+      campusAssignments: v.optional(v.union(
+        v.array(v.object({
+          campusId: v.id("campuses"),
+          assignedTeachers: v.array(v.id("users")),
+          gradeCodes: v.array(v.string()),
+        })),
+        v.null() // Allow null to clear the field
+      )),
       status: v.optional(v.union(
         v.literal("draft"),
         v.literal("active"),
@@ -117,29 +143,158 @@ export const updateCurriculum = mutation({
     updatedBy: v.id("users"),
   },
   handler: async (ctx, args) => {
-    // Update metrics if campusAssignments changed
-    let metricsUpdate = {};
-    if (args.updates.campusAssignments !== undefined) {
-      const totalAssignedTeachers = args.updates.campusAssignments?.reduce((acc, assignment) => {
-        return acc + assignment.assignedTeachers.length;
-      }, 0) || 0;
+    // Get current curriculum to compare assignments
+    const currentCurriculum = await ctx.db.get(args.curriculumId);
+    if (!currentCurriculum) {
+      throw new Error("Curriculum not found");
+    }
 
-      metricsUpdate = {
-        metrics: {
+    // Build update object
+    const updateData: any = {
+      updatedAt: Date.now(),
+      updatedBy: args.updatedBy,
+    };
+
+    // Handle campusAssignments - if null, remove the field entirely
+    if ('campusAssignments' in args.updates) {
+      const oldAssignments = currentCurriculum.campusAssignments || [];
+      const newAssignments = args.updates.campusAssignments || [];
+
+      if (args.updates.campusAssignments === null) {
+        updateData.campusAssignments = undefined; // This removes the field
+        updateData.metrics = {
+          totalLessons: 0,
+          assignedTeachers: 0,
+          averageProgress: 0,
+          lastUpdated: Date.now(),
+        };
+
+        // Deactivate ALL teacher_assignments for this curriculum
+        const allAssignments = await ctx.db
+          .query("teacher_assignments")
+          .withIndex("by_curriculum", (q) =>
+            q.eq("curriculumId", args.curriculumId).eq("isActive", true)
+          )
+          .collect();
+
+        for (const assignment of allAssignments) {
+          await ctx.db.patch(assignment._id, {
+            isActive: false,
+            status: "cancelled",
+            updatedAt: Date.now(),
+          });
+        }
+      } else if (args.updates.campusAssignments !== undefined) {
+        updateData.campusAssignments = args.updates.campusAssignments;
+        const totalAssignedTeachers = args.updates.campusAssignments.reduce((acc, assignment) => {
+          return acc + assignment.assignedTeachers.length;
+        }, 0);
+        updateData.metrics = {
           totalLessons: 0,
           assignedTeachers: totalAssignedTeachers,
           averageProgress: 0,
           lastUpdated: Date.now(),
-        },
-      };
+        };
+
+        // Sync teacher_assignments
+        // 1. Get current year for new assignments
+        const currentYear = new Date().getFullYear();
+        const academicYear = `${currentYear}-${currentYear + 1}`;
+
+        // 2. Build sets of (teacherId, campusId) pairs for comparison
+        const oldPairs = new Set(
+          oldAssignments.flatMap(ca =>
+            ca.assignedTeachers.map(tid => `${tid}|${ca.campusId}`)
+          )
+        );
+
+        const newPairs = new Set(
+          newAssignments.flatMap(ca =>
+            ca.assignedTeachers.map(tid => `${tid}|${ca.campusId}`)
+          )
+        );
+
+        // 3. Find teachers to add (in new but not in old)
+        const toAdd: Array<{ teacherId: string; campusId: string }> = [];
+        for (const pair of newPairs) {
+          if (!oldPairs.has(pair)) {
+            const [teacherId, campusId] = pair.split('|');
+            toAdd.push({ teacherId, campusId });
+          }
+        }
+
+        // 4. Find teachers to remove (in old but not in new)
+        const toRemove: Array<{ teacherId: string; campusId: string }> = [];
+        for (const pair of oldPairs) {
+          if (!newPairs.has(pair)) {
+            const [teacherId, campusId] = pair.split('|');
+            toRemove.push({ teacherId, campusId });
+          }
+        }
+
+        // 5. Create new teacher_assignments
+        for (const { teacherId, campusId } of toAdd) {
+          // Check if it already exists (shouldn't, but be safe)
+          const existingAssignments = await ctx.db
+            .query("teacher_assignments")
+            .withIndex("by_teacher_campus", (q) =>
+              q.eq("teacherId", teacherId as any).eq("campusId", campusId as any).eq("isActive", true)
+            )
+            .collect();
+
+          const exists = existingAssignments.some(
+            a => a.curriculumId === args.curriculumId
+          );
+
+          if (!exists) {
+            await ctx.db.insert("teacher_assignments", {
+              teacherId: teacherId as any,
+              curriculumId: args.curriculumId,
+              campusId: campusId as any,
+              academicYear,
+              assignmentType: "primary",
+              status: "active",
+              isActive: true,
+              startDate: Date.now(),
+              assignedAt: Date.now(),
+              assignedBy: args.updatedBy,
+            });
+          }
+        }
+
+        // 6. Deactivate removed teacher_assignments
+        for (const { teacherId, campusId } of toRemove) {
+          const assignments = await ctx.db
+            .query("teacher_assignments")
+            .withIndex("by_teacher_campus", (q) =>
+              q.eq("teacherId", teacherId as any).eq("campusId", campusId as any).eq("isActive", true)
+            )
+            .collect();
+
+          const toDeactivate = assignments.find(
+            a => a.curriculumId === args.curriculumId
+          );
+
+          if (toDeactivate) {
+            await ctx.db.patch(toDeactivate._id, {
+              isActive: false,
+              status: "cancelled",
+              updatedAt: Date.now(),
+            });
+          }
+        }
+      }
     }
 
-    await ctx.db.patch(args.curriculumId, {
-      ...args.updates,
-      ...metricsUpdate,
-      updatedAt: Date.now(),
-      updatedBy: args.updatedBy,
-    });
+    // Add other updates
+    if (args.updates.name !== undefined) updateData.name = args.updates.name;
+    if (args.updates.code !== undefined) updateData.code = args.updates.code;
+    if (args.updates.description !== undefined) updateData.description = args.updates.description;
+    if (args.updates.numberOfQuarters !== undefined) updateData.numberOfQuarters = args.updates.numberOfQuarters;
+    if (args.updates.resources !== undefined) updateData.resources = args.updates.resources;
+    if (args.updates.status !== undefined) updateData.status = args.updates.status;
+
+    await ctx.db.patch(args.curriculumId, updateData);
   },
 });
 
@@ -348,12 +503,15 @@ export const addTeacherToCurriculum = mutation({
       ca => ca.campusId === args.campusId
     );
 
+    let isNewTeacher = false;
+
     if (existingAssignmentIndex >= 0) {
       // Campus assignment exists, add teacher if not already there
       const assignment = campusAssignments[existingAssignmentIndex];
       if (!assignment.assignedTeachers.includes(args.teacherId)) {
         assignment.assignedTeachers.push(args.teacherId);
         campusAssignments[existingAssignmentIndex] = assignment;
+        isNewTeacher = true;
       }
     } else {
       // Create new campus assignment with this teacher
@@ -362,11 +520,55 @@ export const addTeacherToCurriculum = mutation({
         assignedTeachers: [args.teacherId],
         gradeCodes: [],
       });
+      isNewTeacher = true;
     }
 
     await ctx.db.patch(args.curriculumId, {
       campusAssignments,
     });
+
+    // Create teacher_assignment record if this is a new teacher assignment
+    if (isNewTeacher) {
+      // Check if teacher_assignment already exists
+      const existingAssignments = await ctx.db
+        .query("teacher_assignments")
+        .withIndex("by_teacher_campus", (q) =>
+          q.eq("teacherId", args.teacherId).eq("campusId", args.campusId).eq("isActive", true)
+        )
+        .collect();
+
+      const existingAssignment = existingAssignments.find(
+        (a) => a.curriculumId === args.curriculumId
+      );
+
+      if (!existingAssignment) {
+        // Get current academic year (you might want to make this configurable)
+        const currentYear = new Date().getFullYear();
+        const academicYear = `${currentYear}-${currentYear + 1}`;
+
+        // Get the current user as assignedBy (or use a system user ID if needed)
+        const identity = await ctx.auth.getUserIdentity();
+        const currentUser = identity
+          ? await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .first()
+          : null;
+
+        await ctx.db.insert("teacher_assignments", {
+          teacherId: args.teacherId,
+          curriculumId: args.curriculumId,
+          campusId: args.campusId,
+          academicYear,
+          assignmentType: "primary",
+          status: "active",
+          isActive: true,
+          startDate: Date.now(),
+          assignedAt: Date.now(),
+          assignedBy: currentUser?._id || args.teacherId, // Fallback to teacherId if no current user
+        });
+      }
+    }
 
     return args.curriculumId;
   },
@@ -400,6 +602,77 @@ export const removeTeacherFromCurriculum = mutation({
       campusAssignments: updatedAssignments.length > 0 ? updatedAssignments : undefined,
     });
 
+    // Also deactivate the teacher_assignment record
+    const assignments = await ctx.db
+      .query("teacher_assignments")
+      .withIndex("by_teacher_active", (q) =>
+        q.eq("teacherId", args.teacherId).eq("isActive", true)
+      )
+      .collect();
+
+    const assignmentToRemove = assignments.find(
+      (a) => a.curriculumId === args.curriculumId
+    );
+
+    if (assignmentToRemove) {
+      await ctx.db.patch(assignmentToRemove._id, {
+        isActive: false,
+        status: "cancelled",
+        updatedAt: Date.now(),
+      });
+    }
+
     return args.curriculumId;
+  },
+});
+
+/**
+ * Get detailed campus assignments for a curriculum (with campus names and teacher details)
+ */
+export const getCurriculumCampusAssignments = query({
+  args: {
+    curriculumId: v.id("curriculums"),
+  },
+  handler: async (ctx, args) => {
+    const curriculum = await ctx.db.get(args.curriculumId);
+    if (!curriculum || !curriculum.campusAssignments) {
+      return [];
+    }
+
+    // Get detailed information for each campus assignment
+    const detailedAssignments = await Promise.all(
+      curriculum.campusAssignments.map(async (assignment) => {
+        // Get campus details
+        const campus = await ctx.db.get(assignment.campusId);
+
+        // Get teacher details
+        const teachers = await Promise.all(
+          assignment.assignedTeachers.map(async (teacherId) => {
+            const teacher = await ctx.db.get(teacherId);
+            return teacher ? {
+              _id: teacher._id,
+              fullName: teacher.fullName,
+              email: teacher.email,
+            } : null;
+          })
+        );
+
+        // Get grade names from campus grades
+        const gradeNames = campus?.grades
+          ?.filter(g => assignment.gradeCodes.includes(g.code))
+          .map(g => g.name) || [];
+
+        return {
+          campusId: assignment.campusId,
+          campusName: campus?.name || "Unknown Campus",
+          campusCode: campus?.code,
+          teachers: teachers.filter(t => t !== null),
+          gradeCodes: assignment.gradeCodes,
+          gradeNames,
+        };
+      })
+    );
+
+    return detailedAssignments;
   },
 });

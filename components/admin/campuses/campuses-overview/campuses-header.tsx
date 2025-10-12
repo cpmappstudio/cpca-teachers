@@ -95,8 +95,8 @@ export function CampusesHeader({
                         type="button"
                         onClick={() => setIsGridView(true)}
                         className={`inline-flex h-7 items-center justify-center rounded-md px-3 text-sm font-medium transition-all ${isGridView
-                                ? "bg-background text-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
                             }`}
                         aria-pressed={isGridView}
                     >
@@ -106,8 +106,8 @@ export function CampusesHeader({
                         type="button"
                         onClick={() => setIsGridView(false)}
                         className={`inline-flex h-7 items-center justify-center rounded-md px-3 text-sm font-medium transition-all ${!isGridView
-                                ? "bg-background text-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
                             }`}
                         aria-pressed={!isGridView}
                     >

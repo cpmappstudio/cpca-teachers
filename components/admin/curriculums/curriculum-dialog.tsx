@@ -104,7 +104,7 @@ export function CurriculumDialog({
     setCampusAssignments(campusAssignments.filter((_, i) => i !== index));
   };
 
-  const handleCampusChange = (index: number, campusId: Id<"campuses">) => {
+  const handleCampusChange = (index: number, campusId: Id<"campuses"> | "") => {
     const newAssignments = [...campusAssignments];
     newAssignments[index] = { campusId, teacherIds: [], gradeCodes: [] };
     setCampusAssignments(newAssignments);
@@ -198,7 +198,8 @@ export function CurriculumDialog({
           updates.status = selectedStatus as "draft" | "active" | "archived" | "deprecated";
         }
 
-        // Campus assignments - simple structure
+        // Campus assignments - compare before and after filtering
+        const currentAssignments = curriculum.campusAssignments || [];
         const validAssignments = campusAssignments
           .filter(a => a.campusId && a.campusId !== "")
           .map(a => ({
@@ -207,8 +208,47 @@ export function CurriculumDialog({
             gradeCodes: a.gradeCodes
           }));
 
-        if (JSON.stringify(validAssignments) !== JSON.stringify(curriculum.campusAssignments || [])) {
-          updates.campusAssignments = validAssignments.length > 0 ? validAssignments : undefined;
+        // Improved comparison: compare sets of (campusId, teacherId) pairs
+        const currentPairs = new Set(
+          currentAssignments.flatMap(ca =>
+            ca.assignedTeachers.map(tid => `${ca.campusId}|${tid}`)
+          )
+        );
+
+        const newPairs = new Set(
+          validAssignments.flatMap(ca =>
+            ca.assignedTeachers.map(tid => `${ca.campusId}|${tid}`)
+          )
+        );
+
+        // Also compare grade assignments
+        const currentGradePairs = new Set(
+          currentAssignments.flatMap(ca =>
+            ca.gradeCodes.map(gc => `${ca.campusId}|${gc}`)
+          )
+        );
+
+        const newGradePairs = new Set(
+          validAssignments.flatMap(ca =>
+            ca.gradeCodes.map(gc => `${ca.campusId}|${gc}`)
+          )
+        );
+
+        const teachersChanged = currentPairs.size !== newPairs.size ||
+          [...currentPairs].some(pair => !newPairs.has(pair)) ||
+          [...newPairs].some(pair => !currentPairs.has(pair));
+
+        const gradesChanged = currentGradePairs.size !== newGradePairs.size ||
+          [...currentGradePairs].some(pair => !newGradePairs.has(pair)) ||
+          [...newGradePairs].some(pair => !currentGradePairs.has(pair));
+
+        const campusCountChanged = validAssignments.length !== currentAssignments.length;
+
+        const assignmentsChanged = teachersChanged || gradesChanged || campusCountChanged;
+
+        if (assignmentsChanged) {
+          // Use null to explicitly clear the field, undefined won't work
+          updates.campusAssignments = validAssignments.length > 0 ? validAssignments : null;
         }
 
         if (Object.keys(updates).length > 0) {

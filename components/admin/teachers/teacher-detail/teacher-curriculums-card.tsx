@@ -3,28 +3,19 @@
 import * as React from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
-    ColumnDef,
-    ColumnFiltersState,
-    flexRender,
-    getCoreRowModel,
-    getFilteredRowModel,
-    getPaginationRowModel,
-    getSortedRowModel,
-    SortingState,
-    useReactTable,
-    VisibilityState,
-} from "@tanstack/react-table";
-import {
     ArrowUpDown,
     ChevronDown,
     Filter,
     Search,
     BookOpen,
     Calendar,
+    Plus,
+    ExternalLink,
 } from "lucide-react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id, Doc } from "@/convex/_generated/dataModel";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,23 +28,12 @@ import {
 } from "@/components/ui/card";
 import {
     DropdownMenu,
-    DropdownMenuCheckboxItem,
     DropdownMenuContent,
-    DropdownMenuItem,
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     Accordion,
     AccordionContent,
@@ -67,204 +47,63 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Check, ChevronsUpDown, Edit, Save, X } from "lucide-react";
-import { cn } from "@/lib/utils";
-import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-    CommandList,
-} from "@/components/ui/command";
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover";
-import { Textarea } from "@/components/ui/textarea";
 import { AddCurriculumDialog } from "./add-curriculum-dialog";
 
-// Tipo para los datos de curriculums con información de asignación
-type CurriculumWithAssignment = {
-    _id: Id<"curriculums">;
-    name: string;
-    code?: string;
-    status: "draft" | "active" | "archived" | "deprecated";
-    numberOfQuarters: number;
+// Tipo para los datos de asignaciones de curriculum con progreso real del profesor
+type TeacherAssignmentWithProgress = {
+    _id: Id<"teacher_assignments">;
     assignmentId: Id<"teacher_assignments">;
     assignmentType: "primary" | "substitute" | "assistant" | "co_teacher";
     assignmentStatus: "active" | "pending" | "completed" | "cancelled";
+    academicYear: string;
+    startDate: number;
+    endDate?: number;
+
+    // Curriculum info
+    curriculumId: Id<"curriculums">;
+    curriculumName: string;
+    curriculumCode?: string;
+    curriculumStatus: "draft" | "active" | "archived" | "deprecated";
+    numberOfQuarters: number;
+
+    // Campus info
+    campusId: Id<"campuses">;
+    campusName: string;
+
+    // Grade info
     grade: {
         id: Id<"grades">;
         name: string;
         level: number;
+        code: string;
     } | null;
-    lessonsCount: number;
-    quarters: number;
-    progressSummary?: {
+
+    // Real progress summary (from lesson_progress table)
+    progressSummary: {
         totalLessons: number;
         completedLessons: number;
+        inProgressLessons: number;
+        notStartedLessons: number;
         progressPercentage: number;
         lastLessonDate?: number;
         lastUpdated: number;
     };
+
+    // Progress by quarter
+    progressByQuarter: Record<number, {
+        total: number;
+        completed: number;
+        inProgress: number;
+        notStarted: number;
+    }>;
+
+    // For compatibility
+    name: string;
+    code?: string;
+    status: "draft" | "active" | "archived" | "deprecated";
+    lessonsCount: number;
+    quarters: number;
 };
-
-// Extend the meta type for custom className
-declare module "@tanstack/react-table" {
-    interface ColumnMeta<TData, TValue> {
-        className?: string;
-    }
-}
-
-export const columns: ColumnDef<CurriculumWithAssignment>[] = [
-    {
-        accessorKey: "code",
-        header: ({ column }) => {
-            return (
-                <Button
-                    variant="ghost"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                    className="hidden lg:flex lg:items-center h-10 px-4 text-white hover:bg-white/10 hover:text-white"
-                >
-                    Code
-                    <ArrowUpDown className="h-4 w-4 text-white" />
-                </Button>
-            );
-        },
-        cell: ({ row }) => (
-            <div className="text-sm hidden lg:block py-1">{row.original.code || "-"}</div>
-        ),
-        meta: {
-            className: "hidden lg:table-cell",
-        },
-    },
-    {
-        accessorKey: "name",
-        header: ({ column }) => {
-            return (
-                <Button
-                    variant="ghost"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                    className="h-10 px-2 lg:px-4 text-white hover:bg-white/10 hover:text-white"
-                >
-                    Course
-                    <ArrowUpDown className="h-4 w-4 text-white" />
-                </Button>
-            );
-        },
-        cell: ({ row }) => {
-            const curriculum = row.original;
-            return (
-                <div className="space-y-2 py-1">
-                    <div className="font-medium text-sm lg:text-base">
-                        {curriculum.name}
-                    </div>
-                    <div className="flex lg:hidden flex-col gap-1.5 text-xs lg:text-sm text-muted-foreground">
-                        <span className="text-xs">{curriculum.code || "-"}</span>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                            {curriculum.grade && (
-                                <Badge className="bg-sky-500/15 text-sky-700 border border-sky-200 text-xs px-2 py-0.5">
-                                    {curriculum.grade.name}
-                                </Badge>
-                            )}
-                            <CurriculumStatusBadge status={curriculum.status} />
-                        </div>
-                    </div>
-                </div>
-            );
-        },
-        filterFn: (row, id, value) => {
-            const name = row.original.name;
-            const code = row.original.code || "";
-            const searchValue = value.toLowerCase();
-            return (
-                name.toLowerCase().includes(searchValue) ||
-                code.toLowerCase().includes(searchValue)
-            );
-        },
-    },
-    {
-        accessorKey: "grade",
-        header: ({ column }) => {
-            return (
-                <Button
-                    variant="ghost"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                    className="hidden lg:flex items-center h-10 px-4 text-white hover:bg-white/10 hover:text-white"
-                >
-                    Grade
-                    <ArrowUpDown className="h-4 w-4 text-white" />
-                </Button>
-            );
-        },
-        cell: ({ row }) => (
-            <div className="text-sm hidden lg:block py-1">
-                {row.original.grade?.name || "-"}
-            </div>
-        ),
-        meta: {
-            className: "hidden lg:table-cell",
-        },
-        sortingFn: (rowA, rowB) => {
-            const levelA = rowA.original.grade?.level ?? 0;
-            const levelB = rowB.original.grade?.level ?? 0;
-            return levelA - levelB;
-        },
-    },
-    {
-        accessorKey: "lessonsCount",
-        header: ({ column }) => {
-            return (
-                <Button
-                    variant="ghost"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                    className="h-10 px-2 lg:px-5 text-white hover:bg-white/10 hover:text-white"
-                >
-                    Lessons
-                    <ArrowUpDown className="h-4 w-4 text-white" />
-                </Button>
-            );
-        },
-        cell: ({ row }) => {
-            const lessons = row.original.lessonsCount;
-            const quarters = row.original.quarters;
-            return (
-                <div className="flex items-center gap-2 py-1">
-                    <span>{lessons}</span>
-                    <span className="text-xs text-muted-foreground">({quarters}Q)</span>
-                </div>
-            );
-        },
-    },
-    {
-        accessorKey: "status",
-        header: ({ column }) => {
-            return (
-                <Button
-                    variant="ghost"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                    className="hidden lg:flex items-center h-10 px-5 text-white hover:bg-white/10 hover:text-white"
-                >
-                    Status
-                    <ArrowUpDown className="h-4 w-4 text-white" />
-                </Button>
-            );
-        },
-        cell: ({ row }) => (
-            <div className="hidden lg:block py-1">
-                <CurriculumStatusBadge status={row.original.status} />
-            </div>
-        ),
-        meta: {
-            className: "hidden lg:table-cell",
-        },
-        filterFn: (row, id, value) => {
-            return value.includes(row.getValue(id));
-        },
-    },
-];
 
 const statusOptions = [
     { label: "Active", value: "active", color: "bg-green-600" },
@@ -284,340 +123,54 @@ export function TeacherCurriculumsCard({
     const params = useParams();
     const locale = params.locale as string;
 
-    // Query curriculums from database using new campusAssignments structure
-    const curriculums = useQuery(api.curriculums.getCurriculumsByTeacherNew, {
+    // Query teacher assignments with real progress from database
+    const assignments = useQuery(api.progress.getTeacherAssignmentsWithProgress, {
         teacherId: teacherId as Id<"users">,
         isActive: true,
-    }) as CurriculumWithAssignment[] | undefined;
+    }) as TeacherAssignmentWithProgress[] | undefined;
 
-    const data = curriculums || [];
+    const allData = assignments || [];
 
-    const [sorting, setSorting] = React.useState<SortingState>([]);
-    const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-        [],
-    );
-    const [columnVisibility, setColumnVisibility] =
-        React.useState<VisibilityState>({});
-    const [rowSelection, setRowSelection] = React.useState({});
+    // Filter state
     const [statusFilter, setStatusFilter] = React.useState<
         "active" | "draft" | "archived" | "deprecated" | "all"
     >("all");
     const [gradeFilter, setGradeFilter] = React.useState<string>("all");
+    const [searchQuery, setSearchQuery] = React.useState("");
 
-    const table = useReactTable({
-        data,
-        columns,
-        onSortingChange: setSorting,
-        onColumnFiltersChange: setColumnFilters,
-        getCoreRowModel: getCoreRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
-        getSortedRowModel: getSortedRowModel(),
-        getFilteredRowModel: getFilteredRowModel(),
-        onColumnVisibilityChange: setColumnVisibility,
-        onRowSelectionChange: setRowSelection,
-        state: {
-            sorting,
-            columnFilters,
-            columnVisibility,
-            rowSelection,
-        },
-    });
+    // Apply filters
+    const data = React.useMemo(() => {
+        return allData.filter((assignment) => {
+            // Status filter
+            if (statusFilter !== "all" && assignment.status !== statusFilter) {
+                return false;
+            }
 
-    // Apply status filter to the table
-    React.useEffect(() => {
-        if (statusFilter === "all") {
-            table.getColumn("status")?.setFilterValue(undefined);
-        } else {
-            table.getColumn("status")?.setFilterValue([statusFilter]);
-        }
-    }, [statusFilter, table]);
+            // Grade filter
+            if (gradeFilter !== "all" && assignment.grade?.name !== gradeFilter) {
+                return false;
+            }
 
-    // Apply grade filter to the table
-    React.useEffect(() => {
-        if (gradeFilter === "all") {
-            table.getColumn("grade")?.setFilterValue(undefined);
-        } else {
-            // Filter by grade name
-            table.setGlobalFilter((rows: any) => {
-                return rows.filter((row: any) =>
-                    row.original.grade?.name === gradeFilter || gradeFilter === "all"
-                );
-            });
-        }
-    }, [gradeFilter, table]);
+            // Search filter
+            if (searchQuery) {
+                const search = searchQuery.toLowerCase();
+                const nameMatch = assignment.name.toLowerCase().includes(search);
+                const codeMatch = assignment.code?.toLowerCase().includes(search);
+                if (!nameMatch && !codeMatch) {
+                    return false;
+                }
+            }
 
-    // Days for the weekly calendar
-    const days = ["mon", "tue", "wed", "thu", "fri"];
-    const daysFull = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-
-    // Mock lessons per curriculum (could be fetched from database)
-    const lessonsByCurriculum = React.useMemo(() => {
-        const map: Record<string, { value: string; label: string }[]> = {};
-        data.forEach((c) => {
-            map[c._id] = Array.from({ length: 6 }).map((_, i) => ({
-                value: `${c._id}-lesson-${i + 1}`,
-                label: `${c.name} - Lesson ${i + 1}`,
-            }));
+            return true;
         });
-        return map;
-    }, [data]);
-
-    // Selected lesson per curriculum per day
-    const [selectedLessons, setSelectedLessons] = React.useState<
-        Record<string, Record<string, string | undefined>>
-    >({});
-
-    // Edit mode per curriculum
-    const [editMode, setEditMode] = React.useState<Record<string, boolean>>({});
-
-    // Schedule data per curriculum (standards, objectives, descriptions)
-    const [scheduleData, setScheduleData] = React.useState<
-        Record<
-            string,
-            {
-                standards: Record<string, string[]>;
-                objectives: Record<string, string[]>;
-                descriptions: Record<string, string[]>;
-            }
-        >
-    >({});
-
-    const handleLessonChange = (
-        curriculumId: string,
-        dayKey: string,
-        lessonId?: string,
-    ) => {
-        setSelectedLessons((prev) => ({
-            ...prev,
-            [curriculumId]: {
-                ...(prev[curriculumId] || {}),
-                [dayKey]: lessonId,
-            },
-        }));
-    };
-
-    const toggleEditMode = (curriculumId: string) => {
-        setEditMode((prev) => ({
-            ...prev,
-            [curriculumId]: !prev[curriculumId],
-        }));
-    };
-
-    const updateScheduleData = (
-        curriculumId: string,
-        type: "standards" | "objectives" | "descriptions",
-        dayKey: string,
-        value: string[],
-    ) => {
-        setScheduleData((prev) => ({
-            ...prev,
-            [curriculumId]: {
-                ...prev[curriculumId],
-                [type]: {
-                    ...prev[curriculumId]?.[type],
-                    [dayKey]: value,
-                },
-            },
-        }));
-    };
-
-    const getScheduleValue = (
-        curriculumId: string,
-        type: "standards" | "objectives" | "descriptions",
-        dayKey: string,
-    ) => {
-        return (
-            scheduleData[curriculumId]?.[type]?.[dayKey] || [
-                `Sample ${type.slice(0, -1)} for ${dayKey.toUpperCase()}`,
-            ]
-        );
-    };
-
-    // Bullet point editor component
-    function BulletPointEditor({
-        items,
-        onChange,
-        disabled = false,
-        placeholder,
-    }: {
-        items: string[];
-        onChange: (items: string[]) => void;
-        disabled?: boolean;
-        placeholder?: string;
-    }) {
-        const [editingIndex, setEditingIndex] = React.useState<number | null>(null);
-        const [tempValue, setTempValue] = React.useState("");
-
-        const handleEdit = (index: number) => {
-            if (disabled) return;
-            setEditingIndex(index);
-            setTempValue(items[index] || "");
-        };
-
-        const handleSave = () => {
-            if (editingIndex !== null) {
-                const newItems = [...items];
-                if (tempValue.trim()) {
-                    newItems[editingIndex] = tempValue.trim();
-                } else {
-                    newItems.splice(editingIndex, 1);
-                }
-                onChange(newItems);
-            }
-            setEditingIndex(null);
-            setTempValue("");
-        };
-
-        const handleKeyDown = (e: React.KeyboardEvent) => {
-            if (e.key === "Enter") {
-                e.preventDefault();
-                if (tempValue.trim()) {
-                    const newItems = [...items];
-                    if (editingIndex !== null) {
-                        newItems[editingIndex] = tempValue.trim();
-                        newItems.splice(editingIndex + 1, 0, "");
-                        onChange(newItems);
-                        setEditingIndex(editingIndex + 1);
-                        setTempValue("");
-                    }
-                }
-            } else if (e.key === "Escape") {
-                setEditingIndex(null);
-                setTempValue("");
-            }
-        };
-
-        const addNewItem = () => {
-            if (disabled) return;
-            const newItems = [...items, ""];
-            onChange(newItems);
-            setEditingIndex(newItems.length - 1);
-            setTempValue("");
-        };
-
-        return (
-            <div className="w-full max-w-full overflow-hidden">
-                {items.map((item, index) => (
-                    <div
-                        key={index}
-                        className="flex items-start gap-2 mb-1 max-w-full overflow-hidden"
-                    >
-                        <span className="text-muted-foreground text-xs leading-4 mt-0.5 flex-shrink-0">
-                            •
-                        </span>
-                        {editingIndex === index ? (
-                            <input
-                                type="text"
-                                value={tempValue}
-                                onChange={(e) => setTempValue(e.target.value)}
-                                onBlur={handleSave}
-                                onKeyDown={handleKeyDown}
-                                className="flex-1 min-w-0 text-xs bg-transparent border-none outline-none focus:bg-background rounded px-1 py-0.5"
-                                autoFocus
-                                placeholder={placeholder}
-                            />
-                        ) : (
-                            <span
-                                onClick={() => handleEdit(index)}
-                                className={`flex-1 min-w-0 text-xs leading-4 cursor-pointer hover:bg-muted/30 rounded px-1 py-0.5 overflow-hidden ${disabled ? "cursor-default hover:bg-transparent" : ""
-                                    }`}
-                                style={{
-                                    wordBreak: "break-all",
-                                    overflowWrap: "break-word",
-                                    hyphens: "auto",
-                                    whiteSpace: "pre-wrap",
-                                }}
-                            >
-                                {item || placeholder}
-                            </span>
-                        )}
-                    </div>
-                ))}
-                {!disabled && (
-                    <button
-                        onClick={addNewItem}
-                        className="flex items-start gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors max-w-full overflow-hidden"
-                    >
-                        <span className="leading-4 mt-0.5 flex-shrink-0">•</span>
-                        <span className="flex-1 min-w-0 overflow-hidden">Add item...</span>
-                    </button>
-                )}
-            </div>
-        );
-    }
-
-    // Lesson selector component
-    function LessonCombobox({
-        options,
-        value,
-        onValueChange,
-        placeholder = "Select lesson...",
-        disabled = false,
-    }: {
-        options: { value: string; label: string }[];
-        value?: string;
-        onValueChange: (value?: string) => void;
-        placeholder?: string;
-        disabled?: boolean;
-    }) {
-        const [open, setOpen] = React.useState(false);
-
-        return (
-            <Popover open={open} onOpenChange={setOpen}>
-                <PopoverTrigger asChild>
-                    <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={open}
-                        disabled={disabled}
-                        className="w-full justify-between text-xs"
-                    >
-                        {value
-                            ? options.find((option) => option.value === value)?.label
-                            : placeholder}
-                        <ChevronsUpDown className="ml-2 h-3 w-3 opacity-50" />
-                    </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[250px] p-0">
-                    <Command>
-                        <CommandInput placeholder="Search lessons..." className="h-9" />
-                        <CommandList>
-                            <CommandEmpty>No lesson found.</CommandEmpty>
-                            <CommandGroup>
-                                {options.map((option) => (
-                                    <CommandItem
-                                        key={option.value}
-                                        value={option.value}
-                                        onSelect={(currentValue) => {
-                                            const newValue =
-                                                currentValue === value ? undefined : currentValue;
-                                            onValueChange(newValue);
-                                            setOpen(false);
-                                        }}
-                                    >
-                                        {option.label}
-                                        <Check
-                                            className={cn(
-                                                "ml-auto h-4 w-4",
-                                                value === option.value ? "opacity-100" : "opacity-0",
-                                            )}
-                                        />
-                                    </CommandItem>
-                                ))}
-                            </CommandGroup>
-                        </CommandList>
-                    </Command>
-                </PopoverContent>
-            </Popover>
-        );
-    }
+    }, [allData, statusFilter, gradeFilter, searchQuery]);
 
     return (
         <Card className="overflow-hidden">
             <CardHeader className="pb-4">
-                <CardTitle className="text-lg font-semibold tracking-tight">Teaching Assignment</CardTitle>
+                <CardTitle className="text-lg font-semibold tracking-tight">Teaching Assignments & Progress</CardTitle>
                 <CardDescription className="text-sm">
-                    Curriculum assignments and weekly schedule overview.
+                    Individual progress tracking for each assigned curriculum. View completion status, uploaded evidence, and lesson details.
                 </CardDescription>
             </CardHeader>
             <CardContent className="px-0 pt-0">
@@ -626,12 +179,8 @@ export function TeacherCurriculumsCard({
                         <div className="relative flex-1">
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
-                                value={
-                                    (table.getColumn("name")?.getFilterValue() as string) ?? ""
-                                }
-                                onChange={(event) =>
-                                    table.getColumn("name")?.setFilterValue(event.target.value)
-                                }
+                                value={searchQuery}
+                                onChange={(event) => setSearchQuery(event.target.value)}
                                 placeholder="Search by course name or code"
                                 aria-label="Search curriculums"
                                 className="pl-10 pr-3 rounded-l bg-card h-9"
@@ -642,15 +191,14 @@ export function TeacherCurriculumsCard({
                         {/* Botón Clear all - visible solo cuando hay filtros activos */}
                         {(statusFilter !== "all" ||
                             gradeFilter !== "all" ||
-                            (table.getColumn("name")?.getFilterValue() as string)?.length >
-                            0) && (
+                            searchQuery.length > 0) && (
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => {
                                         setStatusFilter("all");
                                         setGradeFilter("all");
-                                        table.getColumn("name")?.setFilterValue("");
+                                        setSearchQuery("");
                                     }}
                                     className="h-10 px-3"
                                 >
@@ -737,96 +285,365 @@ export function TeacherCurriculumsCard({
                     </div>
                     <AddCurriculumDialog teacherId={teacherId} />
                 </div>
-                <div className="overflow-hidden  border">
-                    <Table>
-                        <TableHeader className="bg-deep-koamaru text-white">
-                            {table.getHeaderGroups().map((headerGroup) => (
-                                <TableRow
-                                    key={headerGroup.id}
-                                    className="border-b hover:bg-deep-koamaru"
-                                >
-                                    {headerGroup.headers.map((header) => {
-                                        return (
-                                            <TableHead
-                                                key={header.id}
-                                                className={`py-3 px-0 lg:px-5 ${header.column.columnDef.meta?.className || ""}`}
-                                            >
-                                                {header.isPlaceholder
-                                                    ? null
-                                                    : flexRender(
-                                                        header.column.columnDef.header,
-                                                        header.getContext(),
-                                                    )}
-                                            </TableHead>
-                                        );
-                                    })}
-                                </TableRow>
-                            ))}
-                        </TableHeader>
-                        <TableBody>
-                            {table.getRowModel().rows?.length ? (
-                                table.getRowModel().rows.map((row) => (
-                                    <TableRow
-                                        key={row.id}
-                                        data-state={row.getIsSelected() && "selected"}
-                                        className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
-                                        onClick={() => {
-                                            const curriculumId = row.original._id;
-                                            router.push(`/${locale}/admin/curriculums/${curriculumId}`);
-                                        }}
-                                    >
-                                        {row.getVisibleCells().map((cell) => (
-                                            <TableCell
-                                                key={cell.id}
-                                                className={`py-4 px-2 lg:px-5 ${cell.column.columnDef.meta?.className || ""}`}
-                                            >
-                                                {flexRender(
-                                                    cell.column.columnDef.cell,
-                                                    cell.getContext(),
+
+                {/* Accordion with assignments and their lessons */}
+                {data.length === 0 ? (
+                    <div className="flex items-center justify-center py-12 text-muted-foreground">
+                        No curriculum assignments found
+                    </div>
+                ) : (
+                    <Accordion type="single" collapsible className="w-full px-2 md:px-6 space-y-3 pb-4">
+                        {data.map((assignment, index) => (
+                            <AccordionItem
+                                key={assignment._id}
+                                value={assignment._id}
+                                className="border rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors px-3 md:px-4 data-[state=open]:bg-muted/60"
+                            >
+                                <AccordionTrigger className="hover:no-underline py-3 md:py-4">
+                                    <div className="flex items-start justify-between w-full pr-2 md:pr-4 gap-2">
+                                        <div className="flex flex-col items-start gap-2 flex-1 min-w-0">
+                                            {/* Title row */}
+                                            <div className="flex items-center gap-2 flex-wrap w-full">
+                                                <span className="font-semibold text-sm md:text-base">
+                                                    {assignment.name}
+                                                </span>
+                                                {assignment.code && (
+                                                    <Badge variant="outline" className="text-xs shrink-0">
+                                                        {assignment.code}
+                                                    </Badge>
                                                 )}
-                                            </TableCell>
-                                        ))}
-                                    </TableRow>
-                                ))
-                            ) : (
-                                <TableRow>
-                                    <TableCell
-                                        colSpan={columns.length}
-                                        className="h-24 text-center"
-                                    >
-                                        No results.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-                <div className="flex items-center justify-between gap-4 px-4 md:px-6 py-4">
-                    <div className="text-sm text-muted-foreground">
-                        Showing {table.getRowModel().rows.length} of {data.length}{" "}
-                        curriculum(s)
-                    </div>
-                    <div className="space-x-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => table.previousPage()}
-                            disabled={!table.getCanPreviousPage()}
-                        >
-                            Previous
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => table.nextPage()}
-                            disabled={!table.getCanNextPage()}
-                        >
-                            Next
-                        </Button>
-                    </div>
-                </div>
+                                                <CurriculumStatusBadge status={assignment.status} />
+                                            </div>
+
+                                            {/* View Details button - mobile first */}
+                                            <span
+                                                className="inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-7 px-2 md:px-3 cursor-pointer shrink-0"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    router.push(`/${locale}/admin/curriculums/${assignment.curriculumId}`);
+                                                }}
+                                            >
+                                                <ExternalLink className="h-3 w-3" />
+                                                <span className="hidden sm:inline">View Details</span>
+                                                <span className="sm:hidden">Details</span>
+                                            </span>
+
+                                            {/* Stats row */}
+                                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-xs md:text-sm text-muted-foreground w-full">
+                                                {assignment.grade && (
+                                                    <span className="flex items-center gap-1">
+                                                        <Badge className="bg-sky-500/15 text-sky-700 border border-sky-200 text-xs px-2 py-0.5 shrink-0">
+                                                            {assignment.grade.name}
+                                                        </Badge>
+                                                    </span>
+                                                )}
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="whitespace-nowrap">
+                                                        {assignment.progressSummary.completedLessons}/{assignment.progressSummary.totalLessons} lessons
+                                                    </span>
+                                                    <span className="font-medium text-primary whitespace-nowrap">
+                                                        {assignment.progressSummary.progressPercentage}% complete
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="pb-3 md:pb-4 px-0 border-t">
+                                    <LessonsList assignmentId={assignment._id} teacherId={teacherId} />
+                                </AccordionContent>
+                            </AccordionItem>
+                        ))}
+                    </Accordion>
+                )}
             </CardContent>
         </Card>
+    );
+}
+
+// Component to display lessons for an assignment with upload functionality
+function LessonsList({ assignmentId, teacherId }: { assignmentId: Id<"teacher_assignments">, teacherId: string }) {
+    const [uploadingLessonId, setUploadingLessonId] = React.useState<Id<"curriculum_lessons"> | null>(null);
+
+    // Query to get assignment lessons with progress
+    const assignmentData = useQuery(api.progress.getAssignmentLessonProgress, {
+        assignmentId,
+    });
+
+    // Mutation to update lesson progress
+    const updateProgress = useMutation(api.progress.updateLessonProgress);
+
+    if (!assignmentData) {
+        return <div className="py-4 text-center text-muted-foreground">Loading lessons...</div>;
+    }
+
+    const { lessons } = assignmentData;
+
+    // Group lessons by quarter
+    const lessonsByQuarter = lessons.reduce((acc, lesson) => {
+        const quarter = lesson.quarter;
+        if (!acc[quarter]) {
+            acc[quarter] = [];
+        }
+        acc[quarter].push(lesson);
+        return acc;
+    }, {} as Record<number, typeof lessons>);
+
+    const handleFileUpload = async (lessonId: Id<"curriculum_lessons">, file: File) => {
+        try {
+            setUploadingLessonId(lessonId);
+
+            // TODO: Upload to Convex Storage
+            // For now, we'll just mark as completed without photo
+            await updateProgress({
+                teacherId: teacherId as Id<"users">,
+                lessonId,
+                assignmentId,
+                status: "completed",
+            });
+
+            toast.success("Lesson marked as completed!");
+        } catch (error) {
+            console.error("Upload error:", error);
+            toast.error("Failed to upload photo");
+        } finally {
+            setUploadingLessonId(null);
+        }
+    };
+
+    const handleStatusChange = async (
+        lessonId: Id<"curriculum_lessons">,
+        status: "not_started" | "in_progress" | "completed"
+    ) => {
+        try {
+            await updateProgress({
+                teacherId: teacherId as Id<"users">,
+                lessonId,
+                assignmentId,
+                status,
+            });
+            toast.success(`Lesson status updated to ${status}`);
+        } catch (error) {
+            console.error("Status update error:", error);
+            toast.error("Failed to update status");
+        }
+    };
+
+    return (
+        <div className="space-y-6 mt-4 px-2 md:px-4">
+            {Object.keys(lessonsByQuarter)
+                .sort((a, b) => parseInt(a) - parseInt(b))
+                .map((quarter) => (
+                    <div key={quarter} className="space-y-3">
+                        <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                            Quarter {quarter}
+                        </h4>
+                        <div className="space-y-2">
+                            {lessonsByQuarter[parseInt(quarter)].map((lesson) => {
+                                const progress = lesson.progress;
+                                const status = progress?.status || "not_started";
+
+                                return (
+                                    <div
+                                        key={lesson.lessonId}
+                                        className="border rounded-lg p-3 md:p-4 hover:bg-accent/50 transition-colors"
+                                    >
+                                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                                            {/* Left side: Title, description, status */}
+                                            <div className="flex-1 min-w-0 space-y-3">
+                                                {/* Title and badge */}
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                                            <span className="font-medium text-sm">
+                                                                {lesson.orderInQuarter}. {lesson.title}
+                                                            </span>
+                                                            {lesson.isMandatory && (
+                                                                <Badge className="bg-orange-500/15 text-orange-700 border border-orange-200 text-xs px-2 py-0.5 shrink-0">
+                                                                    Required
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                        {lesson.description && (
+                                                            <p className="text-xs md:text-sm text-muted-foreground mb-3">
+                                                                {lesson.description}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Status and date */}
+                                                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                                    <Select
+                                                        value={status}
+                                                        onValueChange={(value) =>
+                                                            handleStatusChange(
+                                                                lesson.lessonId,
+                                                                value as "not_started" | "in_progress" | "completed"
+                                                            )
+                                                        }
+                                                    >
+                                                        <SelectTrigger className="w-full sm:w-[160px] h-8 text-xs">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="not_started">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-2 h-2 rounded-full bg-gray-500"></div>
+                                                                    Not Started
+                                                                </div>
+                                                            </SelectItem>
+                                                            <SelectItem value="in_progress">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+                                                                    In Progress
+                                                                </div>
+                                                            </SelectItem>
+                                                            <SelectItem value="completed">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                                                    Completed
+                                                                </div>
+                                                            </SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+
+                                                    {progress?.completedAt && (
+                                                        <span className="text-xs text-muted-foreground">
+                                                            Completed on{" "}
+                                                            {new Date(progress.completedAt).toLocaleDateString()}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* Photo upload section - mobile only */}
+                                                <div className="flex flex-col gap-2 md:hidden">
+                                                    {progress?.evidencePhotoStorageId ? (
+                                                        <>
+                                                            <Badge className="bg-green-500/15 text-green-700 border border-green-200 text-xs px-2 py-1 w-fit">
+                                                                📷 Evidence uploaded
+                                                            </Badge>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-8 w-full"
+                                                                onClick={() => {
+                                                                    // TODO: Show photo preview
+                                                                    toast.info("Photo preview coming soon");
+                                                                }}
+                                                            >
+                                                                View
+                                                            </Button>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <input
+                                                                type="file"
+                                                                accept="image/*"
+                                                                className="hidden"
+                                                                id={`file-${lesson.lessonId}`}
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files?.[0];
+                                                                    if (file) {
+                                                                        handleFileUpload(lesson.lessonId, file);
+                                                                    }
+                                                                }}
+                                                                disabled={uploadingLessonId === lesson.lessonId}
+                                                            />
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-8 w-full"
+                                                                onClick={() => {
+                                                                    document.getElementById(`file-${lesson.lessonId}`)?.click();
+                                                                }}
+                                                                disabled={uploadingLessonId === lesson.lessonId}
+                                                            >
+                                                                {uploadingLessonId === lesson.lessonId ? (
+                                                                    "Uploading..."
+                                                                ) : (
+                                                                    <>
+                                                                        <Plus className="h-3 w-3 mr-1" />
+                                                                        Upload Evidence
+                                                                    </>
+                                                                )}
+                                                            </Button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Right side: Photo upload - desktop only */}
+                                            <div className="hidden md:flex md:flex-col md:items-end gap-2 shrink-0">
+                                                {progress?.evidencePhotoStorageId ? (
+                                                    <>
+                                                        <Badge className="bg-green-500/15 text-green-700 border border-green-200 text-xs px-2 py-1">
+                                                            📷 Evidence uploaded
+                                                        </Badge>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-8"
+                                                            onClick={() => {
+                                                                // TODO: Show photo preview
+                                                                toast.info("Photo preview coming soon");
+                                                            }}
+                                                        >
+                                                            View
+                                                        </Button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*"
+                                                            className="hidden"
+                                                            id={`file-desktop-${lesson.lessonId}`}
+                                                            onChange={(e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) {
+                                                                    handleFileUpload(lesson.lessonId, file);
+                                                                }
+                                                            }}
+                                                            disabled={uploadingLessonId === lesson.lessonId}
+                                                        />
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-8"
+                                                            onClick={() => {
+                                                                document.getElementById(`file-desktop-${lesson.lessonId}`)?.click();
+                                                            }}
+                                                            disabled={uploadingLessonId === lesson.lessonId}
+                                                        >
+                                                            {uploadingLessonId === lesson.lessonId ? (
+                                                                "Uploading..."
+                                                            ) : (
+                                                                <>
+                                                                    <Plus className="h-3 w-3 mr-1" />
+                                                                    Upload Evidence
+                                                                </>
+                                                            )}
+                                                        </Button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {progress?.notes && (
+                                            <div className="mt-3 pt-3 border-t">
+                                                <p className="text-xs text-muted-foreground">
+                                                    <strong>Notes:</strong> {progress.notes}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
+        </div>
     );
 }
 
