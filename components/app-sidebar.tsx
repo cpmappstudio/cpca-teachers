@@ -9,6 +9,7 @@ import {
 } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useUser } from "@clerk/nextjs"
+import { usePathname } from "next/navigation"
 
 import { NavMain } from "@/components/nav-main"
 import { UniversityLogo } from "@/components/university-logo"
@@ -39,9 +40,17 @@ function getUserRole(user: any): UserRole | null {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { state } = useSidebar()
+  const { state, isMobile, setOpenMobile } = useSidebar()
+  const pathname = usePathname()
   const t = useTranslations('navigation')
   const { user } = useUser()
+
+  // Cerrar sidebar automáticamente en móviles cuando cambia la ruta
+  React.useEffect(() => {
+    if (isMobile) {
+      setOpenMobile(false)
+    }
+  }, [pathname, isMobile, setOpenMobile])
 
   // Obtener rol del usuario
   const userRole = React.useMemo(() => {
