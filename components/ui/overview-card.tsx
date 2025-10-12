@@ -129,7 +129,7 @@ function InfoRow({ icon, label, value, extra }: { icon: ReactNode; label: string
             <div className="mt-0.5">{icon}</div>
             <div className="flex-1">
                 <p className="font-medium text-foreground">{label}</p>
-                <p>{value}</p>
+                <div>{value}</div>
                 {extra}
             </div>
         </div>

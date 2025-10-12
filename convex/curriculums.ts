@@ -102,11 +102,14 @@ export const updateCurriculum = mutation({
         url: v.string(),
         type: v.string(),
       }))),
-      campusAssignments: v.optional(v.array(v.object({
-        campusId: v.id("campuses"),
-        assignedTeachers: v.array(v.id("users")),
-        gradeCodes: v.array(v.string()),
-      }))),
+      campusAssignments: v.optional(v.union(
+        v.array(v.object({
+          campusId: v.id("campuses"),
+          assignedTeachers: v.array(v.id("users")),
+          gradeCodes: v.array(v.string()),
+        })),
+        v.null() // Allow null to clear the field
+      )),
       status: v.optional(v.union(
         v.literal("draft"),
         v.literal("active"),
@@ -117,29 +120,45 @@ export const updateCurriculum = mutation({
     updatedBy: v.id("users"),
   },
   handler: async (ctx, args) => {
-    // Update metrics if campusAssignments changed
-    let metricsUpdate = {};
-    if (args.updates.campusAssignments !== undefined) {
-      const totalAssignedTeachers = args.updates.campusAssignments?.reduce((acc, assignment) => {
-        return acc + assignment.assignedTeachers.length;
-      }, 0) || 0;
+    // Build update object
+    const updateData: any = {
+      updatedAt: Date.now(),
+      updatedBy: args.updatedBy,
+    };
 
-      metricsUpdate = {
-        metrics: {
+    // Handle campusAssignments - if null, remove the field entirely
+    if ('campusAssignments' in args.updates) {
+      if (args.updates.campusAssignments === null) {
+        updateData.campusAssignments = undefined; // This removes the field
+        updateData.metrics = {
+          totalLessons: 0,
+          assignedTeachers: 0,
+          averageProgress: 0,
+          lastUpdated: Date.now(),
+        };
+      } else if (args.updates.campusAssignments !== undefined) {
+        updateData.campusAssignments = args.updates.campusAssignments;
+        const totalAssignedTeachers = args.updates.campusAssignments.reduce((acc, assignment) => {
+          return acc + assignment.assignedTeachers.length;
+        }, 0);
+        updateData.metrics = {
           totalLessons: 0,
           assignedTeachers: totalAssignedTeachers,
           averageProgress: 0,
           lastUpdated: Date.now(),
-        },
-      };
+        };
+      }
     }
 
-    await ctx.db.patch(args.curriculumId, {
-      ...args.updates,
-      ...metricsUpdate,
-      updatedAt: Date.now(),
-      updatedBy: args.updatedBy,
-    });
+    // Add other updates
+    if (args.updates.name !== undefined) updateData.name = args.updates.name;
+    if (args.updates.code !== undefined) updateData.code = args.updates.code;
+    if (args.updates.description !== undefined) updateData.description = args.updates.description;
+    if (args.updates.numberOfQuarters !== undefined) updateData.numberOfQuarters = args.updates.numberOfQuarters;
+    if (args.updates.resources !== undefined) updateData.resources = args.updates.resources;
+    if (args.updates.status !== undefined) updateData.status = args.updates.status;
+
+    await ctx.db.patch(args.curriculumId, updateData);
   },
 });
 
@@ -401,5 +420,56 @@ export const removeTeacherFromCurriculum = mutation({
     });
 
     return args.curriculumId;
+  },
+});
+
+/**
+ * Get detailed campus assignments for a curriculum (with campus names and teacher details)
+ */
+export const getCurriculumCampusAssignments = query({
+  args: {
+    curriculumId: v.id("curriculums"),
+  },
+  handler: async (ctx, args) => {
+    const curriculum = await ctx.db.get(args.curriculumId);
+    if (!curriculum || !curriculum.campusAssignments) {
+      return [];
+    }
+
+    // Get detailed information for each campus assignment
+    const detailedAssignments = await Promise.all(
+      curriculum.campusAssignments.map(async (assignment) => {
+        // Get campus details
+        const campus = await ctx.db.get(assignment.campusId);
+
+        // Get teacher details
+        const teachers = await Promise.all(
+          assignment.assignedTeachers.map(async (teacherId) => {
+            const teacher = await ctx.db.get(teacherId);
+            return teacher ? {
+              _id: teacher._id,
+              fullName: teacher.fullName,
+              email: teacher.email,
+            } : null;
+          })
+        );
+
+        // Get grade names from campus grades
+        const gradeNames = campus?.grades
+          ?.filter(g => assignment.gradeCodes.includes(g.code))
+          .map(g => g.name) || [];
+
+        return {
+          campusId: assignment.campusId,
+          campusName: campus?.name || "Unknown Campus",
+          campusCode: campus?.code,
+          teachers: teachers.filter(t => t !== null),
+          gradeCodes: assignment.gradeCodes,
+          gradeNames,
+        };
+      })
+    );
+
+    return detailedAssignments;
   },
 });

@@ -104,7 +104,7 @@ export function CurriculumDialog({
     setCampusAssignments(campusAssignments.filter((_, i) => i !== index));
   };
 
-  const handleCampusChange = (index: number, campusId: Id<"campuses">) => {
+  const handleCampusChange = (index: number, campusId: Id<"campuses"> | "") => {
     const newAssignments = [...campusAssignments];
     newAssignments[index] = { campusId, teacherIds: [], gradeCodes: [] };
     setCampusAssignments(newAssignments);
@@ -198,7 +198,8 @@ export function CurriculumDialog({
           updates.status = selectedStatus as "draft" | "active" | "archived" | "deprecated";
         }
 
-        // Campus assignments - simple structure
+        // Campus assignments - compare before and after filtering
+        const currentAssignments = curriculum.campusAssignments || [];
         const validAssignments = campusAssignments
           .filter(a => a.campusId && a.campusId !== "")
           .map(a => ({
@@ -207,8 +208,31 @@ export function CurriculumDialog({
             gradeCodes: a.gradeCodes
           }));
 
-        if (JSON.stringify(validAssignments) !== JSON.stringify(curriculum.campusAssignments || [])) {
-          updates.campusAssignments = validAssignments.length > 0 ? validAssignments : undefined;
+        // Debug logging
+        console.log("DEBUG - Campus Assignments:");
+        console.log("Current assignments from DB:", currentAssignments);
+        console.log("Valid assignments from state:", validAssignments);
+        console.log("Raw campus assignments state:", campusAssignments);
+
+        // Check if assignments changed (similar to add-teachers-dialog logic)
+        const assignmentsChanged =
+          validAssignments.length !== currentAssignments.length ||
+          validAssignments.some((va, idx) => {
+            const ca = currentAssignments[idx];
+            if (!ca) return true;
+            return va.campusId !== ca.campusId ||
+              va.assignedTeachers.length !== ca.assignedTeachers.length ||
+              va.gradeCodes.length !== ca.gradeCodes.length ||
+              !va.assignedTeachers.every(t => ca.assignedTeachers.includes(t)) ||
+              !va.gradeCodes.every(g => ca.gradeCodes.includes(g));
+          });
+
+        console.log("Assignments changed:", assignmentsChanged);
+
+        if (assignmentsChanged) {
+          // Use null to explicitly clear the field, undefined won't work
+          updates.campusAssignments = validAssignments.length > 0 ? validAssignments : null;
+          console.log("Setting updates.campusAssignments to:", updates.campusAssignments);
         }
 
         if (Object.keys(updates).length > 0) {

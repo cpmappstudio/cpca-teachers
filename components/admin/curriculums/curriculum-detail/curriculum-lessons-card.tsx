@@ -95,7 +95,7 @@ export const columns: ColumnDef<Lesson>[] = [
                     onClick={() =>
                         column.toggleSorting(column.getIsSorted() === "asc")
                     }
-                    className="h-10 px-2 lg:px-4 text-white hover:bg-white/10 hover:text-white"
+                    className="h-9 px-2 lg:px-4 text-white hover:bg-white/10 hover:text-white"
                 >
                     Lesson
                     <ArrowUpDown className="h-4 w-4 text-white" />
@@ -374,7 +374,7 @@ export function CurriculumLessonsCard({
                                     }
                                     placeholder="Search by lesson title"
                                     aria-label="Search lessons"
-                                    className="pl-10 pr-4 rounded-l bg-card h-10"
+                                    className="pl-10 pr-4 rounded-l bg-card"
                                 />
                             </div>
                         </div>
@@ -526,7 +526,7 @@ export function CurriculumLessonsCard({
                             <span className="hidden md:inline">Add Lesson</span>
                         </Button>
                     </div>
-                    <div className="overflow-hidden rounded-md border mx-4 md:mx-6">
+                    <div className="overflow-hidden  border">
                         <Table>
                             <TableHeader className="bg-deep-koamaru text-white">
                                 {table.getHeaderGroups().map((headerGroup) => (
@@ -595,11 +595,16 @@ export function CurriculumLessonsCard({
                         </Table>
                     </div>
                     <div className="flex items-center justify-between gap-4 px-4 md:px-6 py-4">
-                        <div className="text-sm text-muted-foreground">
-                            Showing {table.getRowModel().rows.length} of {lessons?.length ?? 0}{" "}
-                            lesson(s)
+                        {/* Left: count text — allow truncation on small screens */}
+                        <div className="flex-1 min-w-0">
+                            <div className="text-sm text-muted-foreground truncate">
+                                Showing {table.getRowModel().rows.length} of {lessons?.length ?? 0}{" "}
+                                lesson(s)
+                            </div>
                         </div>
-                        <div className="space-x-2">
+
+                        {/* Right: pagination buttons — never wrap */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
                             <Button
                                 variant="outline"
                                 size="sm"

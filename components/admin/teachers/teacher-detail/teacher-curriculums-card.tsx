@@ -802,11 +802,16 @@ export function TeacherCurriculumsCard({
                     </Table>
                 </div>
                 <div className="flex items-center justify-between gap-4 px-4 md:px-6 py-4">
-                    <div className="text-sm text-muted-foreground">
-                        Showing {table.getRowModel().rows.length} of {data.length}{" "}
-                        curriculum(s)
+                    {/* Left: count text — allow truncation on small screens */}
+                    <div className="flex-1 min-w-0">
+                        <div className="text-sm text-muted-foreground truncate">
+                            Showing {table.getRowModel().rows.length} of {data.length}{" "}
+                            curriculum(s)
+                        </div>
                     </div>
-                    <div className="space-x-2">
+
+                    {/* Right: pagination buttons — never wrap */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
                         <Button
                             variant="outline"
                             size="sm"
