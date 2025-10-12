@@ -521,7 +521,7 @@ export function CurriculumLessonsCard({
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         </div>
-                        <Button className="bg-sidebar-accent h-10 dark:text-white gap-2">
+                        <Button className="bg-sidebar-accent dark:text-white gap-2">
                             <Plus className="h-4 w-4" />
                             <span className="hidden md:inline">Add Lesson</span>
                         </Button>

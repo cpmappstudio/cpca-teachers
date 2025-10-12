@@ -208,31 +208,47 @@ export function CurriculumDialog({
             gradeCodes: a.gradeCodes
           }));
 
-        // Debug logging
-        console.log("DEBUG - Campus Assignments:");
-        console.log("Current assignments from DB:", currentAssignments);
-        console.log("Valid assignments from state:", validAssignments);
-        console.log("Raw campus assignments state:", campusAssignments);
+        // Improved comparison: compare sets of (campusId, teacherId) pairs
+        const currentPairs = new Set(
+          currentAssignments.flatMap(ca =>
+            ca.assignedTeachers.map(tid => `${ca.campusId}|${tid}`)
+          )
+        );
 
-        // Check if assignments changed (similar to add-teachers-dialog logic)
-        const assignmentsChanged =
-          validAssignments.length !== currentAssignments.length ||
-          validAssignments.some((va, idx) => {
-            const ca = currentAssignments[idx];
-            if (!ca) return true;
-            return va.campusId !== ca.campusId ||
-              va.assignedTeachers.length !== ca.assignedTeachers.length ||
-              va.gradeCodes.length !== ca.gradeCodes.length ||
-              !va.assignedTeachers.every(t => ca.assignedTeachers.includes(t)) ||
-              !va.gradeCodes.every(g => ca.gradeCodes.includes(g));
-          });
+        const newPairs = new Set(
+          validAssignments.flatMap(ca =>
+            ca.assignedTeachers.map(tid => `${ca.campusId}|${tid}`)
+          )
+        );
 
-        console.log("Assignments changed:", assignmentsChanged);
+        // Also compare grade assignments
+        const currentGradePairs = new Set(
+          currentAssignments.flatMap(ca =>
+            ca.gradeCodes.map(gc => `${ca.campusId}|${gc}`)
+          )
+        );
+
+        const newGradePairs = new Set(
+          validAssignments.flatMap(ca =>
+            ca.gradeCodes.map(gc => `${ca.campusId}|${gc}`)
+          )
+        );
+
+        const teachersChanged = currentPairs.size !== newPairs.size ||
+          [...currentPairs].some(pair => !newPairs.has(pair)) ||
+          [...newPairs].some(pair => !currentPairs.has(pair));
+
+        const gradesChanged = currentGradePairs.size !== newGradePairs.size ||
+          [...currentGradePairs].some(pair => !newGradePairs.has(pair)) ||
+          [...newGradePairs].some(pair => !currentGradePairs.has(pair));
+
+        const campusCountChanged = validAssignments.length !== currentAssignments.length;
+
+        const assignmentsChanged = teachersChanged || gradesChanged || campusCountChanged;
 
         if (assignmentsChanged) {
           // Use null to explicitly clear the field, undefined won't work
           updates.campusAssignments = validAssignments.length > 0 ? validAssignments : null;
-          console.log("Setting updates.campusAssignments to:", updates.campusAssignments);
         }
 
         if (Object.keys(updates).length > 0) {
