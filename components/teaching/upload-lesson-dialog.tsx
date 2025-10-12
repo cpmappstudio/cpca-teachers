@@ -71,7 +71,7 @@ export function TeacherDialog({ lesson, trigger }: TeacherDialogProps) {
       <DialogTrigger asChild>{trigger || defaultTrigger}</DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <form onSubmit={handleSubmit}>
-          <DialogHeader className="pb-4">
+          <DialogHeader className="pb-6">
             <DialogTitle className="text-lg font-semibold tracking-tight">
               Upload Lesson Proof
             </DialogTitle>
@@ -82,45 +82,53 @@ export function TeacherDialog({ lesson, trigger }: TeacherDialogProps) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 px-4 md:px-6 py-4">
+          <div className="grid gap-6">
             {/* File Input */}
-            <div className="space-y-2">
-              <Label htmlFor="file-upload" className="text-sm font-medium">
-                Select File *
-              </Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="file-upload"
-                  type="file"
-                  onChange={handleFileChange}
-                  className="cursor-pointer"
-                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                />
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium border-b pb-2">File Upload</h4>
+              <div className="grid gap-3">
+                <Label htmlFor="file-upload" className="text-sm font-medium">
+                  Select File
+                  <span className="text-red-500">*</span>
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="file-upload"
+                    type="file"
+                    onChange={handleFileChange}
+                    className="cursor-pointer"
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                    required
+                  />
+                </div>
+                {selectedFile && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <FileUp className="h-3 w-3" />
+                    {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)
+                  </p>
+                )}
               </div>
-              {selectedFile && (
-                <p className="text-xs text-muted-foreground">
-                  <FileUp className="inline h-3 w-3 mr-1" />
-                  {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)
-                </p>
-              )}
             </div>
 
             {/* Comment Textarea */}
-            <div className="space-y-2">
-              <Label htmlFor="comment" className="text-sm font-medium">
-                Additional Comments (Optional)
-              </Label>
-              <Textarea
-                id="comment"
-                placeholder="Add any notes or context about this submission..."
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                className="min-h-[100px] resize-none"
-              />
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium border-b pb-2">Additional Information</h4>
+              <div className="grid gap-3">
+                <Label htmlFor="comment" className="text-sm font-medium">
+                  Comments (Optional)
+                </Label>
+                <Textarea
+                  id="comment"
+                  placeholder="Add any notes or context about this submission..."
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  className="min-h-[100px] resize-none"
+                />
+              </div>
             </div>
           </div>
 
-          <DialogFooter className="pt-4">
+          <DialogFooter className="pt-6 gap-2">
             <Button
               type="button"
               variant="outline"
