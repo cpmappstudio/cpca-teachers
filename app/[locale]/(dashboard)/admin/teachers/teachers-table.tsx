@@ -588,8 +588,12 @@ export function TeachersTable() {
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className="border-b hover:bg-deep-koamaru">
                 {headerGroup.headers.map((header) => {
+                  const meta = header.column.columnDef.meta as { className?: string } | undefined;
                   return (
-                    <TableHead key={header.id} className="py-3 px-0 lg:px-5">
+                    <TableHead 
+                      key={header.id} 
+                      className={`py-3 px-0 lg:px-5 ${meta?.className || ''}`}
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -614,14 +618,20 @@ export function TeachersTable() {
                     router.push(`/${locale}/admin/teachers/${teacherId}`);
                   }}
                 >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-4 px-2 lg:px-5">
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </TableCell>
-                  ))}
+                  {row.getVisibleCells().map((cell) => {
+                    const meta = cell.column.columnDef.meta as { className?: string } | undefined;
+                    return (
+                      <TableCell 
+                        key={cell.id} 
+                        className={`py-4 px-2 lg:px-5 ${meta?.className || ''}`}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               ))
             ) : (

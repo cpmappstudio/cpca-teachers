@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,9 +37,10 @@ import type { Doc, Id } from "@/convex/_generated/dataModel";
 interface LessonDialogProps {
   lesson?: Doc<"curriculum_lessons">;
   trigger?: React.ReactNode;
+  defaultCurriculumId?: Id<"curriculums">;
 }
 
-export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
+export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDialogProps) {
   const isEditing = !!lesson;
   const router = useRouter();
   const params = useParams();
@@ -86,7 +87,7 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
   ];
 
   const [selectedCurriculum, setSelectedCurriculum] = useState<string>(
-    lesson?.curriculumId || "",
+    lesson?.curriculumId || defaultCurriculumId || "",
   );
   const [selectedQuarter, setSelectedQuarter] = useState<string>(
     lesson?.quarter?.toString() || "",
@@ -109,6 +110,13 @@ export function LessonsDialog({ lesson, trigger }: LessonDialogProps) {
   const [newResourceUrl, setNewResourceUrl] = useState("");
   const [newResourceType, setNewResourceType] = useState("");
   const [newResourceIsRequired, setNewResourceIsRequired] = useState(true);
+
+  // Reset curriculum when dialog opens with defaultCurriculumId
+  useEffect(() => {
+    if (isOpen && defaultCurriculumId && !isEditing) {
+      setSelectedCurriculum(defaultCurriculumId);
+    }
+  }, [isOpen, defaultCurriculumId, isEditing]);
 
   // Get selected curriculum details
   const selectedCurriculumData = curriculums?.find(

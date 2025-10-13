@@ -51,6 +51,7 @@ import {
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
+import { AddLessonsDialog } from "./add-lessons-dialog"
 
 // Lesson type definition based on Convex schema
 type Lesson = Doc<"curriculum_lessons">
@@ -520,11 +521,9 @@ export function CurriculumLessonsCard({
                                     </div>
                                 </DropdownMenuContent>
                             </DropdownMenu>
+
+                            <AddLessonsDialog curriculumId={curriculumId as Id<"curriculums">} />
                         </div>
-                        <Button className="bg-sidebar-accent dark:text-white gap-2">
-                            <Plus className="h-4 w-4" />
-                            <span className="hidden md:inline">Add Lesson</span>
-                        </Button>
                     </div>
                     <div className="overflow-hidden  border">
                         <Table>
