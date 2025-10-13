@@ -11,6 +11,8 @@ import {
     ExternalLink,
     FileText,
     ChevronRight,
+    Image as ImageIcon,
+    X,
 } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -46,6 +48,24 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from "@/components/ui/tabs";
+import { RadialBar, RadialBarChart } from "recharts";
+import {
+    ChartConfig,
+    ChartContainer,
+} from "@/components/ui/chart";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import Image from "next/image";
 import { AddCurriculumDialog } from "./add-curriculum-dialog";
 
 // Tipo para los datos de asignaciones de curriculum con progreso real del profesor
@@ -123,6 +143,27 @@ export function TeacherCurriculumsCard({
     const locale = params.locale as string;
     const [expandedCurriculum, setExpandedCurriculum] = React.useState<string | null>(null);
     const [expandedQuarter, setExpandedQuarter] = React.useState<string | null>(null);
+    const [evidenceModal, setEvidenceModal] = React.useState<{
+        open: boolean;
+        url: string | null;
+        type: "image" | "pdf" | null;
+        title: string;
+    }>({
+        open: false,
+        url: null,
+        type: null,
+        title: "",
+    });
+
+    const handleViewEvidence = (storageId: Id<"_storage">, title: string, type: "image" | "pdf") => {
+        // Set the modal to open with storageId, URL will be loaded by query
+        setEvidenceModal({
+            open: true,
+            url: storageId as any, // Store storageId temporarily
+            type,
+            title,
+        });
+    };
 
     // Query teacher assignments with real progress from database
     const assignments = useQuery(api.progress.getTeacherAssignmentsWithProgress, {
@@ -313,14 +354,14 @@ export function TeacherCurriculumsCard({
                         No curriculum assignments found
                     </div>
                 ) : (
-                    <div className="space-y-6 px-2 md:px-6 pb-4">
+                    <div className="space-y-6 rounded-none-4">
                         {data.map((assignment) => {
                             const isExpanded = expandedCurriculum === assignment._id;
                             const progressByQuarter = assignment.progressByQuarter || {};
                             const lessons = isExpanded && assignmentLessonProgress
                                 ? assignmentLessonProgress.lessons
                                 : [];
-                            
+
                             return (
                                 <Collapsible
                                     key={assignment._id}
@@ -329,7 +370,7 @@ export function TeacherCurriculumsCard({
                                         setExpandedCurriculum(open ? assignment._id : null);
                                         setExpandedQuarter(null);
                                     }}
-                                    className="border rounded-lg bg-card shadow-sm"
+                                    className="border bg-card shadow-sm"
                                 >
                                     <CollapsibleTrigger asChild>
                                         <div className="flex items-start justify-between w-full p-4 hover:bg-muted/50 transition-colors cursor-pointer rounded-lg">
@@ -337,9 +378,8 @@ export function TeacherCurriculumsCard({
                                                 {/* Title row */}
                                                 <div className="flex items-center gap-2 flex-wrap w-full">
                                                     <ChevronRight
-                                                        className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
-                                                            isExpanded ? "rotate-90" : ""
-                                                        }`}
+                                                        className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""
+                                                            }`}
                                                     />
                                                     <span className="font-semibold text-sm md:text-base">
                                                         {assignment.name}
@@ -365,159 +405,253 @@ export function TeacherCurriculumsCard({
                                                     <span className="sm:hidden">Details</span>
                                                 </span>
 
-                                                {/* Stats row */}
-                                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-xs md:text-sm text-muted-foreground w-full">
-                                                    {assignment.grade && (
-                                                        <span className="flex items-center gap-1">
-                                                            <Badge className="bg-sky-500/15 text-sky-700 border border-sky-200 text-xs px-2 py-0.5 shrink-0">
-                                                                {assignment.grade.name}
-                                                            </Badge>
-                                                        </span>
-                                                    )}
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <span className="whitespace-nowrap">
-                                                            {assignment.progressSummary.completedLessons}/{assignment.progressSummary.totalLessons} lessons
-                                                        </span>
-                                                        <span className="font-medium text-primary whitespace-nowrap">
-                                                            {assignment.progressSummary.progressPercentage}% complete
-                                                        </span>
-                                                    </div>
-                                                </div>
+                                                {/* Grade badge - moved stats to right side */}
+                                                {assignment.grade && (
+                                                    <Badge className="bg-sky-500/15 text-sky-700 border border-sky-200 text-xs px-2 py-0.5 shrink-0">
+                                                        {assignment.grade.name}
+                                                    </Badge>
+                                                )}
+                                            </div>
+
+                                            {/* Progress Stats - Right side */}
+                                            <div className="flex flex-col items-end gap-1 text-xs text-right shrink-0 ml-4">
+                                                <span className="text-muted-foreground whitespace-nowrap">
+                                                    {assignment.progressSummary.completedLessons}/{assignment.progressSummary.totalLessons} lessons
+                                                </span>
+                                                <span className="font-semibold text-primary whitespace-nowrap">
+                                                    {assignment.progressSummary.progressPercentage}% complete
+                                                </span>
                                             </div>
                                         </div>
                                     </CollapsibleTrigger>
-                                    
+
                                     <CollapsibleContent className="border-t">
-                                        <div className="p-4 space-y-4">
-                                            {/* Quarter Timeline with Progress */}
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                        <div className="p-4">
+                                            {/* Simple Tabs for Quarters */}
+                                            <Tabs defaultValue="1" className="w-full">
+                                                <div className="w-full overflow-x-auto">
+                                                    <TabsList className="inline-flex w-auto min-w-full">
+                                                        {[1, 2, 3, 4].slice(0, assignment.numberOfQuarters).map((quarterNum) => {
+                                                            const quarterData = progressByQuarter[quarterNum] || {
+                                                                total: 0,
+                                                                completed: 0,
+                                                                inProgress: 0,
+                                                                notStarted: 0,
+                                                            };
+                                                            const quarterProgress = quarterData.total > 0
+                                                                ? Math.round((quarterData.completed / quarterData.total) * 100)
+                                                                : 0;
+
+                                                            const chartData = [{
+                                                                progress: quarterProgress,
+                                                                fill: "var(--sidebar-accent)"
+                                                            }];
+
+                                                            const chartConfig = {
+                                                                progress: {
+                                                                    label: "Progress",
+                                                                    color: "var(--sidebar-accent)",
+                                                                },
+                                                            } satisfies ChartConfig;
+
+                                                            return (
+                                                                <TabsTrigger
+                                                                    key={quarterNum}
+                                                                    value={quarterNum.toString()}
+                                                                    className="flex items-center gap-0"
+                                                                >
+                                                                    <div className="w-8 h-8">
+                                                                        <ChartContainer config={chartConfig} className="w-full h-full">
+                                                                            <RadialBarChart
+                                                                                data={chartData}
+                                                                                innerRadius="60%"
+                                                                                outerRadius="100%"
+                                                                            >
+                                                                                <RadialBar
+                                                                                    dataKey="progress"
+                                                                                    background
+                                                                                    cornerRadius={3}
+                                                                                />
+                                                                            </RadialBarChart>
+                                                                        </ChartContainer>
+                                                                    </div>
+                                                                    <span className="font-semibold text-sm">Quarter {quarterNum}</span>
+                                                                </TabsTrigger>
+                                                            );
+                                                        })}
+                                                    </TabsList>
+                                                </div>
+
+                                                {/* Tab Content: Lessons by Quarter */}
                                                 {[1, 2, 3, 4].slice(0, assignment.numberOfQuarters).map((quarterNum) => {
-                                                    const quarterData = progressByQuarter[quarterNum] || {
-                                                        total: 0,
-                                                        completed: 0,
-                                                        inProgress: 0,
-                                                        notStarted: 0,
-                                                    };
-                                                    const quarterProgress = quarterData.total > 0
-                                                        ? Math.round((quarterData.completed / quarterData.total) * 100)
-                                                        : 0;
-                                                    const quarterKey = `${assignment._id}-Q${quarterNum}`;
-                                                    const isQuarterExpanded = expandedQuarter === quarterKey;
+                                                    const quarterLessons = lessons.filter(
+                                                        (lesson) => lesson.quarter === quarterNum
+                                                    );
 
                                                     return (
-                                                        <Card
-                                                            key={quarterNum}
-                                                            className="hover:shadow-md transition-shadow cursor-pointer"
-                                                            onClick={() => {
-                                                                setExpandedQuarter(
-                                                                    isQuarterExpanded ? null : quarterKey
-                                                                );
-                                                            }}
-                                                        >
-                                                            <CardContent className="p-4">
-                                                                <div className="flex items-center justify-between mb-2">
-                                                                    <h4 className="font-semibold text-sm">
-                                                                        Quarter {quarterNum}
-                                                                    </h4>
-                                                                    <ChevronRight
-                                                                        className={`h-4 w-4 transition-transform ${
-                                                                            isQuarterExpanded ? "rotate-90" : ""
-                                                                        }`}
-                                                                    />
-                                                                </div>
-                                                                <div className="space-y-2">
-                                                                    <Progress
-                                                                        value={quarterProgress}
-                                                                        className="bg-gray-200 [&>div]:bg-deep-koamaru h-2"
-                                                                    />
-                                                                    <p className="text-xs text-muted-foreground">
-                                                                        {quarterData.completed}/{quarterData.total} lessons
-                                                                        completed ({quarterProgress}%)
-                                                                    </p>
-                                                                </div>
-                                                            </CardContent>
-                                                        </Card>
+                                                        <TabsContent key={quarterNum} value={quarterNum.toString()} className="">
+                                                            <div className="space-y-2">
+                                                                {quarterLessons.length === 0 ? (
+                                                                    <div className="text-center py-8 text-muted-foreground text-sm">
+                                                                        No lessons in this quarter
+                                                                    </div>
+                                                                ) : (
+                                                                    quarterLessons.map((lesson) => {
+                                                                        const hasEvidence = !!lesson.progress?.evidencePhotoStorageId || !!lesson.progress?.evidenceDocumentStorageId;
+                                                                        const evidenceStorageId = lesson.progress?.evidencePhotoStorageId || lesson.progress?.evidenceDocumentStorageId;
+                                                                        const evidenceType = lesson.progress?.evidencePhotoStorageId ? "image" : "pdf";
+
+                                                                        return (
+                                                                            <Card
+                                                                                key={lesson.lessonId}
+                                                                                className={`transition-all bg-popover py-0 ${hasEvidence
+                                                                                    ? "border-green-200 bg-green-50/50"
+                                                                                    : "border-gray-200"
+                                                                                    }`}
+                                                                            >
+                                                                                <CardContent className="p-3 sm:p-4">
+                                                                                    {/* Mobile Layout */}
+                                                                                    <div className="flex gap-3 sm:hidden">
+                                                                                        {/* Left: Evidence Preview */}
+                                                                                        {hasEvidence && evidenceStorageId ? (
+                                                                                            <button
+                                                                                                onClick={() => handleViewEvidence(
+                                                                                                    evidenceStorageId,
+                                                                                                    lesson.title,
+                                                                                                    evidenceType
+                                                                                                )}
+                                                                                                className="shrink-0 w-16 h-16 rounded-md border-2 border-green-300 overflow-hidden bg-green-50 hover:border-green-500 transition-colors flex items-center justify-center"
+                                                                                            >
+                                                                                                {evidenceType === "image" ? (
+                                                                                                    <EvidencePreview storageId={evidenceStorageId} type="image" />
+                                                                                                ) : (
+                                                                                                    <div className="flex flex-col items-center justify-center gap-1">
+                                                                                                        <FileText className="h-6 w-6 text-green-700" />
+                                                                                                        <span className="text-[10px] text-green-700 font-medium">PDF</span>
+                                                                                                    </div>
+                                                                                                )}
+                                                                                            </button>
+                                                                                        ) : (
+                                                                                            <div className="shrink-0 w-16 h-16 rounded-md border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center">
+                                                                                                <div className="flex flex-col items-center justify-center gap-0.5">
+                                                                                                    <ImageIcon className="h-5 w-5 text-gray-400" />
+                                                                                                    <span className="text-[9px] text-gray-400 font-medium">No file</span>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        )}
+
+                                                                                        {/* Right: Content with title top, details bottom right */}
+                                                                                        <div className="flex-1 min-w-0 flex flex-col justify-between">
+                                                                                            {/* Top: Title and Status */}
+                                                                                            <div className="flex items-start justify-between gap-2">
+                                                                                                <span className="font-medium text-sm break-words flex-1">
+                                                                                                    {lesson.orderInQuarter}. {lesson.title}
+                                                                                                </span>
+                                                                                                <Badge
+                                                                                                    variant={hasEvidence ? "default" : "secondary"}
+                                                                                                    className="text-xs shrink-0"
+                                                                                                >
+                                                                                                    {lesson.progress?.status
+                                                                                                        ? getStatusText(lesson.progress.status)
+                                                                                                        : "Pending"}
+                                                                                                </Badge>
+                                                                                            </div>
+
+                                                                                            {/* Bottom: Details button aligned right */}
+                                                                                            <div className="flex justify-end">
+                                                                                                <span
+                                                                                                    className="inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-7 px-3 cursor-pointer border"
+                                                                                                    onClick={(e) => {
+                                                                                                        e.stopPropagation();
+                                                                                                        router.push(`/${locale}/admin/lessons/${lesson.lessonId}`);
+                                                                                                    }}
+                                                                                                >
+                                                                                                    <ExternalLink className="h-3 w-3" />
+                                                                                                    <span>Details</span>
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </div>
+
+                                                                                    {/* Desktop Layout (unchanged) */}
+                                                                                    <div className="hidden sm:flex items-start gap-3">
+                                                                                        {/* Evidence Preview Thumbnail */}
+                                                                                        {hasEvidence && evidenceStorageId ? (
+                                                                                            <button
+                                                                                                onClick={() => handleViewEvidence(
+                                                                                                    evidenceStorageId,
+                                                                                                    lesson.title,
+                                                                                                    evidenceType
+                                                                                                )}
+                                                                                                className="shrink-0 w-16 h-16 rounded-md border-2 border-green-300 overflow-hidden bg-green-50 hover:border-green-500 transition-colors flex items-center justify-center group"
+                                                                                            >
+                                                                                                {evidenceType === "image" ? (
+                                                                                                    <EvidencePreview storageId={evidenceStorageId} type="image" />
+                                                                                                ) : (
+                                                                                                    <div className="flex flex-col items-center justify-center gap-1">
+                                                                                                        <FileText className="h-6 w-6 text-green-700" />
+                                                                                                        <span className="text-[10px] text-green-700 font-medium">PDF</span>
+                                                                                                    </div>
+                                                                                                )}
+                                                                                            </button>
+                                                                                        ) : (
+                                                                                            <div className="shrink-0 w-16 h-16 rounded-md border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center">
+                                                                                                <div className="flex flex-col items-center justify-center gap-0.5">
+                                                                                                    <ImageIcon className="h-5 w-5 text-gray-400" />
+                                                                                                    <span className="text-[9px] text-gray-400 font-medium">No file</span>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        )}
+
+                                                                                        {/* Lesson Content */}
+                                                                                        <div className="flex-1 min-w-0 space-y-2">
+                                                                                            <div className="flex items-start gap-2">
+                                                                                                <span className="font-medium text-sm break-words">
+                                                                                                    {lesson.orderInQuarter}. {lesson.title}
+                                                                                                </span>
+                                                                                            </div>
+
+                                                                                            {/* View Details Button */}
+                                                                                            <span
+                                                                                                className="inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-7 px-2 cursor-pointer shrink-0"
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    router.push(`/${locale}/admin/lessons/${lesson.lessonId}`);
+                                                                                                }}
+                                                                                            >
+                                                                                                <ExternalLink className="h-3 w-3" />
+                                                                                                <span>View Details</span>
+                                                                                            </span>
+
+                                                                                            {lesson.description && (
+                                                                                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                                                                                    {lesson.description}
+                                                                                                </p>
+                                                                                            )}
+                                                                                        </div>
+
+                                                                                        {/* Status Badge */}
+                                                                                        <div className="flex items-center gap-2 shrink-0">
+                                                                                            <Badge
+                                                                                                variant={hasEvidence ? "default" : "secondary"}
+                                                                                                className="text-xs"
+                                                                                            >
+                                                                                                {lesson.progress?.status
+                                                                                                    ? getStatusText(lesson.progress.status)
+                                                                                                    : "Pending"}
+                                                                                            </Badge>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </CardContent>
+                                                                            </Card>
+                                                                        );
+                                                                    })
+                                                                )}
+                                                            </div>
+                                                        </TabsContent>
                                                     );
                                                 })}
-                                            </div>
-
-                                            {/* Lessons by Quarter */}
-                                            {[1, 2, 3, 4].slice(0, assignment.numberOfQuarters).map((quarterNum) => {
-                                                const quarterKey = `${assignment._id}-Q${quarterNum}`;
-                                                const isQuarterExpanded = expandedQuarter === quarterKey;
-                                                const quarterLessons = lessons.filter(
-                                                    (lesson) => lesson.quarter === quarterNum
-                                                );
-
-                                                if (!isQuarterExpanded) return null;
-
-                                                return (
-                                                    <div key={quarterNum} className="space-y-3 mt-4">
-                                                        <div className="flex items-center justify-between border-b pb-2">
-                                                            <h4 className="font-semibold text-sm">
-                                                                Quarter {quarterNum} - Lessons
-                                                            </h4>
-                                                        </div>
-
-                                                        <div className="space-y-2">
-                                                            {quarterLessons.map((lesson) => {
-                                                                const hasEvidence = !!lesson.progress?.evidencePhotoStorageId || !!lesson.progress?.evidenceDocumentStorageId;
-                                                                
-                                                                return (
-                                                                    <Card
-                                                                        key={lesson.lessonId}
-                                                                        className={`transition-all ${
-                                                                            hasEvidence
-                                                                                ? "border-green-200 bg-green-50/50"
-                                                                                : "border-gray-200"
-                                                                        }`}
-                                                                    >
-                                                                        <CardContent className="p-3 sm:p-4">
-                                                                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                                                                                <div className="flex-1 space-y-1 min-w-0">
-                                                                                    <div className="flex items-start gap-2">
-                                                                                        <span className="font-medium text-sm break-words">
-                                                                                            {lesson.orderInQuarter}. {lesson.title}
-                                                                                        </span>
-                                                                                        {hasEvidence && (
-                                                                                            <Badge
-                                                                                                variant="outline"
-                                                                                                className="bg-green-100 text-green-800 border-green-300 shrink-0"
-                                                                                            >
-                                                                                                Evidence Uploaded
-                                                                                            </Badge>
-                                                                                        )}
-                                                                                    </div>
-                                                                                    {lesson.description && (
-                                                                                        <p className="text-xs text-muted-foreground line-clamp-2">
-                                                                                            {lesson.description}
-                                                                                        </p>
-                                                                                    )}
-                                                                                </div>
-
-                                                                                <div className="flex items-center gap-2 shrink-0">
-                                                                                    <Badge
-                                                                                        variant={
-                                                                                            hasEvidence
-                                                                                                ? "default"
-                                                                                                : "secondary"
-                                                                                        }
-                                                                                        className="text-xs"
-                                                                                    >
-                                                                                        {lesson.progress?.status
-                                                                                            ? getStatusText(lesson.progress.status)
-                                                                                            : "Pending"}
-                                                                                    </Badge>
-                                                                                </div>
-                                                                            </div>
-                                                                        </CardContent>
-                                                                    </Card>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
+                                            </Tabs>
                                         </div>
                                     </CollapsibleContent>
                                 </Collapsible>
@@ -526,7 +660,90 @@ export function TeacherCurriculumsCard({
                     </div>
                 )}
             </CardContent>
+
+            {/* Evidence Modal */}
+            <Dialog open={evidenceModal.open} onOpenChange={(open) => setEvidenceModal(prev => ({ ...prev, open }))}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            {evidenceModal.type === "image" ? (
+                                <ImageIcon className="h-5 w-5" />
+                            ) : (
+                                <FileText className="h-5 w-5" />
+                            )}
+                            {evidenceModal.title}
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="mt-4">
+                        {evidenceModal.url && evidenceModal.type && (
+                            <EvidenceModalContent
+                                storageId={evidenceModal.url as any as Id<"_storage">}
+                                type={evidenceModal.type}
+                                title={evidenceModal.title}
+                            />
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </Card>
+    );
+}
+
+// Component to preview evidence thumbnail
+function EvidencePreview({ storageId, type }: { storageId: Id<"_storage">, type: "image" | "pdf" }) {
+    const url = useQuery(api.progress.getStorageUrl, { storageId });
+
+    if (!url) {
+        return <div className="w-full h-full bg-muted animate-pulse" />;
+    }
+
+    if (type === "image") {
+        return (
+            <Image
+                src={url}
+                alt="Evidence"
+                fill
+                className="object-cover"
+                sizes="64px"
+                unoptimized
+            />
+        );
+    }
+
+    return null;
+}
+
+// Component to show evidence in modal
+function EvidenceModalContent({ storageId, type, title }: { storageId: Id<"_storage">, type: "image" | "pdf", title: string }) {
+    const url = useQuery(api.progress.getStorageUrl, { storageId });
+
+    if (!url) {
+        return <div className="flex items-center justify-center h-96">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>;
+    }
+
+    if (type === "image") {
+        return (
+            <div className="relative w-full">
+                <Image
+                    src={url}
+                    alt={title}
+                    width={1200}
+                    height={800}
+                    className="w-full h-auto rounded-lg"
+                    unoptimized
+                />
+            </div>
+        );
+    }
+
+    return (
+        <iframe
+            src={url}
+            className="w-full h-[70vh] rounded-lg border"
+            title={title}
+        />
     );
 }
 
