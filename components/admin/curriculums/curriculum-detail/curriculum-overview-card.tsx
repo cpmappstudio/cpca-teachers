@@ -7,12 +7,17 @@ import { OverviewCard } from "@/components/ui/overview-card";
 import { Badge } from "@/components/ui/badge";
 import { Book, Hash, Calendar, FileText, Layers, MapPin, Users, GraduationCap } from "lucide-react";
 import { CurriculumLessonsCard } from "./curriculum-lessons-card";
+import { useRouter, useParams } from "next/navigation";
 
 interface CurriculumOverviewCardProps {
     curriculumId: string;
 }
 
 export function CurriculumOverviewCard({ curriculumId }: CurriculumOverviewCardProps) {
+    const router = useRouter();
+    const params = useParams();
+    const locale = params.locale as string;
+
     // Get curriculum data from Convex
     const curriculum = useQuery(
         api.curriculums.getCurriculum,
@@ -108,7 +113,12 @@ export function CurriculumOverviewCard({ curriculumId }: CurriculumOverviewCardP
                                     </div>
                                     <div className="flex flex-wrap gap-1.5 ml-5">
                                         {assignment.teachers.map((teacher: any) => (
-                                            <Badge key={teacher._id} variant="secondary" className="text-xs">
+                                            <Badge
+                                                key={teacher._id}
+                                                variant="secondary"
+                                                className="text-xs cursor-pointer hover:bg-secondary/80 transition-colors"
+                                                onClick={() => router.push(`/${locale}/admin/teachers/${teacher._id}`)}
+                                            >
                                                 {teacher.fullName}
                                             </Badge>
                                         ))}

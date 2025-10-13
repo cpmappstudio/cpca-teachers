@@ -197,7 +197,7 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                     {!assignmentLessonProgress && isExpanded && (
                       <p className="text-center text-muted-foreground py-4">Loading lessons...</p>
                     )}
-                    
+
                     {[1, 2, 3, 4].slice(0, assignment.numberOfQuarters).map((quarterNum) => {
                       const quarterKey = `${assignment._id}-Q${quarterNum}`;
                       if (expandedQuarter !== quarterKey) return null;
@@ -226,7 +226,7 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                   >
                                     <CardContent className="py-4 px-3 sm:px-4">
                                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                        <div 
+                                        <div
                                           className="flex items-start sm:items-center gap-2 sm:gap-4 flex-1 min-w-0"
                                         >
                                           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
@@ -238,25 +238,68 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                             </Badge>
                                           </div>
                                           <div className="flex-1 min-w-0">
-                                            <h4 className="font-medium text-sm sm:text-base text-foreground truncate">
-                                              {lessonData.title}
-                                            </h4>
-                                            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
-                                              {getStatusText(lessonData.progress?.status || "not_started")}
-                                            </p>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <h4 className="font-medium text-sm sm:text-base text-foreground truncate">
+                                                {lessonData.title}
+                                              </h4>
+                                              {lessonData.totalGrades > 1 && (
+                                                <Badge
+                                                  variant={lessonData.completionPercentage === 100 ? "default" : lessonData.completionPercentage > 0 ? "secondary" : "outline"}
+                                                  className="text-xs"
+                                                >
+                                                  {lessonData.completionPercentage}%
+                                                </Badge>
+                                              )}
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                              <p className="text-xs sm:text-sm text-muted-foreground">
+                                                {getStatusText(lessonData.overallStatus || lessonData.progress?.status || "not_started")}
+                                              </p>
+                                              {lessonData.totalGrades > 1 && lessonData.progressByGrade && lessonData.progressByGrade.length > 0 && (
+                                                <div className="flex items-center gap-1 flex-wrap">
+                                                  {lessonData.progressByGrade.map((gradeProgress: any, idx: number) => (
+                                                    <Badge
+                                                      key={idx}
+                                                      variant={gradeProgress.evidenceDocumentStorageId || gradeProgress.evidencePhotoStorageId ? "default" : "outline"}
+                                                      className="text-xs h-5 px-1.5"
+                                                    >
+                                                      {gradeProgress.gradeName || gradeProgress.gradeCode || `Grade ${idx + 1}`}
+                                                      {(gradeProgress.evidenceDocumentStorageId || gradeProgress.evidencePhotoStorageId) && " ✓"}
+                                                    </Badge>
+                                                  ))}
+                                                  {assignmentLessonProgress?.grades && assignmentLessonProgress.grades.length > lessonData.progressByGrade.length && (
+                                                    assignmentLessonProgress.grades
+                                                      .filter((g: any) => !lessonData.progressByGrade.find((p: any) => p.gradeCode === g.code))
+                                                      .map((grade: any) => (
+                                                        <Badge
+                                                          key={grade.code}
+                                                          variant="outline"
+                                                          className="text-xs h-5 px-1.5 opacity-60"
+                                                        >
+                                                          {grade.name}
+                                                        </Badge>
+                                                      ))
+                                                  )}
+                                                </div>
+                                              )}
+                                            </div>
                                           </div>
                                         </div>
                                         <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4 pl-9 sm:pl-0">
                                           <div className="flex items-center gap-1.5 sm:gap-2 text-muted-foreground">
                                             <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
                                             <span className="text-xs sm:text-sm font-medium whitespace-nowrap">
-                                              {lessonData.progress?.evidencePhotoStorageId || lessonData.progress?.evidenceDocumentStorageId ? 'Evidence uploaded' : 'No evidence'}
+                                              {lessonData.progressByGrade && lessonData.progressByGrade.length > 0
+                                                ? `${lessonData.progressByGrade.filter((p: any) => p.evidenceDocumentStorageId || p.evidencePhotoStorageId).length} evidence`
+                                                : lessonData.progress?.evidencePhotoStorageId || lessonData.progress?.evidenceDocumentStorageId
+                                                  ? 'Evidence uploaded'
+                                                  : 'No evidence'}
                                             </span>
                                           </div>
-                                          <TeacherDialog 
-                                            lesson={{ 
-                                              id: lessonData.lessonId, 
-                                              title: lessonData.title 
+                                          <TeacherDialog
+                                            lesson={{
+                                              id: lessonData.lessonId,
+                                              title: lessonData.title
                                             }}
                                             assignmentId={assignment._id}
                                             trigger={

@@ -82,29 +82,6 @@ export const createCurriculum = mutation({
       },
     });
 
-    // Create teacher_assignments for all assigned teachers
-    if (args.campusAssignments && args.campusAssignments.length > 0) {
-      const currentYear = new Date().getFullYear();
-      const academicYear = `${currentYear}-${currentYear + 1}`;
-
-      for (const campusAssignment of args.campusAssignments) {
-        for (const teacherId of campusAssignment.assignedTeachers) {
-          await ctx.db.insert("teacher_assignments", {
-            teacherId,
-            curriculumId,
-            campusId: campusAssignment.campusId,
-            academicYear,
-            assignmentType: "primary",
-            status: "active",
-            isActive: true,
-            startDate: Date.now(),
-            assignedAt: Date.now(),
-            assignedBy: args.createdBy,
-          });
-        }
-      }
-    }
-
     return curriculumId;
   },
 });
@@ -246,20 +223,8 @@ export const updateCurriculum = mutation({
             a => a.curriculumId === args.curriculumId
           );
 
-          if (!exists) {
-            await ctx.db.insert("teacher_assignments", {
-              teacherId: teacherId as any,
-              curriculumId: args.curriculumId,
-              campusId: campusId as any,
-              academicYear,
-              assignmentType: "primary",
-              status: "active",
-              isActive: true,
-              startDate: Date.now(),
-              assignedAt: Date.now(),
-              assignedBy: args.updatedBy,
-            });
-          }
+          // Note: Teacher assignments are now created separately through the UI
+          // where grade selection happens explicitly
         }
 
         // 6. Deactivate removed teacher_assignments
@@ -349,17 +314,6 @@ export const getCurriculumsByTeacher = query({
         const curriculum = await ctx.db.get(assignment.curriculumId);
         if (!curriculum) return null;
 
-        // Get grade info if gradeId exists
-        let gradeInfo = null;
-        if (assignment.gradeId) {
-          const grade = await ctx.db.get(assignment.gradeId);
-          gradeInfo = grade ? {
-            id: grade._id,
-            name: grade.name,
-            level: grade.level,
-          } : null;
-        }
-
         // Get total lessons count
         const lessons = await ctx.db
           .query("curriculum_lessons")
@@ -373,7 +327,6 @@ export const getCurriculumsByTeacher = query({
           assignmentId: assignment._id,
           assignmentType: assignment.assignmentType,
           assignmentStatus: assignment.status,
-          grade: gradeInfo,
           lessonsCount: lessons.length,
           quarters: curriculum.numberOfQuarters,
           progressSummary: assignment.progressSummary,
@@ -555,18 +508,8 @@ export const addTeacherToCurriculum = mutation({
             .first()
           : null;
 
-        await ctx.db.insert("teacher_assignments", {
-          teacherId: args.teacherId,
-          curriculumId: args.curriculumId,
-          campusId: args.campusId,
-          academicYear,
-          assignmentType: "primary",
-          status: "active",
-          isActive: true,
-          startDate: Date.now(),
-          assignedAt: Date.now(),
-          assignedBy: currentUser?._id || args.teacherId, // Fallback to teacherId if no current user
-        });
+        // Note: Teacher assignments are now created separately through
+        // createTeacherAssignment mutation where grade selection happens
       }
     }
 

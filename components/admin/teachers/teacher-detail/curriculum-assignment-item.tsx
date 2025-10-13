@@ -33,6 +33,13 @@ import {
     ChartContainer,
 } from "@/components/ui/chart";
 import Image from "next/image";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 
 // Type for assignment with progress
 type TeacherAssignmentWithProgress = {
@@ -56,12 +63,7 @@ type TeacherAssignmentWithProgress = {
     campusName: string;
 
     // Grade info
-    grade: {
-        id: Id<"grades">;
-        name: string;
-        level: number;
-        code: string;
-    } | null;
+    gradeNames: string[]; // Grade names from curriculum campus assignments
 
     // Real progress summary
     progressSummary: {
@@ -102,6 +104,10 @@ export function CurriculumAssignmentItem({
     const router = useRouter();
     const params = useParams();
     const locale = params.locale as string;
+
+    // Dialog state for viewing evidence
+    const [evidenceDialogOpen, setEvidenceDialogOpen] = React.useState(false);
+    const [selectedLesson, setSelectedLesson] = React.useState<any>(null);
 
     // Get detailed lesson progress when curriculum is expanded
     const assignmentLessonProgress = useQuery(
@@ -145,9 +151,26 @@ export function CurriculumAssignmentItem({
                             <CurriculumStatusBadge status={assignment.status} />
                         </div>
 
-                        {/* View Details button */}
+                        {/* Grades */}
+                        {assignment.gradeNames && assignment.gradeNames.length > 0 && (
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs text-muted-foreground">
+                                    Grades:
+                                </span>
+                                {assignment.gradeNames.map((gradeName, idx) => (
+                                    <Badge key={idx} variant="outline" className="text-xs">
+                                        {gradeName}
+                                    </Badge>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Right side - View Details button and Progress Stats */}
+                    <div className="flex flex-col items-end gap-2 shrink-0 ml-4">
+                        {/* View Details button - Top */}
                         <span
-                            className="inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-7 px-2 md:px-3 cursor-pointer shrink-0"
+                            className="inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-7 px-2 md:px-3 cursor-pointer shrink-0 border"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 router.push(`/${locale}/admin/curriculums/${assignment.curriculumId}`);
@@ -158,22 +181,15 @@ export function CurriculumAssignmentItem({
                             <span className="sm:hidden">Details</span>
                         </span>
 
-                        {/* Grade badge */}
-                        {assignment.grade && (
-                            <Badge className="bg-sky-500/15 text-sky-700 border border-sky-200 text-xs px-2 py-0.5 shrink-0">
-                                {assignment.grade.name}
-                            </Badge>
-                        )}
-                    </div>
-
-                    {/* Progress Stats - Right side */}
-                    <div className="flex flex-col items-end gap-1 text-xs text-right shrink-0 ml-4">
-                        <span className="text-muted-foreground whitespace-nowrap">
-                            {assignment.progressSummary.completedLessons}/{assignment.progressSummary.totalLessons} lessons
-                        </span>
-                        <span className="font-semibold text-primary whitespace-nowrap">
-                            {assignment.progressSummary.progressPercentage}% complete
-                        </span>
+                        {/* Progress Stats - Bottom (horizontal) */}
+                        <div className="flex items-center gap-2 text-xs">
+                            <span className="text-muted-foreground whitespace-nowrap">
+                                {assignment.progressSummary.completedLessons}/{assignment.progressSummary.totalLessons} lessons
+                            </span>
+                            <span className="font-semibold text-primary whitespace-nowrap">
+                                {assignment.progressSummary.progressPercentage}% complete
+                            </span>
+                        </div>
                     </div>
                 </div>
             </AccordionTrigger>
@@ -249,7 +265,20 @@ export function CurriculumAssignmentItem({
                                         </div>
                                     ) : (
                                         quarterLessons.map((lesson) => {
-                                            const hasEvidence = !!lesson.progress?.evidencePhotoStorageId || !!lesson.progress?.evidenceDocumentStorageId;
+                                            // Multi-grade support
+                                            const hasMultipleGrades = (lesson.totalGrades || 0) > 1;
+                                            const completionPercentage = lesson.completionPercentage || 0;
+                                            const progressByGrade = lesson.progressByGrade || [];
+
+                                            // Get grades that have evidence
+                                            const gradesWithEvidence = new Set(
+                                                progressByGrade
+                                                    .filter((p: any) => p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                                    .map((p: any) => p.gradeCode)
+                                            );
+
+                                            // Check if ANY grade has evidence (for multi-grade) or if main progress has evidence (for single-grade)
+                                            const hasEvidence = gradesWithEvidence.size > 0 || !!lesson.progress?.evidencePhotoStorageId || !!lesson.progress?.evidenceDocumentStorageId;
                                             const evidenceStorageId = lesson.progress?.evidencePhotoStorageId || lesson.progress?.evidenceDocumentStorageId;
                                             const evidenceType = lesson.progress?.evidencePhotoStorageId ? "image" : "pdf";
 
@@ -265,21 +294,25 @@ export function CurriculumAssignmentItem({
                                                         {/* Mobile Layout */}
                                                         <div className="flex gap-3 sm:hidden">
                                                             {/* Left: Evidence Preview */}
-                                                            {hasEvidence && evidenceStorageId ? (
+                                                            {hasEvidence ? (
                                                                 <button
-                                                                    onClick={() => onViewEvidence(
-                                                                        evidenceStorageId,
-                                                                        lesson.title,
-                                                                        evidenceType
-                                                                    )}
+                                                                    onClick={() => {
+                                                                        setSelectedLesson(lesson);
+                                                                        setEvidenceDialogOpen(true);
+                                                                    }}
                                                                     className="shrink-0 w-16 h-16 rounded-md border-2 border-green-300 overflow-hidden bg-green-50 hover:border-green-500 transition-colors flex items-center justify-center"
                                                                 >
-                                                                    {evidenceType === "image" ? (
+                                                                    {evidenceStorageId && evidenceType === "image" ? (
                                                                         <EvidencePreview storageId={evidenceStorageId} type="image" />
-                                                                    ) : (
+                                                                    ) : evidenceStorageId && evidenceType === "pdf" ? (
                                                                         <div className="flex flex-col items-center justify-center gap-1">
                                                                             <FileText className="h-6 w-6 text-green-700" />
                                                                             <span className="text-[10px] text-green-700 font-medium">PDF</span>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="flex flex-col items-center justify-center gap-1">
+                                                                            <FileText className="h-6 w-6 text-green-700" />
+                                                                            <span className="text-[10px] text-green-700 font-medium">View</span>
                                                                         </div>
                                                                     )}
                                                                 </button>
@@ -296,9 +329,39 @@ export function CurriculumAssignmentItem({
                                                             <div className="flex-1 min-w-0 flex flex-col justify-between">
                                                                 {/* Top: Title and Status */}
                                                                 <div className="flex items-start justify-between gap-2">
-                                                                    <span className="font-medium text-sm break-words flex-1">
-                                                                        {lesson.orderInQuarter}. {lesson.title}
-                                                                    </span>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                                            <span className="font-medium text-sm break-words">
+                                                                                {lesson.orderInQuarter}. {lesson.title}
+                                                                            </span>
+                                                                            {hasMultipleGrades && (
+                                                                                <Badge
+                                                                                    variant={completionPercentage === 100 ? "default" : completionPercentage > 0 ? "secondary" : "outline"}
+                                                                                    className="text-xs h-5"
+                                                                                >
+                                                                                    {completionPercentage}%
+                                                                                </Badge>
+                                                                            )}
+                                                                        </div>
+                                                                        {/* Grade badges for mobile */}
+                                                                        {hasMultipleGrades && assignment.gradeNames && assignment.gradeNames.length > 0 && (
+                                                                            <div className="flex items-center gap-1 flex-wrap mt-1">
+                                                                                {assignmentLessonProgress?.grades?.map((grade: any) => {
+                                                                                    const hasEvidence = gradesWithEvidence.has(grade.code);
+                                                                                    return (
+                                                                                        <Badge
+                                                                                            key={grade.code}
+                                                                                            variant={hasEvidence ? "default" : "outline"}
+                                                                                            className="text-[10px] h-4 px-1"
+                                                                                        >
+                                                                                            {grade.name}
+                                                                                            {hasEvidence && " ✓"}
+                                                                                        </Badge>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
                                                                     <Badge
                                                                         variant={hasEvidence ? "default" : "secondary"}
                                                                         className="text-xs shrink-0"
@@ -325,24 +388,28 @@ export function CurriculumAssignmentItem({
                                                             </div>
                                                         </div>
 
-                                                        {/* Desktop Layout (unchanged) */}
+                                                        {/* Desktop Layout */}
                                                         <div className="hidden sm:flex items-start gap-3">
                                                             {/* Evidence Preview Thumbnail */}
-                                                            {hasEvidence && evidenceStorageId ? (
+                                                            {hasEvidence ? (
                                                                 <button
-                                                                    onClick={() => onViewEvidence(
-                                                                        evidenceStorageId,
-                                                                        lesson.title,
-                                                                        evidenceType
-                                                                    )}
+                                                                    onClick={() => {
+                                                                        setSelectedLesson(lesson);
+                                                                        setEvidenceDialogOpen(true);
+                                                                    }}
                                                                     className="shrink-0 w-16 h-16 rounded-md border-2 border-green-300 overflow-hidden bg-green-50 hover:border-green-500 transition-colors flex items-center justify-center group"
                                                                 >
-                                                                    {evidenceType === "image" ? (
+                                                                    {evidenceStorageId && evidenceType === "image" ? (
                                                                         <EvidencePreview storageId={evidenceStorageId} type="image" />
-                                                                    ) : (
+                                                                    ) : evidenceStorageId && evidenceType === "pdf" ? (
                                                                         <div className="flex flex-col items-center justify-center gap-1">
                                                                             <FileText className="h-6 w-6 text-green-700" />
                                                                             <span className="text-[10px] text-green-700 font-medium">PDF</span>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="flex flex-col items-center justify-center gap-1">
+                                                                            <FileText className="h-6 w-6 text-green-700" />
+                                                                            <span className="text-[10px] text-green-700 font-medium">View</span>
                                                                         </div>
                                                                     )}
                                                                 </button>
@@ -357,11 +424,38 @@ export function CurriculumAssignmentItem({
 
                                                             {/* Lesson Content */}
                                                             <div className="flex-1 min-w-0 space-y-2">
-                                                                <div className="flex items-start gap-2">
+                                                                <div className="flex items-center gap-2 flex-wrap">
                                                                     <span className="font-medium text-sm break-words">
                                                                         {lesson.orderInQuarter}. {lesson.title}
                                                                     </span>
+                                                                    {hasMultipleGrades && (
+                                                                        <Badge
+                                                                            variant={completionPercentage === 100 ? "default" : completionPercentage > 0 ? "secondary" : "outline"}
+                                                                            className="text-xs"
+                                                                        >
+                                                                            {completionPercentage}%
+                                                                        </Badge>
+                                                                    )}
                                                                 </div>
+
+                                                                {/* Grade badges for desktop */}
+                                                                {hasMultipleGrades && assignment.gradeNames && assignment.gradeNames.length > 0 && (
+                                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                                        {assignmentLessonProgress?.grades?.map((grade: any) => {
+                                                                            const hasEvidence = gradesWithEvidence.has(grade.code);
+                                                                            return (
+                                                                                <Badge
+                                                                                    key={grade.code}
+                                                                                    variant={hasEvidence ? "default" : "outline"}
+                                                                                    className="text-xs h-5 px-2"
+                                                                                >
+                                                                                    {grade.name}
+                                                                                    {hasEvidence && " ✓"}
+                                                                                </Badge>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                )}
 
                                                                 {/* View Details Button */}
                                                                 <span
@@ -405,7 +499,88 @@ export function CurriculumAssignmentItem({
                     })}
                 </Tabs>
             </AccordionContent>
+
+            {/* Evidence Dialog with Tabs */}
+            <Dialog open={evidenceDialogOpen} onOpenChange={setEvidenceDialogOpen}>
+                <DialogContent className="max-w-4xl max-h-[95vh] p-0 gap-0">
+                    <DialogTitle className="sr-only">
+                        {selectedLesson?.title || "Lesson Evidence"}
+                    </DialogTitle>
+                    {selectedLesson?.progressByGrade && selectedLesson.progressByGrade.length > 0 && (
+                        <Tabs defaultValue={selectedLesson.progressByGrade[0]?.gradeCode || "0"} className="w-full h-full">
+                            <TabsList className="w-full rounded-none border-b">
+                                {selectedLesson.progressByGrade
+                                    .filter((p: any) => p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                    .map((gradeProgress: any) => (
+                                        <TabsTrigger
+                                            key={gradeProgress.gradeCode}
+                                            value={gradeProgress.gradeCode}
+                                            className="flex-1"
+                                        >
+                                            {gradeProgress.gradeName || gradeProgress.gradeCode}
+                                        </TabsTrigger>
+                                    ))
+                                }
+                            </TabsList>
+                            {selectedLesson.progressByGrade
+                                .filter((p: any) => p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                .map((gradeProgress: any) => {
+                                    const evidenceId = gradeProgress.evidenceDocumentStorageId || gradeProgress.evidencePhotoStorageId;
+                                    const evidenceType = gradeProgress.evidencePhotoStorageId ? "image" : "pdf";
+
+                                    return (
+                                        <TabsContent key={gradeProgress.gradeCode} value={gradeProgress.gradeCode} className="m-0 p-4">
+                                            <EvidenceViewer
+                                                storageId={evidenceId}
+                                                type={evidenceType}
+                                                title={`${gradeProgress.gradeName || gradeProgress.gradeCode} Evidence`}
+                                            />
+                                        </TabsContent>
+                                    );
+                                })
+                            }
+                        </Tabs>
+                    )}
+                </DialogContent>
+            </Dialog>
         </AccordionItem>
+    );
+}
+
+// Component to view evidence in full size
+function EvidenceViewer({ storageId, type, title }: { storageId: Id<"_storage">, type: "image" | "pdf", title: string }) {
+    const url = useQuery(api.progress.getStorageUrl, { storageId });
+
+    if (!url) {
+        return <div className="w-full h-96 bg-muted animate-pulse rounded-lg" />;
+    }
+
+    if (type === "image") {
+        return (
+            <div className="w-full">
+                <div className="relative w-full" style={{ height: 'calc(90vh - 100px)' }}>
+                    <Image
+                        src={url}
+                        alt={title}
+                        fill
+                        className="object-contain"
+                        unoptimized
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    // PDF viewer
+    return (
+        <div className="w-full">
+            <iframe
+                src={url}
+                className="w-full border-0"
+                style={{ height: 'calc(90vh - 100px)' }}
+                title={title}
+            />
+        </div>
     );
 }
 

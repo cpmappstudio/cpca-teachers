@@ -73,12 +73,7 @@ type TeacherAssignmentWithProgress = {
     campusName: string;
 
     // Grade info
-    grade: {
-        id: Id<"grades">;
-        name: string;
-        level: number;
-        code: string;
-    } | null;
+    gradeNames: string[]; // Grade names from curriculum campus assignments
 
     // Real progress summary (from lesson_progress table)
     progressSummary: {
@@ -181,7 +176,7 @@ export function TeacherCurriculumsCard({
             }
 
             // Grade filter
-            if (gradeFilter !== "all" && assignment.grade?.name !== gradeFilter) {
+            if (gradeFilter !== "all" && !assignment.gradeNames?.includes(gradeFilter)) {
                 return false;
             }
 
@@ -268,10 +263,10 @@ export function TeacherCurriculumsCard({
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="all">All Grades</SelectItem>
-                                                {Array.from(new Set(data.map(c => c.grade?.name).filter(Boolean)))
+                                                {Array.from(new Set(data.flatMap(c => c.gradeNames || []))).filter(Boolean)
                                                     .sort()
                                                     .map((gradeName) => (
-                                                        <SelectItem key={gradeName} value={gradeName!}>
+                                                        <SelectItem key={gradeName} value={gradeName}>
                                                             {gradeName}
                                                         </SelectItem>
                                                     ))}

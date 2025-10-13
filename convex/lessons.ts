@@ -81,6 +81,7 @@ export const getLesson = query({
 
 /**
  * Get lesson progress for a specific teacher and lesson
+ * Returns all progress records (one per grade for multi-grade curriculums)
  */
 export const getLessonProgress = query({
   args: {
@@ -88,14 +89,15 @@ export const getLessonProgress = query({
     teacherId: v.id("users"),
   },
   handler: async (ctx, args) => {
-    const progress = await ctx.db
+    // Get all progress records for this lesson (across all grades)
+    const progressRecords = await ctx.db
       .query("lesson_progress")
       .withIndex("by_teacher_lesson", (q) =>
         q.eq("teacherId", args.teacherId).eq("lessonId", args.lessonId)
       )
-      .first();
+      .collect();
 
-    return progress;
+    return progressRecords;
   },
 });
 
@@ -390,10 +392,10 @@ export const getLessonsWithCurriculum = query({
           ...lesson,
           curriculum: curriculum
             ? {
-                _id: curriculum._id,
-                name: curriculum.name,
-                code: curriculum.code,
-              }
+              _id: curriculum._id,
+              name: curriculum.name,
+              code: curriculum.code,
+            }
             : null,
         };
       })
@@ -421,6 +423,7 @@ export const saveLessonEvidence = mutation({
     storageId: v.id("_storage"),
     teacherId: v.id("users"),
     assignmentId: v.id("teacher_assignments"),
+    gradeCode: v.optional(v.string()), // Grade code (e.g., "PK1", "K1") for multi-grade support
   },
   handler: async (ctx, args) => {
     // Get the assignment to get curriculum and campus info
@@ -436,12 +439,26 @@ export const saveLessonEvidence = mutation({
     }
 
     // Check if progress record already exists
-    const existingProgress = await ctx.db
-      .query("lesson_progress")
-      .withIndex("by_teacher_lesson", (q) =>
-        q.eq("teacherId", args.teacherId).eq("lessonId", args.lessonId)
-      )
-      .first();
+    // Use appropriate index based on whether gradeCode is provided
+    let existingProgress;
+    if (args.gradeCode) {
+      existingProgress = await ctx.db
+        .query("lesson_progress")
+        .withIndex("by_teacher_lesson_grade", (q) =>
+          q.eq("teacherId", args.teacherId)
+            .eq("lessonId", args.lessonId)
+            .eq("gradeCode", args.gradeCode)
+        )
+        .first();
+    } else {
+      existingProgress = await ctx.db
+        .query("lesson_progress")
+        .withIndex("by_teacher_lesson", (q) =>
+          q.eq("teacherId", args.teacherId).eq("lessonId", args.lessonId)
+        )
+        .filter(q => q.eq(q.field("gradeCode"), undefined))
+        .first();
+    }
 
     if (existingProgress) {
       // Update existing progress
@@ -461,6 +478,7 @@ export const saveLessonEvidence = mutation({
         assignmentId: args.assignmentId,
         curriculumId: assignment.curriculumId,
         campusId: assignment.campusId,
+        gradeCode: args.gradeCode, // Store gradeCode if provided
         quarter: lesson.quarter,
         status: "completed",
         evidenceDocumentStorageId: args.storageId,

@@ -170,40 +170,6 @@ export default defineSchema({
     .index("by_director", ["directorId"]),
 
   /**
-   * Grades table
-   * Academic levels/grades in the school system
-   */
-  grades: defineTable({
-    name: v.string(), // "1st Grade", "2nd Grade", etc.
-    code: v.string(), // "G1", "G2", etc.
-    level: v.number(), // Numeric level for ordering (1, 2, 3...)
-
-    // Category
-    category: v.optional(v.union(
-      v.literal("elementary"),
-      v.literal("middle"),
-      v.literal("high")
-    )),
-
-    description: v.optional(v.string()),
-
-    // Display order
-    displayOrder: v.number(),
-
-    // Status
-    isActive: v.boolean(),
-
-    // Timestamps
-    createdAt: v.number(),
-    createdBy: v.id("users"),
-    updatedAt: v.optional(v.number()),
-  })
-    .index("by_active", ["isActive"])
-    .index("by_level_active", ["level", "isActive"])
-    .index("by_display_order", ["displayOrder"])
-    .index("by_category", ["category", "isActive"]),
-
-  /**
    * Curriculums table
    * Course/subject definitions that can span multiple grades
    */
@@ -259,28 +225,6 @@ export default defineSchema({
     .index("by_created", ["createdAt"]),
 
   /**
-   * Curriculum-Grade relationship (many-to-many)
-   * Links curriculums to the grades they're taught in
-   */
-  curriculum_grades: defineTable({
-    curriculumId: v.id("curriculums"),
-    gradeId: v.id("grades"),
-
-    // Override settings per grade if needed
-    isRequired: v.boolean(),
-
-    // Status
-    isActive: v.boolean(),
-
-    // Timestamps
-    createdAt: v.number(),
-    createdBy: v.id("users"),
-  })
-    .index("by_curriculum", ["curriculumId", "isActive"])
-    .index("by_grade", ["gradeId", "isActive"])
-    .index("by_curriculum_grade", ["curriculumId", "gradeId"]),
-
-  /**
    * Curriculum lessons table
    * Template lessons that belong to a curriculum
    */
@@ -333,9 +277,6 @@ export default defineSchema({
     teacherId: v.id("users"),
     curriculumId: v.id("curriculums"),
     campusId: v.id("campuses"),
-
-    // Grade specification (which grade is this teacher teaching this curriculum for)
-    gradeId: v.optional(v.id("grades")),
 
     // Academic period
     academicYear: v.string(), // "2025-2026"
@@ -394,6 +335,12 @@ export default defineSchema({
     campusId: v.id("campuses"),
     quarter: v.number(),
 
+    // Grade tracking (for multi-grade support)
+    // When a curriculum is taught to multiple grade sections,
+    // each grade section needs separate progress tracking
+    // Stores the grade code (e.g., "PK1", "K1") from campus.grades
+    gradeCode: v.optional(v.string()),
+
     // Completion tracking
     status: v.union(
       v.literal("not_started"),
@@ -436,6 +383,7 @@ export default defineSchema({
     lastModifiedBy: v.optional(v.id("users")),
   })
     .index("by_teacher_lesson", ["teacherId", "lessonId"])
+    .index("by_teacher_lesson_grade", ["teacherId", "lessonId", "gradeCode"]) // For multi-grade progress queries
     .index("by_assignment_status", ["assignmentId", "status"])
     .index("by_curriculum_teacher", ["curriculumId", "teacherId", "quarter"])
     .index("by_campus_date", ["campusId", "completedAt"])
