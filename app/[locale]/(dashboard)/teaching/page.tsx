@@ -34,12 +34,23 @@ import {
 function LessonsTable({ teacherId }: { teacherId: string }) {
   const [expandedCurriculum, setExpandedCurriculum] = useState<string | null>(null);
   const [expandedQuarter, setExpandedQuarter] = useState<string | null>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   // Obtener progreso detallado del profesor
   const assignmentsWithProgress = useQuery(
     api.progress.getTeacherAssignmentsWithProgress,
     { teacherId: teacherId as Id<"users">, isActive: true }
   );
+
+  // Expandir el primer curriculum y primer quarter por defecto
+  React.useEffect(() => {
+    if (!hasInitialized && assignmentsWithProgress && assignmentsWithProgress.length > 0) {
+      const firstAssignment = assignmentsWithProgress[0];
+      setExpandedCurriculum(firstAssignment._id);
+      setExpandedQuarter(`${firstAssignment._id}-Q1`);
+      setHasInitialized(true);
+    }
+  }, [assignmentsWithProgress, hasInitialized]);
 
   // Obtener lecciones detalladas cuando se expande un currículum
   const selectedAssignment = assignmentsWithProgress?.find(a => a._id === expandedCurriculum);
@@ -162,7 +173,10 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                         return (
                           <Card
                             key={quarterNum}
-                            className="cursor-pointer border-border/60 bg-card shadow-sm hover:shadow-md transition-all"
+                            className={`cursor-pointer border-border/60 shadow-sm hover:shadow-md transition-all ${isQuarterExpanded
+                                ? "bg-deep-koamaru text-white border-deep-koamaru"
+                                : "bg-card hover:bg-accent/50"
+                              }`}
                             onClick={() =>
                               setExpandedQuarter(
                                 isQuarterExpanded ? null : quarterKey,
@@ -177,9 +191,15 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                               </div>
                               <Progress
                                 value={quarterProgress}
-                                className={`bg-gray-200 [&>div]:bg-deep-koamaru mb-1 sm:mb-2 ${quarterProgress === 100 ? "[&>div]:bg-green-700" : ""}`}
+                                className={`mb-1 sm:mb-2 ${isQuarterExpanded
+                                    ? "bg-white/20 [&>div]:bg-white"
+                                    : quarterProgress === 100
+                                      ? "bg-gray-200 [&>div]:bg-green-700"
+                                      : "bg-gray-200 [&>div]:bg-deep-koamaru"
+                                  }`}
                               />
-                              <CardDescription className="text-center text-[10px] sm:text-xs text-muted-foreground">
+                              <CardDescription className={`text-center text-[10px] sm:text-xs ${isQuarterExpanded ? "text-white/90" : "text-muted-foreground"
+                                }`}>
                                 {quarterData.total} lessons
                               </CardDescription>
                             </CardHeader>

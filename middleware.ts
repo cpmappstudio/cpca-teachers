@@ -13,6 +13,9 @@ const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/:locale/pending-role',
   '/pending-role',
+])
+
+const isRootRoute = createRouteMatcher([
   '/:locale',
   '/',
 ])
@@ -27,8 +30,52 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
 
   const locale = getLocaleFromPathname(pathname)
 
+  // Manejar rutas públicas (sin autenticación)
   if (isPublicRoute(req)) {
     return intlMiddleware(req)
+  }
+
+  // Manejar rutas root (requieren autenticación)
+  if (isRootRoute(req)) {
+    try {
+      const authObject = await auth()
+
+      if (!authObject.userId) {
+        const signInUrl = new URL(`/${locale}/sign-in`, req.url)
+        return NextResponse.redirect(signInUrl)
+      }
+
+      // Obtener rol del usuario
+      const userRole = roleFromSessionClaims(authObject.sessionClaims)
+
+      // Si no tiene rol, redirigir a página de espera
+      if (!userRole) {
+        const pendingUrl = new URL(`/${locale}/pending-role`, req.url)
+        return NextResponse.redirect(pendingUrl)
+      }
+
+      // Redirigir según el rol
+      let targetPath = ''
+
+      if (userRole === 'teacher') {
+        targetPath = `/${locale}/teaching`
+      } else if (userRole === 'admin' || userRole === 'superadmin') {
+        targetPath = `/${locale}/admin`
+      }
+
+      if (targetPath) {
+        const redirectUrl = new URL(targetPath, req.url)
+        return NextResponse.redirect(redirectUrl)
+      }
+
+      // Fallback: continuar con intl
+      return intlMiddleware(req)
+    } catch (error) {
+      console.error('[Middleware] Root route error:', error)
+      const errorUrl = new URL(`/${locale}/sign-in`, req.url)
+      errorUrl.searchParams.set('error', 'auth_error')
+      return NextResponse.redirect(errorUrl)
+    }
   }
 
   try {
@@ -61,8 +108,18 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     const accessResult = checkRoleAccess(req, userRole)
 
     if (accessResult === 'denied') {
-      // Si el acceso está denegado, redirigir a dashboard principal
-      const dashboardUrl = new URL(`/${locale}`, req.url)
+      // Si el acceso está denegado, redirigir según el rol del usuario
+      let dashboardPath = ''
+
+      if (userRole === 'teacher') {
+        dashboardPath = `/${locale}/teaching`
+      } else if (userRole === 'admin' || userRole === 'superadmin') {
+        dashboardPath = `/${locale}/admin`
+      } else {
+        dashboardPath = `/${locale}`
+      }
+
+      const dashboardUrl = new URL(dashboardPath, req.url)
       return NextResponse.redirect(dashboardUrl)
     }
 
