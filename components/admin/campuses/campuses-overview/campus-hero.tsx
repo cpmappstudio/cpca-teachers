@@ -18,7 +18,7 @@ interface CampusHeroProps {
     campusImageStorageId?: Id<"_storage">;
 }
 
-interface CampusHeroSmallProps extends CampusHeroProps { }
+type CampusHeroSmallProps = CampusHeroProps;
 
 export function CampusHero({ hero, name, campusImageStorageId }: CampusHeroProps) {
     // Get image URL from Convex storage if storageId is provided

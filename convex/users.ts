@@ -430,7 +430,6 @@ export const updateUserWithClerk = action({
 
     // Don't sync if user has temporary Clerk ID
     if (user.clerkId.startsWith("temp_")) {
-      console.log("User has temporary Clerk ID, skipping Clerk sync");
       // Just update in Convex
       await ctx.runMutation(api.users.updateUser, { userId: args.userId, updates: args.updates });
       return;
@@ -485,7 +484,6 @@ export const updateUserWithClerk = action({
 
       // Update basic fields in Clerk if there are changes
       if (Object.keys(clerkUpdates).length > 0) {
-        console.log("Updating user in Clerk:", { userId: user.clerkId, updates: clerkUpdates });
         const clerkResponse = await fetch(`https://api.clerk.com/v1/users/${user.clerkId}`, {
           method: "PATCH",
           headers: {
@@ -501,7 +499,6 @@ export const updateUserWithClerk = action({
           throw new Error(`Failed to update user in Clerk: ${errorData.errors?.[0]?.message || "Unknown error"}`);
         }
 
-        console.log("✅ User updated in Clerk successfully");
       }
 
       // Update profile image in Clerk if changed or deleted
@@ -519,11 +516,6 @@ export const updateUserWithClerk = action({
               }
             );
 
-            if (deleteImageResponse.ok) {
-              console.log("✅ Profile image deleted from Clerk successfully");
-            } else {
-              console.warn("⚠️ Failed to delete profile image from Clerk (might not exist)");
-            }
           } catch (imageError) {
             console.error("Error deleting image from Clerk:", imageError);
             // No lanzar error - continuar con la actualización
@@ -532,15 +524,12 @@ export const updateUserWithClerk = action({
           // Upload new image to Clerk
           try {
             const imageUrl = await ctx.storage.getUrl(args.updates.avatarStorageId);
-            console.log("Updating avatar - Storage ID:", args.updates.avatarStorageId);
-            console.log("Updating avatar - Generated URL:", imageUrl);
+
 
             if (imageUrl) {
               // Download the image from Convex storage
               const imageResponse = await fetch(imageUrl);
               const imageBlob = await imageResponse.blob();
-
-              console.log("Downloaded image blob, size:", imageBlob.size, "type:", imageBlob.type);
 
               // Upload to Clerk using multipart/form-data
               const formData = new FormData();
@@ -556,15 +545,6 @@ export const updateUserWithClerk = action({
                   body: formData,
                 }
               );
-
-              if (uploadImageResponse.ok) {
-                const updatedUser = await uploadImageResponse.json();
-                console.log("✅ Profile image updated in Clerk successfully");
-                console.log("Clerk image_url:", updatedUser.image_url);
-              } else {
-                const errorData = await uploadImageResponse.json();
-                console.error("❌ Failed to update profile image in Clerk:", errorData);
-              }
             }
           } catch (imageError) {
             console.error("Error updating image in Clerk:", imageError);
@@ -861,7 +841,6 @@ export const upsertFromClerk = internalMutation({
     if (existingUser) {
       // Update existing user
       await ctx.db.patch(existingUser._id, userData);
-      console.log(`✅ Updated user from Clerk webhook: ${data.id}`, { email, firstName, lastName, role });
     } else {
       // Create new user
       await ctx.db.insert("users", {
@@ -869,7 +848,6 @@ export const upsertFromClerk = internalMutation({
         isActive: true,
         createdAt: Date.now(),
       });
-      console.log(`✅ Created new user from Clerk webhook: ${data.id}`, { email, firstName, lastName, role, campusId });
     }
   },
 });
@@ -895,11 +873,62 @@ export const deleteFromClerk = internalMutation({
 
       // Delete the user
       await ctx.db.delete(user._id);
-      console.log(`✅ Deleted user from Clerk webhook: ${clerkUserId}`);
     } else {
       console.warn(
         `⚠️ Can't delete user, there is none for Clerk user ID: ${clerkUserId}`
       );
+    }
+  },
+});
+
+/**
+ * Delete user from both Clerk and Convex
+ * This action deletes the user from Clerk, which triggers the webhook to delete from Convex
+ */
+export const deleteUserWithClerk = action({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+
+    if (!clerkSecretKey) {
+      throw new Error("CLERK_SECRET_KEY not configured in environment variables");
+    }
+
+    // Get the user to find their Clerk ID
+    const user = await ctx.runQuery(api.users.getUser, { userId: args.userId });
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Don't try to delete from Clerk if user has temporary Clerk ID
+    if (user.clerkId.startsWith("temp_")) {
+      // Just delete from Convex directly
+      await ctx.runMutation(api.users.deleteUser, { userId: args.userId });
+      return;
+    }
+
+    try {
+      // Delete user from Clerk
+      const clerkResponse = await fetch(`https://api.clerk.com/v1/users/${user.clerkId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${clerkSecretKey}`,
+        },
+      });
+
+      if (!clerkResponse.ok) {
+        const errorData = await clerkResponse.json();
+        console.error("Failed to delete user from Clerk:", errorData);
+        throw new Error(`Failed to delete user from Clerk: ${errorData.errors?.[0]?.message || "Unknown error"}`);
+      }
+
+      // Note: The Clerk webhook will automatically delete the user from Convex
+      // via the deleteFromClerk internal mutation
+
+    } catch (error) {
+      console.error("Error deleting user with Clerk:", error);
+      throw error;
     }
   },
 });
@@ -967,7 +996,6 @@ export const createTeacherWithClerk = action({
       }
 
       const clerkUser = await clerkResponse.json();
-      console.log("Created user in Clerk:", clerkUser.id);
 
       // Step 2: Upload profile image to Clerk if provided
       if (args.avatarStorageId) {
@@ -975,15 +1003,10 @@ export const createTeacherWithClerk = action({
           // Get the image URL from Convex storage
           const imageUrl = await ctx.storage.getUrl(args.avatarStorageId);
 
-          console.log("Avatar storage ID:", args.avatarStorageId);
-          console.log("Generated image URL:", imageUrl);
-
           if (imageUrl) {
             // Download the image from Convex storage
             const imageResponse = await fetch(imageUrl);
             const imageBlob = await imageResponse.blob();
-
-            console.log("Downloaded image blob, size:", imageBlob.size, "type:", imageBlob.type);
 
             // Upload to Clerk using multipart/form-data
             const formData = new FormData();
@@ -1000,14 +1023,6 @@ export const createTeacherWithClerk = action({
               }
             );
 
-            if (uploadImageResponse.ok) {
-              const updatedUser = await uploadImageResponse.json();
-              console.log("Profile image uploaded to Clerk successfully");
-              console.log("Clerk image_url:", updatedUser.image_url);
-            } else {
-              const errorData = await uploadImageResponse.json();
-              console.error("Failed to upload profile image to Clerk:", errorData);
-            }
           } else {
             console.warn("Could not generate URL for avatar storage ID:", args.avatarStorageId);
           }

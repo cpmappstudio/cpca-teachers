@@ -51,10 +51,6 @@ export const syncUserRoleWithClerk = mutation({
             throw new Error("Usuario no encontrado");
         }
 
-        // Aquí deberías usar la API de Clerk para actualizar los metadata
-        // Por ahora, solo retornamos la información del usuario
-        console.log(`Usuario ${user.email} tiene rol: ${user.role}`);
-
         return {
             clerkId: user.clerkId,
             role: user.role,
@@ -85,7 +81,6 @@ export const handleClerkWebhook = mutation({
                     .first();
 
                 if (existingUser) {
-                    console.log(`Usuario ${args.email} ya existe en Convex`);
                     return existingUser._id;
                 }
 
@@ -124,7 +119,6 @@ export const handleClerkWebhook = mutation({
                 return userToUpdate?._id;
 
             default:
-                console.log(`Evento no manejado: ${args.eventType}`);
                 return null;
         }
     },

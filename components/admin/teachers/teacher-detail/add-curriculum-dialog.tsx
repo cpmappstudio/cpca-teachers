@@ -1,7 +1,6 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -11,11 +10,11 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import { Plus, ChevronDown, BookOpen, FileText, X, ListCheck } from "lucide-react"
+import { ChevronDown, BookOpen, FileText, X, ListCheck } from "lucide-react"
 import { useState, useEffect } from "react"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import type { Id, Doc } from "@/convex/_generated/dataModel"
+import type { Id } from "@/convex/_generated/dataModel"
 import { EntityDialog } from "@/components/ui/entity-dialog"
 import { toast } from "sonner"
 import { CurriculumDialog } from "@/components/admin/curriculums/curriculum-dialog"
@@ -130,7 +129,7 @@ export function AddCurriculumDialog({ teacherId }: AddCurriculumDialogProps) {
 
             // Actualizar los IDs iniciales
             setInitialCurriculumIds(selectedCurriculumIds)
-        } catch (error) {
+        } catch {
             toast.error("Error updating curriculums", {
                 description: "There was a problem updating the curriculums. Please try again."
             })
@@ -233,10 +232,10 @@ export function AddCurriculumDialog({ teacherId }: AddCurriculumDialogProps) {
                 )}
                 {/* Create New Curriculum Option */}
                 <div className="space-y-4">
-                    <h4 className="text-sm font-medium border-b pb-2">Don't see the curriculum you need?</h4>
+                    <h4 className="text-sm font-medium border-b pb-2">Don&apos;t see the curriculum you need?</h4>
                     <div className="flex flex-col gap-3">
                         <p className="text-sm text-muted-foreground">
-                            If the curriculum you want to assign isn't in the system yet, you can create a new curriculum.
+                            If the curriculum you want to assign isn&apos;t in the system yet, you can create a new curriculum.
                         </p>
                         <CurriculumDialog
                             trigger={

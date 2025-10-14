@@ -224,6 +224,66 @@ export const createLesson = mutation({
       createdBy: args.createdBy,
     });
 
+    // Create lesson_progress records for all existing teacher_assignments
+    // for this curriculum
+    const teacherAssignments = await ctx.db
+      .query("teacher_assignments")
+      .withIndex("by_curriculum", (q) =>
+        q.eq("curriculumId", args.curriculumId).eq("isActive", true)
+      )
+      .collect();
+
+    const now = Date.now();
+
+    for (const assignment of teacherAssignments) {
+      // Get the campus assignment to find gradeCodes
+      const campusAssignment = curriculum.campusAssignments?.find(
+        ca => ca.campusId === assignment.campusId
+      );
+      const gradeCodes = campusAssignment?.gradeCodes || [];
+
+      if (gradeCodes.length > 0) {
+        // Multi-grade: create one progress record per grade
+        for (const gradeCode of gradeCodes) {
+          await ctx.db.insert("lesson_progress", {
+            teacherId: assignment.teacherId,
+            lessonId,
+            assignmentId: assignment._id,
+            curriculumId: args.curriculumId,
+            campusId: assignment.campusId,
+            quarter: args.quarter,
+            gradeCode,
+            status: "not_started",
+            isVerified: false,
+            createdAt: now,
+          });
+        }
+      } else {
+        // No grades specified: create single progress record without gradeCode
+        await ctx.db.insert("lesson_progress", {
+          teacherId: assignment.teacherId,
+          lessonId,
+          assignmentId: assignment._id,
+          curriculumId: args.curriculumId,
+          campusId: assignment.campusId,
+          quarter: args.quarter,
+          status: "not_started",
+          isVerified: false,
+          createdAt: now,
+        });
+      }
+
+      // Update the assignment's progressSummary
+      await ctx.db.patch(assignment._id, {
+        progressSummary: {
+          totalLessons: (assignment.progressSummary?.totalLessons || 0) + 1,
+          completedLessons: assignment.progressSummary?.completedLessons || 0,
+          progressPercentage: assignment.progressSummary?.progressPercentage || 0,
+          lastUpdated: now,
+        },
+      });
+    }
+
     return lessonId;
   },
 });
@@ -315,6 +375,43 @@ export const updateLesson = mutation({
 export const deleteLesson = mutation({
   args: { lessonId: v.id("curriculum_lessons") },
   handler: async (ctx, args) => {
+    // Get the lesson first to know which curriculum it belongs to
+    const lesson = await ctx.db.get(args.lessonId);
+    if (!lesson) {
+      throw new Error("Lesson not found");
+    }
+
+    // Get all teacher_assignments for this curriculum
+    const teacherAssignments = await ctx.db
+      .query("teacher_assignments")
+      .withIndex("by_curriculum", (q) =>
+        q.eq("curriculumId", lesson.curriculumId).eq("isActive", true)
+      )
+      .collect();
+
+    const now = Date.now();
+
+    // Update each teacher_assignment to decrement totalLessons
+    for (const assignment of teacherAssignments) {
+      const newTotalLessons = Math.max(
+        (assignment.progressSummary?.totalLessons || 0) - 1,
+        0
+      );
+
+      await ctx.db.patch(assignment._id, {
+        progressSummary: {
+          totalLessons: newTotalLessons,
+          completedLessons: assignment.progressSummary?.completedLessons || 0,
+          progressPercentage: assignment.progressSummary?.progressPercentage || 0,
+          lastUpdated: now,
+        },
+      });
+    }
+
+    // Note: We don't delete lesson_progress records, they become orphaned
+    // but preserved for historical data. The UI should handle this gracefully.
+
+    // Delete the lesson
     await ctx.db.delete(args.lessonId);
   },
 });

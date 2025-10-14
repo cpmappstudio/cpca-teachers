@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, Trash2, X, ChevronDown, User, GraduationCap } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { EntityDialog } from "@/components/ui/entity-dialog";
 import { useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
@@ -175,7 +175,14 @@ export function CurriculumDialog({
           return;
         }
 
-        const updates: any = {};
+        const updates: {
+          name?: string;
+          code?: string;
+          description?: string;
+          numberOfQuarters?: number;
+          status?: "draft" | "active" | "archived" | "deprecated";
+          campusAssignments?: { campusId: Id<"campuses">; assignedTeachers: Id<"users">[]; gradeCodes: string[]; }[] | null;
+        } = {};
 
         if (name.trim() !== curriculum.name) {
           updates.name = name.trim();
@@ -268,7 +275,15 @@ export function CurriculumDialog({
           return;
         }
       } else {
-        const curriculumData: any = {
+        const curriculumData: {
+          name: string;
+          numberOfQuarters: number;
+          status: "draft" | "active" | "archived" | "deprecated";
+          createdBy: Id<"users">;
+          code?: string;
+          description?: string;
+          campusAssignments?: { campusId: Id<"campuses">; assignedTeachers: Id<"users">[]; gradeCodes: string[]; }[];
+        } = {
           name: name.trim(),
           numberOfQuarters: numberOfQuarters ? parseInt(numberOfQuarters) : 4,
           status: selectedStatus as "draft" | "active" | "archived" | "deprecated",

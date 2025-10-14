@@ -2,7 +2,7 @@
 
 import { OverviewCard } from "@/components/ui/overview-card"
 import { Badge } from "@/components/ui/badge"
-import { BookOpen, Hash, Clock, Layers, ListChecks, Target } from "lucide-react"
+import { BookOpen, Hash, Clock, Layers, Target } from "lucide-react"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"

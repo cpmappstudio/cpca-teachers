@@ -92,7 +92,7 @@ export function CurriculumOverviewCard({ curriculumId }: CurriculumOverviewCardP
             label: "Campus Assignments",
             value: (
                 <div className="space-y-3 w-full">
-                    {campusAssignmentsDetails.map((assignment, index) => (
+                    {campusAssignmentsDetails.map((assignment) => (
                         <div key={assignment.campusId} className="border rounded-lg p-3 bg-muted/30">
                             <div className="flex items-center gap-2 mb-2">
                                 <MapPin className="h-4 w-4 text-primary" />
@@ -112,7 +112,7 @@ export function CurriculumOverviewCard({ curriculumId }: CurriculumOverviewCardP
                                         <span className="font-medium">Teachers:</span>
                                     </div>
                                     <div className="flex flex-wrap gap-1.5 ml-5">
-                                        {assignment.teachers.map((teacher: any) => (
+                                        {assignment.teachers.map((teacher: { _id: string; fullName: string }) => (
                                             <Badge
                                                 key={teacher._id}
                                                 variant="secondary"

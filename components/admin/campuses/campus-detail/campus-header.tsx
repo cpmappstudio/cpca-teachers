@@ -11,9 +11,8 @@ interface CampusHeaderProps {
     addressLabel?: string | null;
 }
 
-export function CampusHeader({ campus, locale, hasHero = false, addressLabel }: CampusHeaderProps) {
+export function CampusHeader({ campus, locale, hasHero = false }: CampusHeaderProps) {
     const textColor = hasHero ? "text-white" : "text-foreground";
-    const descriptionColor = hasHero ? "text-sm text-white/90" : "text-sm text-muted-foreground";
 
     return (
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between ">

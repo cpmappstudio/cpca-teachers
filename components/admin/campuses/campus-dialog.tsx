@@ -32,7 +32,6 @@ import {
   Upload,
   Trash2,
   ImageIcon,
-  Loader2,
   X,
   GraduationCap,
   GripVertical,
@@ -158,7 +157,6 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
   const updateCampusMutation = useMutation(api.campuses.updateCampus);
   const deleteCampusMutation = useMutation(api.campuses.deleteCampus);
   const generateUploadUrl = useMutation(api.campuses.generateUploadUrl);
-  const saveCampusImage = useMutation(api.campuses.saveCampusImage);
   const deleteCampusImage = useMutation(api.campuses.deleteCampusImage);
 
   // Dialog state
@@ -323,6 +321,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
     if (campus?.grades && isOpen) {
       setGrades(campus.grades);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campus?._id, isOpen]); // Only run when campus ID or dialog open state changes
 
   // Image handling functions
@@ -739,7 +738,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
           campusData.grades = grades;
         }
 
-        const campusId = await createCampusMutation(campusData);
+        await createCampusMutation(campusData);
 
         toast.success("Campus created successfully", {
           description: `"${name}" has been created.`,

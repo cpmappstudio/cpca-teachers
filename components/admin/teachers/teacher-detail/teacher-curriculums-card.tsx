@@ -1,10 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useParams } from "next/navigation";
 import {
-    ArrowUpDown,
-    ChevronDown,
     Filter,
     Search,
     FileText,
@@ -14,7 +11,6 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -116,10 +112,8 @@ interface TeacherCurriculumsCardProps {
 export function TeacherCurriculumsCard({
     teacherId,
 }: TeacherCurriculumsCardProps) {
-    const router = useRouter();
-    const params = useParams();
-    const locale = params.locale as string;
     const [expandedCurriculum, setExpandedCurriculum] = React.useState<string | null>(null);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [expandedQuarter, setExpandedQuarter] = React.useState<string | null>(null);
     const hasInitialized = React.useRef(false);
     const [evidenceModal, setEvidenceModal] = React.useState<{
@@ -138,7 +132,7 @@ export function TeacherCurriculumsCard({
         // Set the modal to open with storageId, URL will be loaded by query
         setEvidenceModal({
             open: true,
-            url: storageId as any, // Store storageId temporarily
+            url: storageId as unknown as string, // Store storageId temporarily
             type,
             title,
         });
@@ -150,7 +144,7 @@ export function TeacherCurriculumsCard({
         isActive: true,
     }) as TeacherAssignmentWithProgress[] | undefined;
 
-    const allData = assignments || [];
+    const allData = React.useMemo(() => assignments || [], [assignments]);
 
     // Set first curriculum as expanded by default (only once)
     React.useEffect(() => {
@@ -358,7 +352,7 @@ export function TeacherCurriculumsCard({
                     <div className="mt-4">
                         {evidenceModal.url && evidenceModal.type && (
                             <EvidenceModalContent
-                                storageId={evidenceModal.url as any as Id<"_storage">}
+                                storageId={evidenceModal.url as unknown as Id<"_storage">}
                                 type={evidenceModal.type}
                                 title={evidenceModal.title}
                             />

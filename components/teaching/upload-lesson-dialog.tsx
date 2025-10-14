@@ -26,13 +26,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs"
-import { Upload, FileUp, Loader2, Trash2, FileCheck, Circle, Eye, FileText } from "lucide-react"
+
+import { Upload, FileUp, Loader2, Trash2, FileCheck, Circle, Eye } from "lucide-react"
 import { toast } from "sonner"
 import { useCurrentUser } from "@/hooks/use-current-user"
 import {

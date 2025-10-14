@@ -10,7 +10,6 @@ import {
     ChartTooltipContent,
 } from "@/components/ui/chart"
 import type { Doc } from "@/convex/_generated/dataModel";
-import type { CampusStatus } from "@/convex/types";
 
 interface CampusMetricsCardProps {
     metrics?: Doc<"campuses">["metrics"];
@@ -22,7 +21,8 @@ interface CampusMetricsCardProps {
 // Generate daily progress data for the last 14 days
 function buildDailyProgress(metrics?: Doc<"campuses">["metrics"]) {
     // if metrics contains a dailyProgress series, use it; otherwise synthesize
-    if ((metrics as any)?.dailyProgress && Array.isArray((metrics as any).dailyProgress)) return (metrics as any).dailyProgress
+    const metricsWithDaily = metrics as { dailyProgress?: Array<{ date: string; progress: number }> } | undefined;
+    if (metricsWithDaily?.dailyProgress && Array.isArray(metricsWithDaily.dailyProgress)) return metricsWithDaily.dailyProgress
 
     // Create a 14-day synthetic series with real dates and dramatic mock values
     const today = new Date()
@@ -59,7 +59,7 @@ function buildDailyProgress(metrics?: Doc<"campuses">["metrics"]) {
     return arr
 }
 
-export function CampusMetricsCard({ metrics, status, className }: CampusMetricsCardProps) {
+export function CampusMetricsCard({ metrics, className }: CampusMetricsCardProps) {
     const daily = buildDailyProgress(metrics)
 
     const chartConfig = {
@@ -107,14 +107,14 @@ export function CampusMetricsCard({ metrics, status, className }: CampusMetricsC
                                 <ChartTooltipContent
                                     className="w-[200px]"
                                     nameKey="progress"
-                                    labelFormatter={(value: any, payload: any) => {
+                                    labelFormatter={(value: string | number, payload: Array<{ payload: { dayName: string; dayOfMonth: string } }>) => {
                                         if (payload && payload.length > 0) {
                                             const data = payload[0].payload
                                             return `${data.dayName} ${data.dayOfMonth}`
                                         }
                                         return `Day ${value}`
                                     }}
-                                    formatter={(value: any) => [`${value}%`, "Average Progress"]}
+                                    formatter={(value: number | string) => [`${value}%`, "Average Progress"]}
                                 />
                             }
                         />

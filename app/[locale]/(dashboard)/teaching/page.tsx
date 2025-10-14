@@ -2,16 +2,14 @@
 
 import * as React from "react";
 import { useState } from "react";
-import { useRouter, useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   FileText,
   Upload,
-  CheckCircle,
-  Clock,
-  Circle,
+
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -34,16 +32,13 @@ import {
 
 // Componente de tabla de lecciones para cada curriculum
 function LessonsTable({ teacherId }: { teacherId: string }) {
-  const router = useRouter();
-  const params = useParams();
-  const locale = params.locale as string;
   const [expandedCurriculum, setExpandedCurriculum] = useState<string | null>(null);
   const [expandedQuarter, setExpandedQuarter] = useState<string | null>(null);
 
   // Obtener progreso detallado del profesor
   const assignmentsWithProgress = useQuery(
     api.progress.getTeacherAssignmentsWithProgress,
-    { teacherId: teacherId as any, isActive: true }
+    { teacherId: teacherId as Id<"users">, isActive: true }
   );
 
   // Obtener lecciones detalladas cuando se expande un currículum
@@ -257,8 +252,8 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                               </p>
                                               {lessonData.totalGrades > 1 && assignmentLessonProgress?.grades && assignmentLessonProgress.grades.length > 0 && (
                                                 <div className="flex items-center gap-1 flex-wrap">
-                                                  {assignmentLessonProgress.grades.map((grade: any) => {
-                                                    const hasEvidence = lessonData.progressByGrade?.find((p: any) =>
+                                                  {assignmentLessonProgress.grades.map((grade: { code: string; name: string }) => {
+                                                    const hasEvidence = lessonData.progressByGrade?.find((p: { gradeCode?: string; evidenceDocumentStorageId?: Id<"_storage">; evidencePhotoStorageId?: Id<"_storage"> }) =>
                                                       p.gradeCode === grade.code && (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
                                                     );
                                                     return (
@@ -282,7 +277,7 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                             <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
                                             <span className="text-xs sm:text-sm font-medium whitespace-nowrap">
                                               {lessonData.progressByGrade && lessonData.progressByGrade.length > 0
-                                                ? `${lessonData.progressByGrade.filter((p: any) => p.evidenceDocumentStorageId || p.evidencePhotoStorageId).length} evidence`
+                                                ? `${lessonData.progressByGrade.filter((p: { evidenceDocumentStorageId?: Id<"_storage">; evidencePhotoStorageId?: Id<"_storage"> }) => p.evidenceDocumentStorageId || p.evidencePhotoStorageId).length} evidence`
                                                 : lessonData.progress?.evidencePhotoStorageId || lessonData.progress?.evidenceDocumentStorageId
                                                   ? 'Evidence uploaded'
                                                   : 'No evidence'}

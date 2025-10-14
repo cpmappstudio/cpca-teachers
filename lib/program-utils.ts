@@ -5,7 +5,15 @@
  * program-related data across the application.
  */
 
-import type { ProgramType, Language } from '@/convex/types'
+/**
+ * Program type options
+ */
+export type ProgramType = "diploma" | "bachelor" | "master" | "doctorate";
+
+/**
+ * Language options for programs
+ */
+export type Language = "es" | "en" | "both";
 
 /**
  * Get program name based on locale preference

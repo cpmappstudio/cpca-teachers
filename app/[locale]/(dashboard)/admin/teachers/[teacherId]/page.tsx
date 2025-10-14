@@ -2,7 +2,6 @@ import { Suspense } from "react"
 import {
     TeacherHeader,
     TeacherOverviewCard,
-    TeacherMetricsCard,
     TeacherCurriculumsCard
 } from "@/components/admin/teachers/teacher-detail"
 import { Skeleton } from "@/components/ui/skeleton"

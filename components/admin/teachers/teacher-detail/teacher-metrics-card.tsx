@@ -10,7 +10,6 @@ import {
     ChartTooltip,
     ChartTooltipContent,
 } from "@/components/ui/chart"
-import type { Id } from "@/convex/_generated/dataModel";
 
 interface TeacherMetricsCardProps {
     teacherId: string;
@@ -104,7 +103,7 @@ function CurriculumRadialChart({ data, config }: CurriculumRadialChartProps) {
                     >
                         <ChartTooltip
                             cursor={false}
-                            content={<ChartTooltipContent nameKey="name" formatter={(value: any) => [`${value}%`, "Remaining"]} />}
+                            content={<ChartTooltipContent nameKey="name" formatter={(value: number | string) => [`${value}%`, "Remaining"]} />}
                         />
                         <RadialBar dataKey="remainingPercent" background>
                             <LabelList
@@ -176,7 +175,7 @@ function ContributionChart({ data }: ContributionGridProps) {
     )
 }
 
-export function TeacherMetricsCard({ teacherId, className }: TeacherMetricsCardProps) {
+export function TeacherMetricsCard({ className }: TeacherMetricsCardProps) {
     const curriculumData = buildMockCurriculums()
     const contributionData = buildMockContributionData()
 

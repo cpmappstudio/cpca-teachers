@@ -118,10 +118,10 @@ export const DynamicBreadcrumb = memo(function DynamicBreadcrumb() {
         try {
             // Handle nested keys like "menu.student.title"
             if (key.includes('.')) {
-                const result = t.raw(key as any)
+                const result = t.raw(key as never)
                 return result || fallback
             }
-            return t(key as any) || fallback
+            return t(key as never) || fallback
         } catch {
             return fallback
         }

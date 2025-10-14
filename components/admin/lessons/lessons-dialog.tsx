@@ -21,10 +21,6 @@ import {
   Plus,
   Edit,
   Trash2,
-  BookOpen,
-  Link2,
-  ListChecks,
-  FilePlus2,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useMutation, useQuery } from "convex/react";
@@ -79,13 +75,6 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
       label: `${curriculum.name}${curriculum.code ? ` (${curriculum.code})` : ""}`,
     })) || [];
 
-  const resourceTypeOptions = [
-    { value: "document", label: "Document" },
-    { value: "video", label: "Video" },
-    { value: "link", label: "External Link" },
-    { value: "worksheet", label: "Worksheet" },
-  ];
-
   const [selectedCurriculum, setSelectedCurriculum] = useState<string>(
     lesson?.curriculumId || defaultCurriculumId || "",
   );
@@ -100,16 +89,11 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
   const [objectives, setObjectives] = useState<string[]>(
     lesson?.objectives || [],
   );
-  const [newObjective, setNewObjective] = useState("");
 
   // List states - Resources (array of objects)
   const [resources, setResources] = useState<
     { name: string; url: string; type: string; isRequired: boolean }[]
   >(lesson?.resources || []);
-  const [newResourceName, setNewResourceName] = useState("");
-  const [newResourceUrl, setNewResourceUrl] = useState("");
-  const [newResourceType, setNewResourceType] = useState("");
-  const [newResourceIsRequired, setNewResourceIsRequired] = useState(true);
 
   // Reset curriculum when dialog opens with defaultCurriculumId
   useEffect(() => {
@@ -367,7 +351,8 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
         // isMandatory
         lessonData.isMandatory = isMandatory;
 
-        const lessonId = await createLessonMutation(lessonData);
+        // Call the mutation to create the lesson
+        await createLessonMutation(lessonData);
 
         toast.success("Lesson created successfully", {
           description: `"${title}" has been created.`,
@@ -379,12 +364,7 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
         setSelectedQuarter("");
         setIsMandatory(false);
         setObjectives([]);
-        setNewObjective("");
         setResources([]);
-        setNewResourceName("");
-        setNewResourceUrl("");
-        setNewResourceType("");
-        setNewResourceIsRequired(true);
 
         // Cerrar el dialog automáticamente después del éxito
         setIsOpen(false);
@@ -436,48 +416,48 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
     }
   };
 
-  // Objectives handlers
-  const addObjective = () => {
-    if (newObjective.trim()) {
-      setObjectives([...objectives, newObjective.trim()]);
-      setNewObjective("");
-    }
-  };
+  // // Objectives handlers
+  // const addObjective = () => {
+  //   if (newObjective.trim()) {
+  //     setObjectives([...objectives, newObjective.trim()]);
+  //     setNewObjective("");
+  //   }
+  // };
 
-  const removeObjective = (index: number) => {
-    setObjectives(objectives.filter((_, i) => i !== index));
-  };
+  // const removeObjective = (index: number) => {
+  //   setObjectives(objectives.filter((_, i) => i !== index));
+  // };
 
-  // Resource handlers
-  const handleAddResource = () => {
-    if (
-      !newResourceName.trim() ||
-      !newResourceUrl.trim() ||
-      !newResourceType.trim()
-    ) {
-      toast.error("Validation Error", {
-        description: "Please fill in all resource fields (name, URL, and type).",
-      });
-      return;
-    }
+  // // Resource handlers
+  // const handleAddResource = () => {
+  //   if (
+  //     !newResourceName.trim() ||
+  //     !newResourceUrl.trim() ||
+  //     !newResourceType.trim()
+  //   ) {
+  //     toast.error("Validation Error", {
+  //       description: "Please fill in all resource fields (name, URL, and type).",
+  //     });
+  //     return;
+  //   }
 
-    const newResource = {
-      name: newResourceName.trim(),
-      url: newResourceUrl.trim(),
-      type: newResourceType.trim(),
-      isRequired: newResourceIsRequired,
-    };
+  //   const newResource = {
+  //     name: newResourceName.trim(),
+  //     url: newResourceUrl.trim(),
+  //     type: newResourceType.trim(),
+  //     isRequired: newResourceIsRequired,
+  //   };
 
-    setResources([...resources, newResource]);
-    setNewResourceName("");
-    setNewResourceUrl("");
-    setNewResourceType("");
-    setNewResourceIsRequired(true);
-  };
+  //   setResources([...resources, newResource]);
+  //   setNewResourceName("");
+  //   setNewResourceUrl("");
+  //   setNewResourceType("");
+  //   setNewResourceIsRequired(true);
+  // };
 
-  const handleRemoveResource = (index: number) => {
-    setResources(resources.filter((_, i) => i !== index));
-  };
+  // const handleRemoveResource = (index: number) => {
+  //   setResources(resources.filter((_, i) => i !== index));
+  // };
 
   // Trigger por defecto
   const defaultTrigger = isEditing ? (

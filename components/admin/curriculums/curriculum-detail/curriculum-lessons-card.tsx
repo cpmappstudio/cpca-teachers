@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { useParams } from "next/navigation"
 import {
     flexRender,
     getCoreRowModel,
@@ -14,7 +13,7 @@ import {
     type SortingState,
     type VisibilityState,
 } from "@tanstack/react-table"
-import { ArrowUpDown, Filter, Plus, Search } from "lucide-react"
+import { ArrowUpDown, Filter, Search } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -65,7 +64,8 @@ const quarterOptions = [
 
 // Extend the meta type for custom className
 declare module "@tanstack/react-table" {
-    interface ColumnMeta<TData, TValue> {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    interface ColumnMeta<TData = unknown, TValue = unknown> {
         className?: string
     }
 }
@@ -236,8 +236,6 @@ interface CurriculumLessonsCardProps {
 export function CurriculumLessonsCard({
     curriculumId,
 }: CurriculumLessonsCardProps) {
-    const params = useParams()
-    const locale = params.locale as string
 
     // Get lessons from Convex - by default only active lessons
     const lessons = useQuery(
@@ -560,10 +558,6 @@ export function CurriculumLessonsCard({
                                             key={row.id}
                                             data-state={row.getIsSelected() && "selected"}
                                             className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
-                                            onClick={() => {
-                                                const lessonId = row.original._id
-                                                // TODO: Navigate to lesson detail when page is created
-                                            }}
                                         >
                                             {row.getVisibleCells().map((cell) => (
                                                 <TableCell

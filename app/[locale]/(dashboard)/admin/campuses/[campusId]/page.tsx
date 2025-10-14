@@ -3,16 +3,13 @@ import { notFound } from "next/navigation";
 import { PageTransition } from "@/components/ui/page-transition";
 import {
     CampusHeader,
-    CampusMetricsCard,
     CampusOverviewCard,
     CampusTeachersCard,
 } from "@/components/admin/campuses/campus-detail";
 import {
     createConvexClient,
     fetchCampus,
-    fetchCampusTeachers,
     formatAddress,
-    formatRelativeTime,
 } from "@/lib/campuses/campus-detail";
 
 interface CampusDetailPageProps {
@@ -34,10 +31,6 @@ export default async function CampusDetailPage({ params }: CampusDetailPageProps
     }
 
     const addressLabel = formatAddress(campus);
-    const lastUpdatedLabel = campus.metrics?.lastUpdated
-        ? formatRelativeTime(campus.metrics.lastUpdated)
-        : "-";
-
 
     return (
         <PageTransition>

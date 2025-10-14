@@ -36,10 +36,40 @@ import Image from "next/image";
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
-    DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+
+// Type for progress by grade
+type ProgressByGrade = {
+    gradeCode?: string;
+    evidenceDocumentStorageId?: Id<"_storage">;
+    evidencePhotoStorageId?: Id<"_storage">;
+    status?: string;
+    completedAt?: number;
+};
+
+// Type for lesson with progress
+type LessonWithProgress = {
+    lessonId: Id<"curriculum_lessons">;
+    title: string;
+    description?: string;
+    quarter: number;
+    orderInQuarter: number;
+    isMandatory: boolean;
+    objectives?: string[];
+    totalGrades?: number;
+    completionPercentage?: number;
+    progressByGrade?: ProgressByGrade[];
+    progress?: {
+        progressId?: Id<"lesson_progress">;
+        status?: "completed" | "not_started" | "in_progress" | "skipped" | "rescheduled";
+        completedAt?: number;
+        scheduledDate?: number;
+        evidencePhotoStorageId?: Id<"_storage">;
+        evidenceDocumentStorageId?: Id<"_storage">;
+    } | null;
+    overallStatus?: string;
+};
 
 // Type for assignment with progress
 type TeacherAssignmentWithProgress = {
@@ -99,7 +129,6 @@ interface CurriculumAssignmentItemProps {
 
 export function CurriculumAssignmentItem({
     assignment,
-    onViewEvidence,
 }: CurriculumAssignmentItemProps) {
     const router = useRouter();
     const params = useParams();
@@ -107,7 +136,7 @@ export function CurriculumAssignmentItem({
 
     // Dialog state for viewing evidence
     const [evidenceDialogOpen, setEvidenceDialogOpen] = React.useState(false);
-    const [selectedLesson, setSelectedLesson] = React.useState<any>(null);
+    const [selectedLesson, setSelectedLesson] = React.useState<LessonWithProgress | null>(null);
 
     // Get detailed lesson progress when curriculum is expanded
     const assignmentLessonProgress = useQuery(
@@ -120,21 +149,10 @@ export function CurriculumAssignmentItem({
         ? assignmentLessonProgress.lessons
         : [];
 
-    const getStatusText = (status: string) => {
-        switch (status) {
-            case "completed":
-                return "Completed";
-            case "in_progress":
-                return "In Progress";
-            case "not_started":
-                return "Pending";
-            default:
-                return "Pending";
-        }
-    };
+
 
     return (
-        <AccordionItem value={assignment._id} className="border bg-card shadow-sm">
+        <AccordionItem value={assignment._id} className="border bg-card shadow-sm mb-0">
             <AccordionTrigger className="hover:no-underline px-4 py-4 hover:bg-muted/50">
                 <div className="flex items-start justify-between w-full">
                     <div className="flex flex-col items-start gap-2 flex-1 min-w-0">
@@ -273,8 +291,8 @@ export function CurriculumAssignmentItem({
                                             // Get grades that have evidence
                                             const gradesWithEvidence = new Set(
                                                 progressByGrade
-                                                    .filter((p: any) => p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
-                                                    .map((p: any) => p.gradeCode)
+                                                    .filter((p: ProgressByGrade) => p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                                    .map((p: ProgressByGrade) => p.gradeCode)
                                             );
 
                                             // Check if ANY grade has evidence (for multi-grade) or if main progress has evidence (for single-grade)
@@ -355,7 +373,7 @@ export function CurriculumAssignmentItem({
                                                                         {/* Grade badges for mobile */}
                                                                         {hasMultipleGrades && assignment.gradeNames && assignment.gradeNames.length > 0 && (
                                                                             <div className="flex items-center gap-1 flex-wrap mt-1">
-                                                                                {assignmentLessonProgress?.grades?.map((grade: any) => {
+                                                                                {assignmentLessonProgress?.grades?.map((grade: { code: string; name: string }) => {
                                                                                     const hasEvidence = gradesWithEvidence.has(grade.code);
                                                                                     return (
                                                                                         <Badge
@@ -443,7 +461,7 @@ export function CurriculumAssignmentItem({
                                                                 {/* Grade badges for desktop */}
                                                                 {hasMultipleGrades && assignment.gradeNames && assignment.gradeNames.length > 0 && (
                                                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                                                        {assignmentLessonProgress?.grades?.map((grade: any) => {
+                                                                        {assignmentLessonProgress?.grades?.map((grade: { code: string; name: string }) => {
                                                                             const hasEvidence = gradesWithEvidence.has(grade.code);
                                                                             return (
                                                                                 <Badge
@@ -504,11 +522,11 @@ export function CurriculumAssignmentItem({
                         <Tabs defaultValue={selectedLesson.progressByGrade[0]?.gradeCode || "0"} >
                             <TabsList>
                                 {selectedLesson.progressByGrade
-                                    .filter((p: any) => p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
-                                    .map((gradeProgress: any) => (
+                                    .filter((p: ProgressByGrade) => p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                    .map((gradeProgress: ProgressByGrade & { gradeName?: string }) => (
                                         <TabsTrigger
                                             key={gradeProgress.gradeCode}
-                                            value={gradeProgress.gradeCode}
+                                            value={gradeProgress.gradeCode || ""}
                                             className="flex-1"
                                         >
                                             {gradeProgress.gradeName || gradeProgress.gradeCode}
@@ -517,10 +535,12 @@ export function CurriculumAssignmentItem({
                                 }
                             </TabsList>
                             {selectedLesson.progressByGrade
-                                .filter((p: any) => p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
-                                .map((gradeProgress: any) => {
+                                .filter((p: ProgressByGrade) => p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                .map((gradeProgress: ProgressByGrade & { gradeName?: string }) => {
                                     const evidenceId = gradeProgress.evidenceDocumentStorageId || gradeProgress.evidencePhotoStorageId;
                                     const evidenceType = gradeProgress.evidencePhotoStorageId ? "image" : "pdf";
+
+                                    if (!evidenceId || !gradeProgress.gradeCode) return null;
 
                                     return (
                                         <TabsContent key={gradeProgress.gradeCode} value={gradeProgress.gradeCode} className="m-0 p-4">

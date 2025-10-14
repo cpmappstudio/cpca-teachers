@@ -14,13 +14,12 @@ import {
     useReactTable,
     VisibilityState,
 } from "@tanstack/react-table"
-import { ArrowUpDown, Filter, Search, BookOpen, Plus } from "lucide-react"
+import { ArrowUpDown, Filter, Search } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
     DropdownMenu,
     DropdownMenuContent,
-    DropdownMenuItem,
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
@@ -65,7 +64,8 @@ const quarterOptions = [
 
 // Extend the meta type for custom className
 declare module '@tanstack/react-table' {
-    interface ColumnMeta<TData, TValue> {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    interface ColumnMeta<TData = unknown, TValue = unknown> {
         className?: string
     }
 }

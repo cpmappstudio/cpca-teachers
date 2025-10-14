@@ -180,11 +180,19 @@ function ChartTooltipContent({
             {!nestLabel ? tooltipLabel : null}
             <div className="grid gap-1.5">
                 {payload
-                    .filter((item) => item.type !== "none")
-                    .map((item, index) => {
+                    .filter((item: { type?: string }) => item.type !== "none")
+                    .map((item: {
+                        dataKey?: string;
+                        name?: string;
+                        value?: string | number;
+                        color?: string;
+                        payload?: { fill?: string;[key: string]: unknown };
+                        type?: string;
+                        [key: string]: unknown;
+                    }, index: number) => {
                         const key = `${nameKey || item.name || item.dataKey || "value"}`
                         const itemConfig = getPayloadConfigFromPayload(config, item, key)
-                        const indicatorColor = color || item.payload.fill || item.color
+                        const indicatorColor = color || item.payload?.fill || item.color
 
                         return (
                             <div
@@ -258,11 +266,18 @@ function ChartLegendContent({
     payload,
     verticalAlign = "bottom",
     nameKey,
-}: React.ComponentProps<"div"> &
-    Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> & {
-        hideIcon?: boolean
-        nameKey?: string
-    }) {
+}: React.ComponentProps<"div"> & {
+    payload?: {
+        value?: string;
+        type?: string;
+        dataKey?: string;
+        color?: string;
+        [key: string]: unknown;
+    }[];
+    verticalAlign?: "top" | "bottom";
+    hideIcon?: boolean;
+    nameKey?: string;
+}) {
     const { config } = useChart()
 
     if (!payload?.length) {
@@ -278,8 +293,13 @@ function ChartLegendContent({
             )}
         >
             {payload
-                .filter((item) => item.type !== "none")
-                .map((item) => {
+                .filter((item: { type?: string }) => item.type !== "none")
+                .map((item: {
+                    value?: string;
+                    dataKey?: string;
+                    color?: string;
+                    [key: string]: unknown;
+                }) => {
                     const key = `${nameKey || item.dataKey || "value"}`
                     const itemConfig = getPayloadConfigFromPayload(config, item, key)
 

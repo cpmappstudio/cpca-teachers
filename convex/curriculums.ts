@@ -112,6 +112,98 @@ export const createCurriculum = mutation({
       },
     });
 
+    // Create teacher_assignments and lesson_progress for each assigned teacher
+    if (args.campusAssignments && args.campusAssignments.length > 0) {
+      // Get current academic year
+      const currentYear = new Date().getFullYear();
+      const academicYear = `${currentYear}-${currentYear + 1}`;
+      const now = Date.now();
+
+      // Get all lessons for this curriculum
+      const lessons = await ctx.db
+        .query("curriculum_lessons")
+        .withIndex("by_curriculum_active", (q) =>
+          q.eq("curriculumId", curriculumId).eq("isActive", true)
+        )
+        .collect();
+
+      // For each campus assignment
+      for (const campusAssignment of args.campusAssignments) {
+        // For each teacher in this campus
+        for (const teacherId of campusAssignment.assignedTeachers) {
+          // Check if teacher_assignment already exists (shouldn't, but be safe)
+          const existingAssignments = await ctx.db
+            .query("teacher_assignments")
+            .withIndex("by_teacher_campus", (q) =>
+              q.eq("teacherId", teacherId).eq("campusId", campusAssignment.campusId).eq("isActive", true)
+            )
+            .collect();
+
+          const existingAssignment = existingAssignments.find(
+            (a) => a.curriculumId === curriculumId
+          );
+
+          if (!existingAssignment) {
+            // Create the teacher_assignment record
+            const assignmentId = await ctx.db.insert("teacher_assignments", {
+              teacherId,
+              curriculumId,
+              campusId: campusAssignment.campusId,
+              academicYear,
+              startDate: now,
+              assignmentType: "primary",
+              progressSummary: {
+                totalLessons: lessons.length,
+                completedLessons: 0,
+                progressPercentage: 0,
+                lastUpdated: now,
+              },
+              isActive: true,
+              status: "active",
+              assignedAt: now,
+              assignedBy: args.createdBy,
+            });
+
+            // Create lesson_progress records for each lesson
+            const gradeCodes = campusAssignment.gradeCodes || [];
+
+            for (const lesson of lessons) {
+              if (gradeCodes.length > 0) {
+                // Multi-grade: create one progress record per grade
+                for (const gradeCode of gradeCodes) {
+                  await ctx.db.insert("lesson_progress", {
+                    teacherId,
+                    lessonId: lesson._id,
+                    assignmentId,
+                    curriculumId,
+                    campusId: campusAssignment.campusId,
+                    quarter: lesson.quarter,
+                    gradeCode,
+                    status: "not_started",
+                    isVerified: false,
+                    createdAt: now,
+                  });
+                }
+              } else {
+                // No grades specified yet: create single progress record without gradeCode
+                await ctx.db.insert("lesson_progress", {
+                  teacherId,
+                  lessonId: lesson._id,
+                  assignmentId,
+                  curriculumId,
+                  campusId: campusAssignment.campusId,
+                  quarter: lesson.quarter,
+                  status: "not_started",
+                  isVerified: false,
+                  createdAt: now,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
     return curriculumId;
   },
 });
@@ -240,6 +332,16 @@ export const updateCurriculum = mutation({
         }
 
         // 5. Create new teacher_assignments
+        const now = Date.now();
+
+        // Get all lessons for this curriculum
+        const lessons = await ctx.db
+          .query("curriculum_lessons")
+          .withIndex("by_curriculum_active", (q) =>
+            q.eq("curriculumId", args.curriculumId).eq("isActive", true)
+          )
+          .collect();
+
         for (const { teacherId, campusId } of toAdd) {
           // Check if it already exists (shouldn't, but be safe)
           const existingAssignments = await ctx.db
@@ -253,8 +355,67 @@ export const updateCurriculum = mutation({
             a => a.curriculumId === args.curriculumId
           );
 
-          // Note: Teacher assignments are now created separately through the UI
-          // where grade selection happens explicitly
+          if (!exists) {
+            // Create the teacher_assignment record
+            const assignmentId = await ctx.db.insert("teacher_assignments", {
+              teacherId: teacherId as any,
+              curriculumId: args.curriculumId,
+              campusId: campusId as any,
+              academicYear,
+              startDate: now,
+              assignmentType: "primary",
+              progressSummary: {
+                totalLessons: lessons.length,
+                completedLessons: 0,
+                progressPercentage: 0,
+                lastUpdated: now,
+              },
+              isActive: true,
+              status: "active",
+              assignedAt: now,
+              assignedBy: args.updatedBy,
+            });
+
+            // Get gradeCodes for this campus assignment
+            const campusAssignment = newAssignments.find(
+              ca => ca.campusId === campusId
+            );
+            const gradeCodes = campusAssignment?.gradeCodes || [];
+
+            // Create lesson_progress records for each lesson
+            for (const lesson of lessons) {
+              if (gradeCodes.length > 0) {
+                // Multi-grade: create one progress record per grade
+                for (const gradeCode of gradeCodes) {
+                  await ctx.db.insert("lesson_progress", {
+                    teacherId: teacherId as any,
+                    lessonId: lesson._id,
+                    assignmentId,
+                    curriculumId: args.curriculumId,
+                    campusId: campusId as any,
+                    quarter: lesson.quarter,
+                    gradeCode,
+                    status: "not_started",
+                    isVerified: false,
+                    createdAt: now,
+                  });
+                }
+              } else {
+                // No grades specified yet: create single progress record without gradeCode
+                await ctx.db.insert("lesson_progress", {
+                  teacherId: teacherId as any,
+                  lessonId: lesson._id,
+                  assignmentId,
+                  curriculumId: args.curriculumId,
+                  campusId: campusId as any,
+                  quarter: lesson.quarter,
+                  status: "not_started",
+                  isVerified: false,
+                  createdAt: now,
+                });
+              }
+            }
+          }
         }
 
         // 6. Deactivate removed teacher_assignments
@@ -276,6 +437,123 @@ export const updateCurriculum = mutation({
               status: "cancelled",
               updatedAt: Date.now(),
             });
+
+            // Also deactivate all lesson_progress for this assignment
+            const progressRecords = await ctx.db
+              .query("lesson_progress")
+              .withIndex("by_assignment_status", (q) =>
+                q.eq("assignmentId", toDeactivate._id)
+              )
+              .collect();
+
+            // Note: We don't actually delete lesson_progress, just mark assignment as inactive
+            // This preserves historical data
+          }
+        }
+
+        // 7. Handle grade changes for existing teachers
+        // If grades changed for a campus assignment, update lesson_progress records
+        for (const newAssignment of newAssignments) {
+          const oldAssignment = oldAssignments.find(
+            oa => oa.campusId === newAssignment.campusId
+          );
+
+          if (oldAssignment) {
+            // Check if grades changed
+            const oldGrades = new Set(oldAssignment.gradeCodes);
+            const newGrades = new Set(newAssignment.gradeCodes);
+
+            const gradesChanged = oldGrades.size !== newGrades.size ||
+              [...oldGrades].some(g => !newGrades.has(g)) ||
+              [...newGrades].some(g => !oldGrades.has(g));
+
+            if (gradesChanged) {
+              // For each teacher in this campus assignment
+              for (const teacherId of newAssignment.assignedTeachers) {
+                // Get the teacher_assignment
+                const assignments = await ctx.db
+                  .query("teacher_assignments")
+                  .withIndex("by_teacher_campus", (q) =>
+                    q.eq("teacherId", teacherId).eq("campusId", newAssignment.campusId).eq("isActive", true)
+                  )
+                  .collect();
+
+                const assignment = assignments.find(
+                  a => a.curriculumId === args.curriculumId
+                );
+
+                if (assignment) {
+                  // Get all lessons for this curriculum
+                  const lessons = await ctx.db
+                    .query("curriculum_lessons")
+                    .withIndex("by_curriculum_active", (q) =>
+                      q.eq("curriculumId", args.curriculumId).eq("isActive", true)
+                    )
+                    .collect();
+
+                  // Get existing lesson_progress for this assignment
+                  const existingProgress = await ctx.db
+                    .query("lesson_progress")
+                    .withIndex("by_assignment_status", (q) =>
+                      q.eq("assignmentId", assignment._id)
+                    )
+                    .collect();
+
+                  // For each lesson, ensure progress records exist for all new grades
+                  for (const lesson of lessons) {
+                    if (newAssignment.gradeCodes.length > 0) {
+                      // Multi-grade mode
+                      for (const gradeCode of newAssignment.gradeCodes) {
+                        // Check if progress record exists for this lesson + grade
+                        const exists = existingProgress.some(
+                          p => p.lessonId === lesson._id && p.gradeCode === gradeCode
+                        );
+
+                        if (!exists) {
+                          // Create new progress record for this grade
+                          await ctx.db.insert("lesson_progress", {
+                            teacherId,
+                            lessonId: lesson._id,
+                            assignmentId: assignment._id,
+                            curriculumId: args.curriculumId,
+                            campusId: newAssignment.campusId,
+                            quarter: lesson.quarter,
+                            gradeCode,
+                            status: "not_started",
+                            isVerified: false,
+                            createdAt: now,
+                          });
+                        }
+                      }
+
+                      // Remove progress records for grades that are no longer assigned
+                      // (Optional: you might want to keep historical data instead)
+                      // For now, we'll keep them but they won't be displayed in the UI
+                    } else {
+                      // Switched from multi-grade to single grade or no grades
+                      const exists = existingProgress.some(
+                        p => p.lessonId === lesson._id && !p.gradeCode
+                      );
+
+                      if (!exists && existingProgress.filter(p => p.lessonId === lesson._id).length === 0) {
+                        // Create single progress record without grade
+                        await ctx.db.insert("lesson_progress", {
+                          teacherId,
+                          lessonId: lesson._id,
+                          assignmentId: assignment._id,
+                          curriculumId: args.curriculumId,
+                          campusId: newAssignment.campusId,
+                          quarter: lesson.quarter,
+                          status: "not_started",
+                          isVerified: false,
+                          createdAt: now,
+                        });
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -538,8 +816,75 @@ export const addTeacherToCurriculum = mutation({
             .first()
           : null;
 
-        // Note: Teacher assignments are now created separately through
-        // createTeacherAssignment mutation where grade selection happens
+        // Get curriculum to calculate total lessons
+        const lessons = await ctx.db
+          .query("curriculum_lessons")
+          .withIndex("by_curriculum_active", (q) =>
+            q.eq("curriculumId", args.curriculumId).eq("isActive", true)
+          )
+          .collect();
+
+        const now = Date.now();
+
+        // Create the teacher_assignment record
+        const assignmentId = await ctx.db.insert("teacher_assignments", {
+          teacherId: args.teacherId,
+          curriculumId: args.curriculumId,
+          campusId: args.campusId,
+          academicYear,
+          startDate: now,
+          assignmentType: "primary",
+          progressSummary: {
+            totalLessons: lessons.length,
+            completedLessons: 0,
+            progressPercentage: 0,
+            lastUpdated: now,
+          },
+          isActive: true,
+          status: "active",
+          assignedAt: now,
+          assignedBy: currentUser?._id || args.teacherId, // Use current user or fallback to teacher
+        });
+
+        // Get gradeCodes from campus assignment for this campus
+        const campusAssignment = campusAssignments.find(ca => ca.campusId === args.campusId);
+        const gradeCodes = campusAssignment?.gradeCodes || [];
+
+        // Create lesson_progress records for each lesson
+        // If there are multiple grades, create one progress record per grade per lesson
+        // If there are no grades yet, create one progress record per lesson (can be updated later)
+        for (const lesson of lessons) {
+          if (gradeCodes.length > 0) {
+            // Multi-grade: create one progress record per grade
+            for (const gradeCode of gradeCodes) {
+              await ctx.db.insert("lesson_progress", {
+                teacherId: args.teacherId,
+                lessonId: lesson._id,
+                assignmentId,
+                curriculumId: args.curriculumId,
+                campusId: args.campusId,
+                quarter: lesson.quarter,
+                gradeCode,
+                status: "not_started",
+                isVerified: false,
+                createdAt: now,
+              });
+            }
+          } else {
+            // No grades specified yet: create single progress record without gradeCode
+            await ctx.db.insert("lesson_progress", {
+              teacherId: args.teacherId,
+              lessonId: lesson._id,
+              assignmentId,
+              curriculumId: args.curriculumId,
+              campusId: args.campusId,
+              quarter: lesson.quarter,
+              status: "not_started",
+              isVerified: false,
+              createdAt: now,
+            });
+          }
+        }
       }
     }
 

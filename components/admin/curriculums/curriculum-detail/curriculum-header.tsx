@@ -16,7 +16,7 @@ interface CurriculumHeaderProps {
 }
 
 // Helper function to extract role from user object (client-safe)
-function getUserRole(user: any): UserRole | null {
+function getUserRole(user: { publicMetadata?: Record<string, unknown>; privateMetadata?: Record<string, unknown>; unsafeMetadata?: Record<string, unknown> } | null | undefined): UserRole | null {
     if (!user) return null
 
     const publicMeta = user.publicMetadata
@@ -55,8 +55,6 @@ export function CurriculumHeader({ curriculumId }: CurriculumHeaderProps) {
 
     const hasHero = false;
     const textColor = hasHero ? "text-white" : "text-foreground";
-    const descriptionColor = hasHero ? "text-sm text-white/90" : "text-sm text-muted-foreground";
-    const subtitle = curriculum.code ? `${curriculum.code} • ${curriculum.numberOfQuarters} Quarters` : `${curriculum.numberOfQuarters} Quarters`;
 
     // Determine back URL based on user role
     const backUrl = userRole === 'teacher'

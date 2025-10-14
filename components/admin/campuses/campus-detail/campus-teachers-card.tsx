@@ -14,7 +14,7 @@ import {
   useReactTable,
   VisibilityState,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ChevronDown, Filter, Search } from "lucide-react";
+import { ArrowUpDown, Filter, Search } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 
@@ -32,9 +32,7 @@ import {
 } from "@/components/ui/card";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -62,7 +60,8 @@ type Teacher = Doc<"users">;
 
 // Extend the meta type for custom className
 declare module "@tanstack/react-table" {
-  interface ColumnMeta<TData, TValue> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData = unknown, TValue = unknown> {
     className?: string;
   }
 }
@@ -183,7 +182,7 @@ const teacherColumns: ColumnDef<Teacher>[] = [
         </>
       );
     },
-    sortingFn: (rowA, rowB, columnId) => {
+    sortingFn: (rowA, rowB) => {
       const a = rowA.original.progressMetrics?.progressPercentage ?? 0;
       const b = rowB.original.progressMetrics?.progressPercentage ?? 0;
       return a - b;
@@ -360,7 +359,7 @@ export function CampusTeachersCard({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <AddTeachersDialog campusId={campusId as any} />
+            <AddTeachersDialog campusId={campusId as Id<"campuses">} />
           </div>
         </div>
 

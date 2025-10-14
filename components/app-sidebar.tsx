@@ -7,7 +7,6 @@ import {
   Book,
   BookOpen,
 } from "lucide-react"
-import { useTranslations } from "next-intl"
 import { useUser } from "@clerk/nextjs"
 import { usePathname } from "next/navigation"
 
@@ -27,7 +26,7 @@ import { UserButtonWrapper } from "./user-button-wrapper"
 import type { UserRole } from "@/convex/types"
 
 // Helper function to extract role from user object (client-safe)
-function getUserRole(user: any): UserRole | null {
+function getUserRole(user: { publicMetadata?: Record<string, unknown>; privateMetadata?: Record<string, unknown>; unsafeMetadata?: Record<string, unknown> } | null | undefined): UserRole | null {
   if (!user) return null
 
   const publicMeta = user.publicMetadata
@@ -42,7 +41,6 @@ function getUserRole(user: any): UserRole | null {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { state, isMobile, setOpenMobile } = useSidebar()
   const pathname = usePathname()
-  const t = useTranslations('navigation')
   const { user } = useUser()
 
   // Cerrar sidebar automáticamente en móviles cuando cambia la ruta

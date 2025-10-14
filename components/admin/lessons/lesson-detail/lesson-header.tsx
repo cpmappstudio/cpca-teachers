@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, BookOpen, Upload } from "lucide-react";
+import { ArrowLeft, BookOpen } from "lucide-react";
 import { useParams } from "next/navigation";
 import { LessonsDialog } from "../lessons-dialog";
-import { TeacherDialog } from "@/components/teaching/upload-lesson-dialog";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -17,7 +16,7 @@ interface LessonHeaderProps {
   dialogType?: DialogType;
 }
 
-export function LessonHeader({ lessonId, dialogType = "admin" }: LessonHeaderProps) {
+export function LessonHeader({ lessonId = "admin" }: LessonHeaderProps) {
   const params = useParams();
   const locale = params.locale as string;
 

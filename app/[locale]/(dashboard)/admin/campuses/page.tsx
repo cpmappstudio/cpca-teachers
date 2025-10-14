@@ -24,7 +24,7 @@ async function loadCampuses(client: ConvexHttpClient): Promise<CampusOverview[]>
     try {
         const campuses = await client.query(api.campuses.getCampuses, { isActive: true });
         return campuses.map(mapCampusDocToOverview);
-    } catch (error) {
+    } catch {
         return [];
     }
 }

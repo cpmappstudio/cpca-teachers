@@ -17,12 +17,11 @@ interface CreateTeacherDialogProps {
     campusId: string
 }
 
-export function CreateTeacherDialog({ campusId }: CreateTeacherDialogProps) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function CreateTeacherDialog({ campusId: _campusId }: CreateTeacherDialogProps) {
     const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault()
-        const formData = new FormData(event.currentTarget)
 
-        // TODO: Implement Convex mutation to create teacher
     }
 
     const trigger = (

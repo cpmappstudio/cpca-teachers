@@ -24,8 +24,6 @@ export function TeacherHeader({ teacherId }: TeacherHeaderProps) {
         return null; // or a loading skeleton
     }
 
-    const subtitle = `${teacher.role} profile and progress overview`;
-
     return (
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between px-2 md:px-0">
             <div className="space-y-1.5">

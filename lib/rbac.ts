@@ -28,10 +28,10 @@ const ROLE_PERMISSIONS: Record<keyof typeof roleMatchers, readonly UserRole[]> =
 export function roleFromSessionClaims(sessionClaims: unknown): UserRole | null {
     if (!sessionClaims) return null;
 
-    const claims = sessionClaims as any;
-    const publicMeta = claims?.publicMetadata;
-    const privateMeta = claims?.privateMetadata;
-    const metadata = claims?.metadata;
+    const claims = sessionClaims as Record<string, unknown>;
+    const publicMeta = claims?.publicMetadata as Record<string, unknown> | undefined;
+    const privateMeta = claims?.privateMetadata as Record<string, unknown> | undefined;
+    const metadata = claims?.metadata as Record<string, unknown> | undefined;
 
     const role = publicMeta?.role ?? privateMeta?.role ?? metadata?.role;
 

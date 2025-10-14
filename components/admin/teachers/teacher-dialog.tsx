@@ -58,7 +58,7 @@ export function TeacherDialog({ teacher, trigger, defaultCampusId }: TeacherDial
     // Mutations and Actions
     const createTeacherWithClerk = useAction(api.users.createTeacherWithClerk)
     const updateUserWithClerk = useAction(api.users.updateUserWithClerk)
-    const deleteUserMutation = useMutation(api.users.deleteUser)
+    const deleteUserWithClerk = useAction(api.users.deleteUserWithClerk)
     const generateUploadUrl = useMutation(api.users.generateUploadUrl)
     const deleteUserAvatar = useMutation(api.users.deleteUserAvatar)
 
@@ -302,7 +302,7 @@ export function TeacherDialog({ teacher, trigger, defaultCampusId }: TeacherDial
                 if (hasChanges) {
                     await updateUserWithClerk({
                         userId: teacher._id,
-                        updates: updates as any, // Type assertion needed until Convex regenerates types
+                        updates: updates as Record<string, unknown>, // Type assertion needed until Convex regenerates types
                     })
 
                     toast.success("Teacher updated successfully", {
@@ -336,7 +336,8 @@ export function TeacherDialog({ teacher, trigger, defaultCampusId }: TeacherDial
                     status: selectedStatus as "active" | "inactive" | "on_leave" | "terminated" | undefined,
                 }
 
-                const result = await createTeacherWithClerk(teacherData)
+                // Call the action to create teacher in Clerk and Convex
+                await createTeacherWithClerk(teacherData)
 
                 toast.success("Teacher created successfully", {
                     description: `"${firstName} ${lastName}" has been created successfully.`,
@@ -386,7 +387,8 @@ export function TeacherDialog({ teacher, trigger, defaultCampusId }: TeacherDial
 
         try {
             setIsSubmitting(true)
-            await deleteUserMutation({ userId: teacher._id })
+            // Delete from Clerk (webhook will delete from Convex)
+            await deleteUserWithClerk({ userId: teacher._id })
 
             toast.success("Teacher deleted successfully", {
                 description: `"${teacher.fullName}" has been deleted.`,
