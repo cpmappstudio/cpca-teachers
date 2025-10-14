@@ -255,31 +255,23 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                               <p className="text-xs sm:text-sm text-muted-foreground">
                                                 {getStatusText(lessonData.overallStatus || lessonData.progress?.status || "not_started")}
                                               </p>
-                                              {lessonData.totalGrades > 1 && lessonData.progressByGrade && lessonData.progressByGrade.length > 0 && (
+                                              {lessonData.totalGrades > 1 && assignmentLessonProgress?.grades && assignmentLessonProgress.grades.length > 0 && (
                                                 <div className="flex items-center gap-1 flex-wrap">
-                                                  {lessonData.progressByGrade.map((gradeProgress: any, idx: number) => (
-                                                    <Badge
-                                                      key={idx}
-                                                      variant={gradeProgress.evidenceDocumentStorageId || gradeProgress.evidencePhotoStorageId ? "default" : "outline"}
-                                                      className="text-xs h-5 px-1.5"
-                                                    >
-                                                      {gradeProgress.gradeName || gradeProgress.gradeCode || `Grade ${idx + 1}`}
-                                                      {(gradeProgress.evidenceDocumentStorageId || gradeProgress.evidencePhotoStorageId) && " ✓"}
-                                                    </Badge>
-                                                  ))}
-                                                  {assignmentLessonProgress?.grades && assignmentLessonProgress.grades.length > lessonData.progressByGrade.length && (
-                                                    assignmentLessonProgress.grades
-                                                      .filter((g: any) => !lessonData.progressByGrade.find((p: any) => p.gradeCode === g.code))
-                                                      .map((grade: any) => (
-                                                        <Badge
-                                                          key={grade.code}
-                                                          variant="outline"
-                                                          className="text-xs h-5 px-1.5 opacity-60"
-                                                        >
-                                                          {grade.name}
-                                                        </Badge>
-                                                      ))
-                                                  )}
+                                                  {assignmentLessonProgress.grades.map((grade: any) => {
+                                                    const hasEvidence = lessonData.progressByGrade?.find((p: any) =>
+                                                      p.gradeCode === grade.code && (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                                    );
+                                                    return (
+                                                      <Badge
+                                                        key={grade.code}
+                                                        variant={hasEvidence ? "default" : "outline"}
+                                                        className="text-xs h-5 px-1.5"
+                                                      >
+                                                        {grade.name}
+                                                        {hasEvidence && " ✓"}
+                                                      </Badge>
+                                                    );
+                                                  })}
                                                 </div>
                                               )}
                                             </div>

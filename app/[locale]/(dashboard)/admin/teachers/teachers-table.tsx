@@ -397,9 +397,8 @@ export function TeachersTable() {
 
     return users.map(user => {
       const campus = campuses.find(c => c._id === user.campusId);
-      const progressAvg = user.progressMetrics?.completedLessons && user.progressMetrics?.totalLessons
-        ? Math.round((user.progressMetrics.completedLessons / user.progressMetrics.totalLessons) * 100)
-        : 0;
+      // Use progressPercentage directly from progressMetrics (already calculated with multi-grade support)
+      const progressAvg = user.progressMetrics?.progressPercentage ?? 0;
 
       return {
         _id: user._id,
@@ -590,8 +589,8 @@ export function TeachersTable() {
                 {headerGroup.headers.map((header) => {
                   const meta = header.column.columnDef.meta as { className?: string } | undefined;
                   return (
-                    <TableHead 
-                      key={header.id} 
+                    <TableHead
+                      key={header.id}
                       className={`py-3 px-0 lg:px-5 ${meta?.className || ''}`}
                     >
                       {header.isPlaceholder
@@ -621,8 +620,8 @@ export function TeachersTable() {
                   {row.getVisibleCells().map((cell) => {
                     const meta = cell.column.columnDef.meta as { className?: string } | undefined;
                     return (
-                      <TableCell 
-                        key={cell.id} 
+                      <TableCell
+                        key={cell.id}
                         className={`py-4 px-2 lg:px-5 ${meta?.className || ''}`}
                       >
                         {flexRender(

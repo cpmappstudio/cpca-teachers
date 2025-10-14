@@ -171,13 +171,13 @@ const teacherColumns: ColumnDef<Teacher>[] = [
               />
             </div>
             <span className="text-sm font-medium whitespace-nowrap">
-              {Math.round(progress)}%
+              {progress}%
             </span>
           </div>
           {/* Mobile: Badge con el valor */}
           <div className="lg:hidden py-1">
             <Badge className="bg-deep-koamaru text-white text-xs px-2 py-0.5">
-              {Math.round(progress)}%
+              {progress}%
             </Badge>
           </div>
         </>

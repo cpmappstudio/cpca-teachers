@@ -136,24 +136,147 @@ export const getUsers = query({
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    let users: Doc<"users">[];
+
     if (args.role) {
-      return await ctx.db
+      users = await ctx.db
         .query("users")
         .withIndex("by_role_active", (q) =>
           q.eq("role", args.role!).eq("isActive", args.isActive ?? true)
         )
         .collect();
     } else if (args.campusId) {
-      return await ctx.db
+      users = await ctx.db
         .query("users")
         .withIndex("by_campus_active", (q) =>
           q.eq("campusId", args.campusId!).eq("isActive", args.isActive ?? true)
         )
         .collect();
+    } else {
+      // Default: get all users
+      users = await ctx.db.query("users").collect();
     }
 
-    // Default: get all users
-    return await ctx.db.query("users").collect();
+    // If requesting teachers, calculate real progress based on assignments (multi-grade aware)
+    if (args.role === "teacher") {
+      const usersWithProgress = await Promise.all(
+        users.map(async (user) => {
+          // Get all active assignments for this teacher
+          const assignments = await ctx.db
+            .query("teacher_assignments")
+            .withIndex("by_teacher_active", (q) =>
+              q.eq("teacherId", user._id).eq("isActive", true)
+            )
+            .collect();
+
+          if (assignments.length === 0) {
+            return {
+              ...user,
+              progressMetrics: {
+                totalLessons: 0,
+                completedLessons: 0,
+                progressPercentage: 0,
+                lastUpdated: Date.now(),
+              },
+            };
+          }
+
+          // Calculate progress percentage per assignment, then average
+          const assignmentProgressPercentages: number[] = [];
+          let totalLessonsSum = 0;
+          let completedLessonsSum = 0;
+
+          for (const assignment of assignments) {
+            // Get curriculum
+            const curriculum = await ctx.db.get(assignment.curriculumId);
+            if (!curriculum) continue;
+
+            // Get campus to access grades
+            const campus = await ctx.db.get(assignment.campusId);
+
+            // Get grade codes from curriculum campus assignments
+            const campusAssignment = curriculum.campusAssignments?.find(
+              ca => ca.campusId === assignment.campusId
+            );
+            const gradeCodes = campusAssignment?.gradeCodes || [];
+            const totalGrades = gradeCodes.length || 1;
+
+            // Get all lessons for this curriculum
+            const lessons = await ctx.db
+              .query("curriculum_lessons")
+              .withIndex("by_curriculum_active", (q) =>
+                q.eq("curriculumId", curriculum._id).eq("isActive", true)
+              )
+              .collect();
+
+            const assignmentTotalLessons = lessons.length;
+            let assignmentCompletedLessons = 0;
+
+            // Get progress records for this specific assignment
+            const progressRecords = await ctx.db
+              .query("lesson_progress")
+              .withIndex("by_assignment_status", (q) =>
+                q.eq("assignmentId", assignment._id)
+              )
+              .collect();
+
+            // Count completed lessons (multi-grade aware) for this assignment
+            for (const lesson of lessons) {
+              const lessonProgressRecords = progressRecords.filter(
+                p => p.lessonId === lesson._id
+              );
+
+              if (totalGrades > 1) {
+                // Multi-grade: lesson is completed only if all grades are completed
+                const completedGrades = lessonProgressRecords.filter(
+                  p => p.status === "completed"
+                ).length;
+
+                if (completedGrades === totalGrades) {
+                  assignmentCompletedLessons++;
+                }
+              } else {
+                // Single grade
+                const lessonProgress = lessonProgressRecords[0];
+                if (lessonProgress?.status === "completed") {
+                  assignmentCompletedLessons++;
+                }
+              }
+            }
+
+            // Calculate percentage for this assignment
+            const assignmentPercentage = assignmentTotalLessons > 0
+              ? Math.round((assignmentCompletedLessons / assignmentTotalLessons) * 100)
+              : 0;
+
+            assignmentProgressPercentages.push(assignmentPercentage);
+            totalLessonsSum += assignmentTotalLessons;
+            completedLessonsSum += assignmentCompletedLessons;
+          }
+
+          // Calculate average progress percentage across all assignments
+          const progressPercentage = assignmentProgressPercentages.length > 0
+            ? Math.round(assignmentProgressPercentages.reduce((a, b) => a + b, 0) / assignmentProgressPercentages.length)
+            : 0;
+
+          // Update progressMetrics on the user object
+          return {
+            ...user,
+            progressMetrics: {
+              totalLessons: totalLessonsSum,
+              completedLessons: completedLessonsSum,
+              progressPercentage, // Average percentage across assignments
+              lastUpdated: Date.now(),
+            },
+          };
+        })
+      );
+
+      return usersWithProgress;
+    }
+
+    // For non-teachers, return as-is
+    return users;
   },
 });
 
@@ -468,10 +591,45 @@ export const removeTeacherFromCampus = mutation({
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
+    // Get the user to access their current campus
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const oldCampusId = user.campusId;
+
+    // Remove campus assignment
     await ctx.db.patch(args.userId, {
       campusId: undefined,
       updatedAt: Date.now(),
     });
+
+    // Update old campus metrics if the user was a teacher
+    if (oldCampusId && user.role === "teacher") {
+      const oldCampus = await ctx.db.get(oldCampusId);
+      if (oldCampus && "metrics" in oldCampus) {
+        const teachers = await ctx.db
+          .query("users")
+          .withIndex("by_campus_active", (q) =>
+            q.eq("campusId", oldCampusId).eq("isActive", true)
+          )
+          .filter((q) => q.eq(q.field("role"), "teacher"))
+          .collect();
+
+        const totalTeachers = teachers.length;
+        const activeTeachers = teachers.filter((t) => t.status === "active").length;
+
+        await ctx.db.patch(oldCampusId, {
+          metrics: {
+            totalTeachers,
+            activeTeachers,
+            averageProgress: oldCampus.metrics?.averageProgress || 0,
+            lastUpdated: Date.now(),
+          },
+        });
+      }
+    }
   },
 });
 

@@ -9,14 +9,44 @@ export const getCurriculums = query({
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    let curriculums;
+
     if (args.isActive !== undefined) {
-      return await ctx.db
+      curriculums = await ctx.db
         .query("curriculums")
         .withIndex("by_active", (q) => q.eq("isActive", args.isActive!))
         .collect();
+    } else {
+      curriculums = await ctx.db.query("curriculums").collect();
     }
 
-    return await ctx.db.query("curriculums").collect();
+    // Calculate real metrics for each curriculum
+    const curriculumsWithMetrics = await Promise.all(
+      curriculums.map(async (curriculum) => {
+        // Count lessons for this curriculum
+        const lessons = await ctx.db
+          .query("curriculum_lessons")
+          .withIndex("by_curriculum_active", (q) =>
+            q.eq("curriculumId", curriculum._id).eq("isActive", true)
+          )
+          .collect();
+
+        const totalLessons = lessons.length;
+
+        // Return curriculum with updated metrics
+        return {
+          ...curriculum,
+          metrics: {
+            totalLessons,
+            assignedTeachers: curriculum.metrics?.assignedTeachers || 0,
+            averageProgress: curriculum.metrics?.averageProgress || 0,
+            lastUpdated: Date.now(),
+          },
+        };
+      })
+    );
+
+    return curriculumsWithMetrics;
   },
 });
 

@@ -50,9 +50,14 @@ import { api } from "@/convex/_generated/api"
 import type { Doc } from "@/convex/_generated/dataModel"
 
 // Tipo para los datos de curriculums basado en el schema de Convex
+// Ahora getCurriculums siempre retorna metrics calculados dinámicamente
 export type Curriculum = Doc<"curriculums"> & {
-    // Campos calculados/derivados para la tabla
-    lessonsCount?: number
+    metrics: {
+        totalLessons: number;
+        assignedTeachers: number;
+        averageProgress: number;
+        lastUpdated: number;
+    };
 }
 
 const statusOptions = [
@@ -162,7 +167,7 @@ export const columns: ColumnDef<Curriculum>[] = [
         },
         cell: ({ row }) => {
             const quarters = row.getValue("numberOfQuarters") as number
-            const lessons = row.original.lessonsCount ?? 0
+            const lessons = row.original.metrics.totalLessons
             return (
                 <div className="flex items-center gap-2 py-1">
                     <span>{quarters}Q</span>

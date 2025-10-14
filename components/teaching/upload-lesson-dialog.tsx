@@ -26,7 +26,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Upload, FileUp, Loader2, Trash2, FileCheck, Circle } from "lucide-react"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs"
+import { Upload, FileUp, Loader2, Trash2, FileCheck, Circle, Eye, FileText } from "lucide-react"
 import { toast } from "sonner"
 import { useCurrentUser } from "@/hooks/use-current-user"
 import {
@@ -37,6 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import Image from "next/image"
 
 interface TeacherDialogProps {
   lesson?: {
@@ -55,6 +62,13 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
   const [isUploading, setIsUploading] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [gradeToDelete, setGradeToDelete] = useState<string | null>(null) // Track which grade to delete
+  const [evidenceDialogOpen, setEvidenceDialogOpen] = useState(false) // For evidence viewer dialog
+  const [selectedEvidence, setSelectedEvidence] = useState<{
+    storageId: Id<"_storage">,
+    type: "image" | "pdf",
+    gradeName?: string
+  } | null>(null) // Track which evidence to view
 
   // Query to get assignment details with grades
   const assignmentData = useQuery(
@@ -82,11 +96,14 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
   const saveLessonEvidence = useMutation(api.lessons.saveLessonEvidence)
   const deleteLessonEvidence = useMutation(api.lessons.deleteLessonEvidence)
 
-  // Check which grades have evidence
+  // Check which grades have evidence (only count records that have actual files uploaded)
   const gradesWithEvidence = new Set(
-    lessonProgressRecords?.map(p => p.gradeCode).filter(Boolean) || []
+    lessonProgressRecords
+      ?.filter(p => p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+      .map(p => p.gradeCode)
+      .filter(Boolean) || []
   )
-  const hasEvidence = lessonProgressRecords && lessonProgressRecords.length > 0
+  const hasEvidence = lessonProgressRecords?.some(p => p.evidenceDocumentStorageId || p.evidencePhotoStorageId) || false
 
   // Get available grades (those without evidence yet) for upload
   const availableGrades = hasMultipleGrades
@@ -123,10 +140,15 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
       await deleteLessonEvidence({
         lessonId: lesson.id as Id<"curriculum_lessons">,
         teacherId: user._id,
+        gradeCode: gradeToDelete || undefined, // Pass gradeCode if deleting specific grade
       })
 
-      toast.success("Evidence deleted successfully!")
+      const gradeMessage = gradeToDelete && hasMultipleGrades
+        ? ` for ${grades.find(g => g.code === gradeToDelete)?.name}`
+        : ""
+      toast.success(`Evidence deleted successfully${gradeMessage}!`)
       setShowDeleteConfirm(false)
+      setGradeToDelete(null)
     } catch (error) {
       console.error("Delete error:", error)
       toast.error(
@@ -250,34 +272,79 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
                   <h4 className="text-sm font-medium border-b pb-2">Evidence by Grade</h4>
                   <div className="space-y-2">
                     {grades.map((grade) => {
-                      const hasGradeEvidence = gradesWithEvidence.has(grade.code)
+                      const gradeProgress = lessonProgressRecords?.find(p => p.gradeCode === grade.code)
+                      const hasGradeEvidence = !!(gradeProgress?.evidenceDocumentStorageId || gradeProgress?.evidencePhotoStorageId)
                       return (
                         <div
                           key={grade.code}
                           className={`border rounded-lg p-3 ${hasGradeEvidence
-                              ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900"
-                              : "bg-muted/30 border-border"
+                            ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900"
+                            : "bg-muted/30 border-border"
                             }`}
                         >
                           <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
                               {hasGradeEvidence ? (
-                                <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded">
+                                <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded flex-shrink-0">
                                   <FileCheck className="h-4 w-4 text-green-700 dark:text-green-400" />
                                 </div>
                               ) : (
-                                <div className="bg-muted p-2 rounded">
+                                <div className="bg-muted p-2 rounded flex-shrink-0">
                                   <Circle className="h-4 w-4 text-muted-foreground" />
                                 </div>
                               )}
-                              <div>
+                              <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium">{grade.name}</p>
                                 <p className="text-xs text-muted-foreground">{grade.code}</p>
+                                {hasGradeEvidence && gradeProgress.completedAt && (
+                                  <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                                    Uploaded {new Date(gradeProgress.completedAt).toLocaleDateString()}
+                                  </p>
+                                )}
                               </div>
                             </div>
-                            <Badge variant={hasGradeEvidence ? "default" : "outline"} className="text-xs">
-                              {hasGradeEvidence ? "Evidence uploaded" : "Pending"}
-                            </Badge>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <Badge variant={hasGradeEvidence ? "default" : "outline"} className="text-xs">
+                                {hasGradeEvidence ? "Uploaded" : "Pending"}
+                              </Badge>
+                              {hasGradeEvidence && (
+                                <>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      const evidenceId = gradeProgress.evidenceDocumentStorageId || gradeProgress.evidencePhotoStorageId
+                                      const evidenceType = gradeProgress.evidencePhotoStorageId ? "image" : "pdf"
+                                      if (evidenceId) {
+                                        setSelectedEvidence({
+                                          storageId: evidenceId,
+                                          type: evidenceType,
+                                          gradeName: grade.name
+                                        })
+                                        setEvidenceDialogOpen(true)
+                                      }
+                                    }}
+                                    className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-primary/10"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setGradeToDelete(grade.code)
+                                      setShowDeleteConfirm(true)
+                                    }}
+                                    disabled={isDeleting}
+                                    className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )
@@ -307,19 +374,49 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
                           <p className="text-xs text-green-700 dark:text-green-400 mt-1">
                             Lesson marked as completed
                           </p>
+                          {lessonProgressRecords[0].completedAt && (
+                            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                              Uploaded on {new Date(lessonProgressRecords[0].completedAt).toLocaleDateString()}
+                            </p>
+                          )}
                         </div>
                       </div>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => setShowDeleteConfirm(true)}
-                        disabled={isDeleting}
-                        className="gap-2"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Delete
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const evidenceId = lessonProgressRecords[0].evidenceDocumentStorageId || lessonProgressRecords[0].evidencePhotoStorageId
+                            const evidenceType = lessonProgressRecords[0].evidencePhotoStorageId ? "image" : "pdf"
+                            if (evidenceId) {
+                              setSelectedEvidence({
+                                storageId: evidenceId,
+                                type: evidenceType
+                              })
+                              setEvidenceDialogOpen(true)
+                            }
+                          }}
+                          className="gap-2"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => {
+                            setGradeToDelete(null) // No grade for single-grade
+                            setShowDeleteConfirm(true)
+                          }}
+                          disabled={isDeleting}
+                          className="gap-2"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -402,9 +499,9 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
                 className="min-w-[100px]"
                 disabled={isUploading || isDeleting}
               >
-                {hasEvidence ? "Close" : "Cancel"}
+                {availableGrades.length === 0 ? "Close" : "Cancel"}
               </Button>
-              {!hasEvidence && (
+              {availableGrades.length > 0 && (
                 <Button
                   type="submit"
                   className="bg-deep-koamaru dark:text-white min-w-[100px] gap-2"
@@ -434,8 +531,10 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Evidence</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this evidence? This action cannot be undone.
-              The lesson will be marked as incomplete.
+              {gradeToDelete && hasMultipleGrades
+                ? `Are you sure you want to delete the evidence for ${grades.find(g => g.code === gradeToDelete)?.name}? This action cannot be undone.`
+                : "Are you sure you want to delete this evidence? This action cannot be undone. The lesson will be marked as incomplete."
+              }
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -460,6 +559,61 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Evidence Viewer Dialog */}
+      <Dialog open={evidenceDialogOpen} onOpenChange={setEvidenceDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[95vh] p-0 gap-0">
+          <DialogTitle className="sr-only">
+            {selectedEvidence?.gradeName ? `${selectedEvidence.gradeName} Evidence` : "Lesson Evidence"}
+          </DialogTitle>
+          {selectedEvidence && (
+            <div className="p-4">
+              <EvidenceViewer
+                storageId={selectedEvidence.storageId}
+                type={selectedEvidence.type}
+                title={selectedEvidence.gradeName || "Evidence"}
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   )
+}
+
+// Component to view evidence in full size
+function EvidenceViewer({ storageId, type, title }: { storageId: Id<"_storage">, type: "image" | "pdf", title: string }) {
+  const url = useQuery(api.progress.getStorageUrl, { storageId });
+
+  if (!url) {
+    return <div className="w-full h-96 bg-muted animate-pulse rounded-lg" />;
+  }
+
+  if (type === "image") {
+    return (
+      <div className="w-full">
+        <div className="relative w-full" style={{ height: 'calc(90vh - 100px)' }}>
+          <Image
+            src={url}
+            alt={title}
+            fill
+            className="object-contain"
+            unoptimized
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // PDF viewer
+  return (
+    <div className="w-full">
+      <iframe
+        src={url}
+        className="w-full border-0"
+        style={{ height: 'calc(90vh - 100px)' }}
+        title={title}
+      />
+    </div>
+  );
 }

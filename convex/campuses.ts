@@ -264,7 +264,7 @@ export const getTeachersByCampus = query({
       )
       .collect();
 
-    // Calculate real progress for each teacher from lesson_progress
+    // Calculate real progress for each teacher (multi-grade aware) - SAME LOGIC AS getUsers
     const teachersWithProgress = await Promise.all(
       teachers.map(async (teacher) => {
         // Get all active assignments for this teacher
@@ -276,7 +276,6 @@ export const getTeachersByCampus = query({
           .collect();
 
         if (assignments.length === 0) {
-          // No assignments, return teacher with 0 progress
           return {
             ...teacher,
             progressMetrics: {
@@ -288,22 +287,38 @@ export const getTeachersByCampus = query({
           };
         }
 
-        // Get all lessons for all assigned curriculums
-        let totalLessons = 0;
-        let completedLessons = 0;
+        // Calculate progress percentage per assignment, then average
+        const assignmentProgressPercentages: number[] = [];
+        let totalLessonsSum = 0;
+        let completedLessonsSum = 0;
 
         for (const assignment of assignments) {
-          // Get curriculum lessons
+          // Get curriculum
+          const curriculum = await ctx.db.get(assignment.curriculumId);
+          if (!curriculum) continue;
+
+          // Get campus to access grades
+          const campus = await ctx.db.get(assignment.campusId);
+
+          // Get grade codes from curriculum campus assignments
+          const campusAssignment = curriculum.campusAssignments?.find(
+            ca => ca.campusId === assignment.campusId
+          );
+          const gradeCodes = campusAssignment?.gradeCodes || [];
+          const totalGrades = gradeCodes.length || 1;
+
+          // Get all lessons for this curriculum
           const lessons = await ctx.db
             .query("curriculum_lessons")
             .withIndex("by_curriculum_active", (q) =>
-              q.eq("curriculumId", assignment.curriculumId).eq("isActive", true)
+              q.eq("curriculumId", curriculum._id).eq("isActive", true)
             )
             .collect();
 
-          totalLessons += lessons.length;
+          const assignmentTotalLessons = lessons.length;
+          let assignmentCompletedLessons = 0;
 
-          // Get completed lessons for this assignment
+          // Get progress records for this specific assignment
           const progressRecords = await ctx.db
             .query("lesson_progress")
             .withIndex("by_assignment_status", (q) =>
@@ -311,22 +326,51 @@ export const getTeachersByCampus = query({
             )
             .collect();
 
-          const completed = progressRecords.filter(
-            (p) => p.status === "completed"
-          ).length;
+          // Count completed lessons (multi-grade aware) for this assignment
+          for (const lesson of lessons) {
+            const lessonProgressRecords = progressRecords.filter(
+              p => p.lessonId === lesson._id
+            );
 
-          completedLessons += completed;
+            if (totalGrades > 1) {
+              // Multi-grade: lesson is completed only if all grades are completed
+              const completedGrades = lessonProgressRecords.filter(
+                p => p.status === "completed"
+              ).length;
+
+              if (completedGrades === totalGrades) {
+                assignmentCompletedLessons++;
+              }
+            } else {
+              // Single grade
+              const lessonProgress = lessonProgressRecords[0];
+              if (lessonProgress?.status === "completed") {
+                assignmentCompletedLessons++;
+              }
+            }
+          }
+
+          // Calculate percentage for this assignment
+          const assignmentPercentage = assignmentTotalLessons > 0
+            ? Math.round((assignmentCompletedLessons / assignmentTotalLessons) * 100)
+            : 0;
+
+          assignmentProgressPercentages.push(assignmentPercentage);
+          totalLessonsSum += assignmentTotalLessons;
+          completedLessonsSum += assignmentCompletedLessons;
         }
 
-        const progressPercentage =
-          totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+        // Calculate average progress percentage across all assignments
+        const progressPercentage = assignmentProgressPercentages.length > 0
+          ? Math.round(assignmentProgressPercentages.reduce((a, b) => a + b, 0) / assignmentProgressPercentages.length)
+          : 0;
 
         return {
           ...teacher,
           progressMetrics: {
-            totalLessons,
-            completedLessons,
-            progressPercentage,
+            totalLessons: totalLessonsSum,
+            completedLessons: completedLessonsSum,
+            progressPercentage, // Average percentage across assignments
             lastUpdated: Date.now(),
           },
         };

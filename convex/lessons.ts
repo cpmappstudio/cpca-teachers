@@ -500,15 +500,31 @@ export const deleteLessonEvidence = mutation({
   args: {
     lessonId: v.id("curriculum_lessons"),
     teacherId: v.id("users"),
+    gradeCode: v.optional(v.string()), // Grade code for multi-grade support
   },
   handler: async (ctx, args) => {
     // Find the progress record
-    const progressRecord = await ctx.db
-      .query("lesson_progress")
-      .withIndex("by_teacher_lesson", (q) =>
-        q.eq("teacherId", args.teacherId).eq("lessonId", args.lessonId)
-      )
-      .first();
+    let progressRecord;
+    if (args.gradeCode) {
+      // Multi-grade: find specific grade progress
+      progressRecord = await ctx.db
+        .query("lesson_progress")
+        .withIndex("by_teacher_lesson_grade", (q) =>
+          q.eq("teacherId", args.teacherId)
+            .eq("lessonId", args.lessonId)
+            .eq("gradeCode", args.gradeCode)
+        )
+        .first();
+    } else {
+      // Single-grade: find progress without gradeCode
+      progressRecord = await ctx.db
+        .query("lesson_progress")
+        .withIndex("by_teacher_lesson", (q) =>
+          q.eq("teacherId", args.teacherId).eq("lessonId", args.lessonId)
+        )
+        .filter(q => q.eq(q.field("gradeCode"), undefined))
+        .first();
+    }
 
     if (!progressRecord) {
       throw new Error("Progress record not found");
@@ -518,10 +534,14 @@ export const deleteLessonEvidence = mutation({
     if (progressRecord.evidenceDocumentStorageId) {
       await ctx.storage.delete(progressRecord.evidenceDocumentStorageId);
     }
+    if (progressRecord.evidencePhotoStorageId) {
+      await ctx.storage.delete(progressRecord.evidencePhotoStorageId);
+    }
 
     // Update the progress record to remove evidence and reset status
     await ctx.db.patch(progressRecord._id, {
       evidenceDocumentStorageId: undefined,
+      evidencePhotoStorageId: undefined,
       status: "not_started",
       completedAt: undefined,
       updatedAt: Date.now(),

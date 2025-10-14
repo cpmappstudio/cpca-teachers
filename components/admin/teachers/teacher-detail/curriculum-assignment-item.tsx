@@ -186,7 +186,7 @@ export function CurriculumAssignmentItem({
                             <span className="text-muted-foreground whitespace-nowrap">
                                 {assignment.progressSummary.completedLessons}/{assignment.progressSummary.totalLessons} lessons
                             </span>
-                            <span className="font-semibold text-primary whitespace-nowrap">
+                            <span className="font-semibold text-primary whitespace-nowrap hidden sm:inline">
                                 {assignment.progressSummary.progressPercentage}% complete
                             </span>
                         </div>
@@ -282,12 +282,18 @@ export function CurriculumAssignmentItem({
                                             const evidenceStorageId = lesson.progress?.evidencePhotoStorageId || lesson.progress?.evidenceDocumentStorageId;
                                             const evidenceType = lesson.progress?.evidencePhotoStorageId ? "image" : "pdf";
 
+                                            // Determine background color based on completion
+                                            const isFullyComplete = completionPercentage === 100;
+                                            const isPartiallyComplete = hasEvidence && !isFullyComplete;
+
                                             return (
                                                 <Card
                                                     key={lesson.lessonId}
-                                                    className={`transition-all bg-popover py-0 ${hasEvidence
+                                                    className={`transition-all bg-popover py-0 ${isFullyComplete
                                                         ? "border-green-200 bg-green-50/50"
-                                                        : "border-gray-200"
+                                                        : isPartiallyComplete
+                                                            ? "border-yellow-200 bg-yellow-50/50"
+                                                            : "border-gray-200"
                                                         }`}
                                                 >
                                                     <CardContent className="p-3 sm:p-4">
@@ -300,19 +306,22 @@ export function CurriculumAssignmentItem({
                                                                         setSelectedLesson(lesson);
                                                                         setEvidenceDialogOpen(true);
                                                                     }}
-                                                                    className="shrink-0 w-16 h-16 rounded-md border-2 border-green-300 overflow-hidden bg-green-50 hover:border-green-500 transition-colors flex items-center justify-center"
+                                                                    className={`shrink-0 w-16 h-16 rounded-md border-2 overflow-hidden transition-colors flex items-center justify-center ${isFullyComplete
+                                                                        ? "border-green-300 bg-green-50 hover:border-green-500"
+                                                                        : "border-yellow-300 bg-yellow-50 hover:border-yellow-500"
+                                                                        }`}
                                                                 >
                                                                     {evidenceStorageId && evidenceType === "image" ? (
                                                                         <EvidencePreview storageId={evidenceStorageId} type="image" />
                                                                     ) : evidenceStorageId && evidenceType === "pdf" ? (
                                                                         <div className="flex flex-col items-center justify-center gap-1">
-                                                                            <FileText className="h-6 w-6 text-green-700" />
-                                                                            <span className="text-[10px] text-green-700 font-medium">PDF</span>
+                                                                            <FileText className={`h-6 w-6 ${isFullyComplete ? "text-green-700" : "text-yellow-700"}`} />
+                                                                            <span className={`text-[10px] font-medium ${isFullyComplete ? "text-green-700" : "text-yellow-700"}`}>PDF</span>
                                                                         </div>
                                                                     ) : (
                                                                         <div className="flex flex-col items-center justify-center gap-1">
-                                                                            <FileText className="h-6 w-6 text-green-700" />
-                                                                            <span className="text-[10px] text-green-700 font-medium">View</span>
+                                                                            <FileText className={`h-6 w-6 ${isFullyComplete ? "text-green-700" : "text-yellow-700"}`} />
+                                                                            <span className={`text-[10px] font-medium ${isFullyComplete ? "text-green-700" : "text-yellow-700"}`}>View</span>
                                                                         </div>
                                                                     )}
                                                                 </button>
@@ -362,20 +371,8 @@ export function CurriculumAssignmentItem({
                                                                             </div>
                                                                         )}
                                                                     </div>
-                                                                    <Badge
-                                                                        variant={hasEvidence ? "default" : "secondary"}
-                                                                        className="text-xs shrink-0"
-                                                                    >
-                                                                        {lesson.progress?.status
-                                                                            ? getStatusText(lesson.progress.status)
-                                                                            : "Pending"}
-                                                                    </Badge>
-                                                                </div>
-
-                                                                {/* Bottom: Details button aligned right */}
-                                                                <div className="flex justify-end">
                                                                     <span
-                                                                        className="inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-7 px-3 cursor-pointer border"
+                                                                        className="inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-7 px-2 cursor-pointer border shrink-0"
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
                                                                             router.push(`/${locale}/admin/lessons/${lesson.lessonId}`);
@@ -385,6 +382,8 @@ export function CurriculumAssignmentItem({
                                                                         <span>Details</span>
                                                                     </span>
                                                                 </div>
+
+                                                                {/* Bottom row removed - Details button moved up */}
                                                             </div>
                                                         </div>
 
@@ -397,19 +396,22 @@ export function CurriculumAssignmentItem({
                                                                         setSelectedLesson(lesson);
                                                                         setEvidenceDialogOpen(true);
                                                                     }}
-                                                                    className="shrink-0 w-16 h-16 rounded-md border-2 border-green-300 overflow-hidden bg-green-50 hover:border-green-500 transition-colors flex items-center justify-center group"
+                                                                    className={`shrink-0 w-16 h-16 rounded-md border-2 overflow-hidden transition-colors flex items-center justify-center group ${isFullyComplete
+                                                                        ? "border-green-300 bg-green-50 hover:border-green-500"
+                                                                        : "border-yellow-300 bg-yellow-50 hover:border-yellow-500"
+                                                                        }`}
                                                                 >
                                                                     {evidenceStorageId && evidenceType === "image" ? (
                                                                         <EvidencePreview storageId={evidenceStorageId} type="image" />
                                                                     ) : evidenceStorageId && evidenceType === "pdf" ? (
                                                                         <div className="flex flex-col items-center justify-center gap-1">
-                                                                            <FileText className="h-6 w-6 text-green-700" />
-                                                                            <span className="text-[10px] text-green-700 font-medium">PDF</span>
+                                                                            <FileText className={`h-6 w-6 ${isFullyComplete ? "text-green-700" : "text-yellow-700"}`} />
+                                                                            <span className={`text-[10px] font-medium ${isFullyComplete ? "text-green-700" : "text-yellow-700"}`}>PDF</span>
                                                                         </div>
                                                                     ) : (
                                                                         <div className="flex flex-col items-center justify-center gap-1">
-                                                                            <FileText className="h-6 w-6 text-green-700" />
-                                                                            <span className="text-[10px] text-green-700 font-medium">View</span>
+                                                                            <FileText className={`h-6 w-6 ${isFullyComplete ? "text-green-700" : "text-yellow-700"}`} />
+                                                                            <span className={`text-[10px] font-medium ${isFullyComplete ? "text-green-700" : "text-yellow-700"}`}>View</span>
                                                                         </div>
                                                                     )}
                                                                 </button>
@@ -457,6 +459,15 @@ export function CurriculumAssignmentItem({
                                                                     </div>
                                                                 )}
 
+
+                                                                {lesson.description && (
+                                                                    <p className="text-xs text-muted-foreground line-clamp-2">
+                                                                        {lesson.description}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+
+                                                            <div className="flex items-center gap-2 shrink-0">
                                                                 {/* View Details Button */}
                                                                 <span
                                                                     className="inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-7 px-2 cursor-pointer shrink-0"
@@ -469,23 +480,6 @@ export function CurriculumAssignmentItem({
                                                                     <span>View Details</span>
                                                                 </span>
 
-                                                                {lesson.description && (
-                                                                    <p className="text-xs text-muted-foreground line-clamp-2">
-                                                                        {lesson.description}
-                                                                    </p>
-                                                                )}
-                                                            </div>
-
-                                                            {/* Status Badge */}
-                                                            <div className="flex items-center gap-2 shrink-0">
-                                                                <Badge
-                                                                    variant={hasEvidence ? "default" : "secondary"}
-                                                                    className="text-xs"
-                                                                >
-                                                                    {lesson.progress?.status
-                                                                        ? getStatusText(lesson.progress.status)
-                                                                        : "Pending"}
-                                                                </Badge>
                                                             </div>
                                                         </div>
                                                     </CardContent>
@@ -502,13 +496,13 @@ export function CurriculumAssignmentItem({
 
             {/* Evidence Dialog with Tabs */}
             <Dialog open={evidenceDialogOpen} onOpenChange={setEvidenceDialogOpen}>
-                <DialogContent className="max-w-4xl max-h-[95vh] p-0 gap-0">
+                <DialogContent className="max-w-4xl max-h-[95vh] p-0 gap-0 overflow-hidden">
                     <DialogTitle className="sr-only">
                         {selectedLesson?.title || "Lesson Evidence"}
                     </DialogTitle>
                     {selectedLesson?.progressByGrade && selectedLesson.progressByGrade.length > 0 && (
-                        <Tabs defaultValue={selectedLesson.progressByGrade[0]?.gradeCode || "0"} className="w-full h-full">
-                            <TabsList className="w-full rounded-none border-b">
+                        <Tabs defaultValue={selectedLesson.progressByGrade[0]?.gradeCode || "0"} >
+                            <TabsList>
                                 {selectedLesson.progressByGrade
                                     .filter((p: any) => p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
                                     .map((gradeProgress: any) => (
@@ -534,6 +528,7 @@ export function CurriculumAssignmentItem({
                                                 storageId={evidenceId}
                                                 type={evidenceType}
                                                 title={`${gradeProgress.gradeName || gradeProgress.gradeCode} Evidence`}
+                                                uploadedAt={gradeProgress.completedAt}
                                             />
                                         </TabsContent>
                                     );
@@ -548,17 +543,43 @@ export function CurriculumAssignmentItem({
 }
 
 // Component to view evidence in full size
-function EvidenceViewer({ storageId, type, title }: { storageId: Id<"_storage">, type: "image" | "pdf", title: string }) {
+function EvidenceViewer({
+    storageId,
+    type,
+    title,
+    uploadedAt
+}: {
+    storageId: Id<"_storage">,
+    type: "image" | "pdf",
+    title: string,
+    uploadedAt?: number
+}) {
     const url = useQuery(api.progress.getStorageUrl, { storageId });
 
     if (!url) {
         return <div className="w-full h-96 bg-muted animate-pulse rounded-lg" />;
     }
 
+    // Format the upload date and time
+    const uploadDateText = uploadedAt
+        ? new Date(uploadedAt).toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        })
+        : null;
+
     if (type === "image") {
         return (
-            <div className="w-full">
-                <div className="relative w-full" style={{ height: 'calc(90vh - 100px)' }}>
+            <div className="w-full space-y-3">
+                {uploadDateText && (
+                    <div className="text-sm text-muted-foreground">
+                        <span className="font-medium">Uploaded:</span> {uploadDateText}
+                    </div>
+                )}
+                <div className="relative w-full" style={{ height: 'calc(90vh - 140px)' }}>
                     <Image
                         src={url}
                         alt={title}
@@ -573,11 +594,16 @@ function EvidenceViewer({ storageId, type, title }: { storageId: Id<"_storage">,
 
     // PDF viewer
     return (
-        <div className="w-full">
+        <div className="w-full space-y-3">
+            {uploadDateText && (
+                <div className="text-sm text-muted-foreground">
+                    <span className="font-medium">Uploaded:</span> {uploadDateText}
+                </div>
+            )}
             <iframe
                 src={url}
                 className="w-full border-0"
-                style={{ height: 'calc(90vh - 100px)' }}
+                style={{ height: 'calc(90vh - 140px)' }}
                 title={title}
             />
         </div>

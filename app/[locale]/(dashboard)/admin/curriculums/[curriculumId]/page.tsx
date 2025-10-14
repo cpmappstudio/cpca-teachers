@@ -6,14 +6,14 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 
 interface CurriculumPageProps {
-    params: {
+    params: Promise<{
         curriculumId: string
         locale: string
-    }
+    }>
 }
 
-export default function CurriculumPage({ params }: CurriculumPageProps) {
-    const { curriculumId } = params
+export default async function CurriculumPage({ params }: CurriculumPageProps) {
+    const { curriculumId } = await params
 
     return (
         <div className="flex flex-col gap-6 px-2 md:px-4 pb-8">
