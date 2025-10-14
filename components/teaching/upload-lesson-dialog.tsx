@@ -262,9 +262,9 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
 
             <div className="grid gap-6">
               {/* Existing Evidence Display */}
-              {hasEvidence && hasMultipleGrades && (
+              {hasEvidence && grades.length > 0 && (
                 <div className="space-y-4">
-                  <h4 className="text-sm font-medium border-b pb-2">Evidence by Grade</h4>
+                  <h4 className="text-sm font-medium border-b pb-2">{hasMultipleGrades ? "Evidence by Grade" : "Current Evidence"}</h4>
                   <div className="space-y-2">
                     {grades.map((grade) => {
                       const gradeProgress = lessonProgressRecords?.find(p => p.gradeCode === grade.code)
@@ -353,74 +353,10 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
                 </div>
               )}
 
-              {hasEvidence && !hasMultipleGrades && lessonProgressRecords && lessonProgressRecords.length > 0 && (
-                <div className="space-y-4">
-                  <h4 className="text-sm font-medium border-b pb-2">Current Evidence</h4>
-                  <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 flex-1">
-                        <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg">
-                          <FileCheck className="h-5 w-5 text-green-700 dark:text-green-400" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-green-900 dark:text-green-100">
-                            Evidence Uploaded
-                          </p>
-                          <p className="text-xs text-green-700 dark:text-green-400 mt-1">
-                            Lesson marked as completed
-                          </p>
-                          {lessonProgressRecords[0].completedAt && (
-                            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                              Uploaded on {new Date(lessonProgressRecords[0].completedAt).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const evidenceId = lessonProgressRecords[0].evidenceDocumentStorageId || lessonProgressRecords[0].evidencePhotoStorageId
-                            const evidenceType = lessonProgressRecords[0].evidencePhotoStorageId ? "image" : "pdf"
-                            if (evidenceId) {
-                              setSelectedEvidence({
-                                storageId: evidenceId,
-                                type: evidenceType
-                              })
-                              setEvidenceDialogOpen(true)
-                            }
-                          }}
-                          className="gap-2"
-                        >
-                          <Eye className="h-4 w-4" />
-                          View
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => {
-                            setGradeToDelete(null) // No grade for single-grade
-                            setShowDeleteConfirm(true)
-                          }}
-                          disabled={isDeleting}
-                          className="gap-2"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* File Input - Only shown if there are grades without evidence */}
               {availableGrades.length > 0 && (
                 <div className="space-y-4">
-                  {hasEvidence && hasMultipleGrades && (
+                  {hasEvidence && grades.length > 0 && (
                     <h4 className="text-sm font-medium border-b pb-2">Upload Additional Evidence</h4>
                   )}
                   {!hasEvidence && (
@@ -577,7 +513,15 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
 }
 
 // Component to view evidence in full size
-function EvidenceViewer({ storageId, type, title }: { storageId: Id<"_storage">, type: "image" | "pdf", title: string }) {
+function EvidenceViewer({
+  storageId,
+  type,
+  title
+}: {
+  storageId: Id<"_storage">,
+  type: "image" | "pdf",
+  title: string
+}) {
   const url = useQuery(api.progress.getStorageUrl, { storageId });
 
   if (!url) {
@@ -586,8 +530,8 @@ function EvidenceViewer({ storageId, type, title }: { storageId: Id<"_storage">,
 
   if (type === "image") {
     return (
-      <div className="w-full">
-        <div className="relative w-full" style={{ height: 'calc(90vh - 100px)' }}>
+      <div className="w-full space-y-3">
+        <div className="relative w-full" style={{ height: 'calc(90vh - 140px)' }}>
           <Image
             src={url}
             alt={title}
@@ -602,11 +546,11 @@ function EvidenceViewer({ storageId, type, title }: { storageId: Id<"_storage">,
 
   // PDF viewer
   return (
-    <div className="w-full">
+    <div className="w-full space-y-3">
       <iframe
         src={url}
         className="w-full border-0"
-        style={{ height: 'calc(90vh - 100px)' }}
+        style={{ height: 'calc(90vh - 140px)' }}
         title={title}
       />
     </div>
