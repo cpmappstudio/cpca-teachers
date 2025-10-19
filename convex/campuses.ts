@@ -290,6 +290,7 @@ export const getTeachersByCampus = query({
         }
 
         // Calculate progress percentage per assignment, then average
+        // SAME LOGIC AS convex/users.ts and overallProgress in curriculum-assignment-item.tsx
         const assignmentProgressPercentages: number[] = [];
         let totalLessonsSum = 0;
         let completedLessonsSum = 0;
@@ -307,18 +308,40 @@ export const getTeachersByCampus = query({
             ca => ca.campusId === assignment.campusId
           );
           const gradeCodes = campusAssignment?.gradeCodes || [];
-          const totalGrades = gradeCodes.length || 1;
+
+          // Get assigned grades for this teacher
+          const assignedGrades = assignment.assignedGrades || gradeCodes;
+
+          // Get grades from campus.grades - ONLY the ones assigned to this teacher
+          const grades = campus?.grades
+            ?.filter(g => assignedGrades.includes(g.code))
+            .map(g => ({
+              id: g.code,
+              name: g.name,
+              code: g.code,
+              level: g.level,
+            })) || [];
 
           // Get all lessons for this curriculum
-          const lessons = await ctx.db
+          const allLessons = await ctx.db
             .query("curriculum_lessons")
             .withIndex("by_curriculum_active", (q) =>
               q.eq("curriculumId", curriculum._id).eq("isActive", true)
             )
             .collect();
 
+          // Filter lessons by assigned grades (same logic as getAssignmentLessonProgress)
+          const lessons = allLessons.filter(lesson => {
+            if (lesson.gradeCodes && lesson.gradeCodes.length > 0) {
+              return lesson.gradeCodes.some(gradeCode => assignedGrades.includes(gradeCode));
+            }
+            if (lesson.gradeCode) {
+              return assignedGrades.includes(lesson.gradeCode);
+            }
+            return true; // Include lessons without grade restrictions
+          });
+
           const assignmentTotalLessons = lessons.length;
-          let assignmentCompletedLessons = 0;
 
           // Get progress records for this specific assignment
           const progressRecords = await ctx.db
@@ -328,38 +351,77 @@ export const getTeachersByCampus = query({
             )
             .collect();
 
-          // Count completed lessons (multi-grade aware) for this assignment
+          // Calculate completion percentage using the SAME method as overallProgress
+          // This sums up the completionPercentage of each lesson
+          const assignedGroupCodes = assignment.assignedGroupCodes || [];
+          const hasGroups = assignedGroupCodes.length > 0;
+
+          let totalCompletionScore = 0;
+
           for (const lesson of lessons) {
             const lessonProgressRecords = progressRecords.filter(
               p => p.lessonId === lesson._id
             );
 
-            if (totalGrades > 1) {
-              // Multi-grade: lesson is completed only if all grades are completed
-              const completedGrades = lessonProgressRecords.filter(
-                p => p.status === "completed"
+            let lessonCompletionPercentage = 0;
+
+            if (hasGroups) {
+              // Group-based: calculate percentage completion (same as getAssignmentLessonProgress)
+              const completedGroups = lessonProgressRecords.filter(p =>
+                p.groupCode &&
+                assignedGroupCodes.includes(p.groupCode) &&
+                p.status === "completed" &&
+                (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
               ).length;
 
-              if (completedGrades === totalGrades) {
-                assignmentCompletedLessons++;
-              }
+              const totalGroups = assignedGroupCodes.length;
+              lessonCompletionPercentage = totalGroups > 0
+                ? (completedGroups / totalGroups) * 100
+                : 0;
             } else {
-              // Single grade
-              const lessonProgress = lessonProgressRecords[0];
-              if (lessonProgress?.status === "completed") {
-                assignmentCompletedLessons++;
-              }
+              // Legacy multi-grade: calculate percentage completion
+              const completedGrades = lessonProgressRecords.filter(p =>
+                p.status === "completed" &&
+                (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+              ).length;
+
+              const totalGrades = grades.length || 1;
+              lessonCompletionPercentage = totalGrades > 0
+                ? (completedGrades / totalGrades) * 100
+                : 0;
             }
+
+            totalCompletionScore += lessonCompletionPercentage;
           }
 
-          // Calculate percentage for this assignment
+          // Calculate average percentage for this assignment (same as overallProgress)
           const assignmentPercentage = assignmentTotalLessons > 0
-            ? Math.round((assignmentCompletedLessons / assignmentTotalLessons) * 100)
+            ? Math.round(totalCompletionScore / assignmentTotalLessons)
             : 0;
 
           assignmentProgressPercentages.push(assignmentPercentage);
           totalLessonsSum += assignmentTotalLessons;
-          completedLessonsSum += assignmentCompletedLessons;
+          // For completedLessonsSum, count lessons that are 100% complete
+          completedLessonsSum += lessons.filter((lesson) => {
+            const lessonProgressRecords = progressRecords.filter(
+              p => p.lessonId === lesson._id
+            );
+            if (hasGroups) {
+              const completedGroups = lessonProgressRecords.filter(p =>
+                p.groupCode &&
+                assignedGroupCodes.includes(p.groupCode) &&
+                p.status === "completed" &&
+                (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+              ).length;
+              return completedGroups === assignedGroupCodes.length;
+            } else {
+              const completedGrades = lessonProgressRecords.filter(p =>
+                p.status === "completed" &&
+                (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+              ).length;
+              return completedGrades === (grades.length || 1);
+            }
+          }).length;
         }
 
         // Calculate average progress percentage across all assignments

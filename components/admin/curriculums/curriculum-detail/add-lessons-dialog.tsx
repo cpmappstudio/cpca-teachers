@@ -126,6 +126,9 @@ export function AddLessonsDialog({ curriculumId }: AddLessonsDialogProps) {
         isActive: true
     })
 
+    // Query para obtener los campus (necesario para obtener el level de los grades)
+    const campuses = useQuery(api.campuses.getCampuses, {})
+
     // Estado local para el orden de las lecciones por grade y quarter (antes de guardar)
     const [localLessonsOrder, setLocalLessonsOrder] = useState<Record<string, Record<number, Doc<"curriculum_lessons">[]>>>({})
 
@@ -141,17 +144,37 @@ export function AddLessonsDialog({ curriculumId }: AddLessonsDialogProps) {
         })
     )
 
-    // Obtener todos los grades únicos del curriculum
+    // Obtener todos los grades únicos del curriculum ordenados por level
     const allGrades = useMemo(() => {
-        if (!curriculum?.campusAssignments) return []
+        if (!curriculum?.campusAssignments || !campuses) return []
 
+        // Obtener todos los grade codes del curriculum
         const gradesSet = new Set<string>()
-        curriculum.campusAssignments.forEach((assignment: { gradeCodes: string[] }) => {
+        curriculum.campusAssignments.forEach((assignment: { campusId: Id<"campuses">, gradeCodes: string[] }) => {
             assignment.gradeCodes.forEach((code: string) => gradesSet.add(code))
         })
 
-        return Array.from(gradesSet).sort()
-    }, [curriculum])
+        // Crear un mapa de grade code a level usando la información de los campus
+        const gradeToLevel = new Map<string, number>()
+
+        curriculum.campusAssignments.forEach((assignment: { campusId: Id<"campuses">, gradeCodes: string[] }) => {
+            const campus = campuses.find(c => c._id === assignment.campusId)
+            if (campus?.grades) {
+                campus.grades.forEach(grade => {
+                    if (assignment.gradeCodes.includes(grade.code)) {
+                        gradeToLevel.set(grade.code, grade.level)
+                    }
+                })
+            }
+        })
+
+        // Ordenar los grades por level
+        return Array.from(gradesSet).sort((a, b) => {
+            const levelA = gradeToLevel.get(a) ?? 999
+            const levelB = gradeToLevel.get(b) ?? 999
+            return levelA - levelB
+        })
+    }, [curriculum, campuses])
 
     // Agrupar lecciones por grade y quarter
     const lessonsByGradeAndQuarter = useMemo(() => {

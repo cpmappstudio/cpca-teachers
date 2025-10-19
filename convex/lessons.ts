@@ -358,6 +358,42 @@ export const deleteLesson = mutation({
       throw new Error("Lesson not found");
     }
 
+    // Get all lesson_progress records for this lesson
+    // Since there's no index by lessonId alone, we need to collect all and filter
+    const allProgressRecords = await ctx.db
+      .query("lesson_progress")
+      .collect();
+    
+    const progressRecords = allProgressRecords.filter(
+      (progress) => progress.lessonId === args.lessonId
+    );
+
+    // Delete all evidence files from storage and progress records
+    for (const progress of progressRecords) {
+      // Delete photo evidence if exists
+      if (progress.evidencePhotoStorageId) {
+        try {
+          await ctx.storage.delete(progress.evidencePhotoStorageId);
+        } catch (error) {
+          // File might already be deleted, continue
+          console.error("Error deleting photo evidence:", error);
+        }
+      }
+
+      // Delete document evidence if exists
+      if (progress.evidenceDocumentStorageId) {
+        try {
+          await ctx.storage.delete(progress.evidenceDocumentStorageId);
+        } catch (error) {
+          // File might already be deleted, continue
+          console.error("Error deleting document evidence:", error);
+        }
+      }
+
+      // Delete the progress record
+      await ctx.db.delete(progress._id);
+    }
+
     // Get all teacher_assignments for this curriculum
     const teacherAssignments = await ctx.db
       .query("teacher_assignments")
@@ -385,10 +421,7 @@ export const deleteLesson = mutation({
       });
     }
 
-    // Note: We don't delete lesson_progress records, they become orphaned
-    // but preserved for historical data. The UI should handle this gracefully.
-
-    // Delete the lesson
+    // Delete the lesson itself
     await ctx.db.delete(args.lessonId);
   },
 });
