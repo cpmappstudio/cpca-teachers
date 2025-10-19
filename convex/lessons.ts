@@ -164,8 +164,8 @@ export const createLesson = mutation({
     title: v.string(),
     description: v.optional(v.string()),
     quarter: v.number(),
-    orderInQuarter: v.number(),
-    expectedDurationMinutes: v.optional(v.number()),
+    gradeCode: v.optional(v.string()), // Legacy: single grade (deprecated)
+    gradeCodes: v.optional(v.array(v.string())), // New: multiple grades
     resources: v.optional(
       v.array(
         v.object({
@@ -194,28 +194,28 @@ export const createLesson = mutation({
       );
     }
 
-    // Check if lesson with same curriculum, quarter, and order already exists
-    const existingLesson = await ctx.db
+    // Auto-calculate orderInQuarter: find max order for this curriculum+quarter and add 1
+    const existingLessons = await ctx.db
       .query("curriculum_lessons")
       .withIndex("by_curriculum_quarter", (q) =>
         q.eq("curriculumId", args.curriculumId).eq("quarter", args.quarter)
       )
-      .filter((q) => q.eq(q.field("orderInQuarter"), args.orderInQuarter))
-      .first();
+      .collect();
 
-    if (existingLesson) {
-      throw new Error(
-        `A lesson already exists at position ${args.orderInQuarter} in Quarter ${args.quarter} for this curriculum. Please choose a different order number.`
-      );
-    }
+    const maxOrder = existingLessons.reduce(
+      (max, lesson) => Math.max(max, lesson.orderInQuarter),
+      0
+    );
+    const newOrder = maxOrder + 1;
 
     const lessonId = await ctx.db.insert("curriculum_lessons", {
       curriculumId: args.curriculumId,
       title: args.title,
       description: args.description,
       quarter: args.quarter,
-      orderInQuarter: args.orderInQuarter,
-      expectedDurationMinutes: args.expectedDurationMinutes,
+      orderInQuarter: newOrder,
+      gradeCode: args.gradeCode, // Keep for backward compatibility
+      gradeCodes: args.gradeCodes, // New field for multiple grades
       resources: args.resources,
       objectives: args.objectives,
       isActive: true,
@@ -298,8 +298,8 @@ export const updateLesson = mutation({
       title: v.optional(v.string()),
       description: v.optional(v.string()),
       quarter: v.optional(v.number()),
-      orderInQuarter: v.optional(v.number()),
-      expectedDurationMinutes: v.optional(v.number()),
+      gradeCode: v.optional(v.string()), // Legacy
+      gradeCodes: v.optional(v.array(v.string())), // New: multiple grades
       resources: v.optional(
         v.array(
           v.object({
@@ -335,29 +335,6 @@ export const updateLesson = mutation({
         throw new Error(
           `Invalid quarter. This curriculum has ${curriculum.numberOfQuarters} quarter(s). Please select a quarter between 1 and ${curriculum.numberOfQuarters}.`
         );
-      }
-    }
-
-    // Check for duplicate if quarter or order is being changed
-    if (args.updates.quarter !== undefined || args.updates.orderInQuarter !== undefined) {
-      const newQuarter = args.updates.quarter ?? existingLesson.quarter;
-      const newOrder = args.updates.orderInQuarter ?? existingLesson.orderInQuarter;
-
-      // Only check for duplicates if the combination is different from current
-      if (newQuarter !== existingLesson.quarter || newOrder !== existingLesson.orderInQuarter) {
-        const duplicateLesson = await ctx.db
-          .query("curriculum_lessons")
-          .withIndex("by_curriculum_quarter", (q) =>
-            q.eq("curriculumId", existingLesson.curriculumId).eq("quarter", newQuarter)
-          )
-          .filter((q) => q.eq(q.field("orderInQuarter"), newOrder))
-          .first();
-
-        if (duplicateLesson && duplicateLesson._id !== args.lessonId) {
-          throw new Error(
-            `A lesson already exists at position ${newOrder} in Quarter ${newQuarter} for this curriculum. Please choose a different order number.`
-          );
-        }
       }
     }
 
@@ -521,6 +498,7 @@ export const saveLessonEvidence = mutation({
     teacherId: v.id("users"),
     assignmentId: v.id("teacher_assignments"),
     gradeCode: v.optional(v.string()), // Grade code (e.g., "PK1", "K1") for multi-grade support
+    groupCode: v.optional(v.string()), // Group code (e.g., "01-1", "01-2") for multi-group support
   },
   handler: async (ctx, args) => {
     // Get the assignment to get curriculum and campus info
@@ -536,9 +514,18 @@ export const saveLessonEvidence = mutation({
     }
 
     // Check if progress record already exists
-    // Use appropriate index based on whether gradeCode is provided
+    // Use appropriate index based on whether groupCode or gradeCode is provided
     let existingProgress;
-    if (args.gradeCode) {
+    if (args.groupCode) {
+      existingProgress = await ctx.db
+        .query("lesson_progress")
+        .withIndex("by_teacher_lesson_group", (q) =>
+          q.eq("teacherId", args.teacherId)
+            .eq("lessonId", args.lessonId)
+            .eq("groupCode", args.groupCode)
+        )
+        .first();
+    } else if (args.gradeCode) {
       existingProgress = await ctx.db
         .query("lesson_progress")
         .withIndex("by_teacher_lesson_grade", (q) =>
@@ -568,6 +555,9 @@ export const saveLessonEvidence = mutation({
 
       return existingProgress._id;
     } else {
+      // Extract gradeCode from groupCode if not provided
+      const gradeCode = args.gradeCode || (args.groupCode ? args.groupCode.split('-')[0] : undefined);
+
       // Create new progress record
       const progressId = await ctx.db.insert("lesson_progress", {
         teacherId: args.teacherId,
@@ -575,7 +565,8 @@ export const saveLessonEvidence = mutation({
         assignmentId: args.assignmentId,
         curriculumId: assignment.curriculumId,
         campusId: assignment.campusId,
-        gradeCode: args.gradeCode, // Store gradeCode if provided
+        gradeCode: gradeCode, // Store gradeCode (extracted from groupCode if needed)
+        groupCode: args.groupCode, // Store groupCode if provided
         quarter: lesson.quarter,
         status: "completed",
         evidenceDocumentStorageId: args.storageId,
@@ -598,11 +589,22 @@ export const deleteLessonEvidence = mutation({
     lessonId: v.id("curriculum_lessons"),
     teacherId: v.id("users"),
     gradeCode: v.optional(v.string()), // Grade code for multi-grade support
+    groupCode: v.optional(v.string()), // Group code for multi-group support
   },
   handler: async (ctx, args) => {
     // Find the progress record
     let progressRecord;
-    if (args.gradeCode) {
+    if (args.groupCode) {
+      // Multi-group: find specific group progress
+      progressRecord = await ctx.db
+        .query("lesson_progress")
+        .withIndex("by_teacher_lesson_group", (q) =>
+          q.eq("teacherId", args.teacherId)
+            .eq("lessonId", args.lessonId)
+            .eq("groupCode", args.groupCode)
+        )
+        .first();
+    } else if (args.gradeCode) {
       // Multi-grade: find specific grade progress
       progressRecord = await ctx.db
         .query("lesson_progress")
@@ -643,6 +645,48 @@ export const deleteLessonEvidence = mutation({
       completedAt: undefined,
       updatedAt: Date.now(),
     });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Reorder lessons within a quarter
+ * Updates the orderInQuarter for multiple lessons after a drag & drop operation
+ */
+export const reorderLessons = mutation({
+  args: {
+    curriculumId: v.id("curriculums"),
+    quarter: v.number(),
+    lessonOrders: v.array(
+      v.object({
+        lessonId: v.id("curriculum_lessons"),
+        newOrder: v.number(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    // Validate that all lessons belong to the specified curriculum and quarter
+    for (const { lessonId } of args.lessonOrders) {
+      const lesson = await ctx.db.get(lessonId);
+      if (!lesson) {
+        throw new Error(`Lesson ${lessonId} not found`);
+      }
+      if (lesson.curriculumId !== args.curriculumId) {
+        throw new Error(`Lesson ${lessonId} does not belong to the specified curriculum`);
+      }
+      if (lesson.quarter !== args.quarter) {
+        throw new Error(`Lesson ${lessonId} does not belong to quarter ${args.quarter}`);
+      }
+    }
+
+    // Update each lesson's orderInQuarter
+    for (const { lessonId, newOrder } of args.lessonOrders) {
+      await ctx.db.patch(lessonId, {
+        orderInQuarter: newOrder,
+        updatedAt: Date.now(),
+      });
+    }
 
     return { success: true };
   },

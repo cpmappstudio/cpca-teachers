@@ -73,6 +73,7 @@ type Grade = {
   code: string;
   level: number;
   category?: "prekinder" | "kinder" | "elementary" | "middle" | "high";
+  numberOfGroups: number; // Number of sections/groups for this grade
   isActive: boolean;
 };
 
@@ -117,14 +118,20 @@ function SortableGradeBadge({ grade, index, onRemove }: SortableGradeBadgeProps)
         className="flex items-center gap-2 px-3 py-1.5 text-sm flex-1 min-w-0"
       >
         <GraduationCap className="h-3 w-3 flex-shrink-0" />
-        <span className="truncate">{grade.name} ({grade.code})</span>
+        <span className="truncate font-medium">{grade.name}</span>
+        <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded flex-shrink-0">
+          {grade.code}
+        </span>
+        <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded flex-shrink-0">
+          {grade.numberOfGroups} {grade.numberOfGroups === 1 ? 'group' : 'groups'}
+        </span>
         {grade.category && (
-          <span className="text-xs text-muted-foreground flex-shrink-0">- {grade.category}</span>
+          <span className="text-xs text-muted-foreground flex-shrink-0">• {grade.category}</span>
         )}
         <button
           type="button"
           onClick={() => onRemove(index)}
-          className="ml-1 rounded-full hover:bg-muted p-0.5 flex-shrink-0"
+          className="ml-auto rounded-full hover:bg-muted p-0.5 flex-shrink-0"
         >
           <X className="h-3 w-3" />
         </button>
@@ -188,99 +195,30 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
   const [newGradeName, setNewGradeName] = useState("");
   const [newGradeCode, setNewGradeCode] = useState("");
   const [newGradeCategory, setNewGradeCategory] = useState<string>("");
+  const [newGradeNumberOfGroups, setNewGradeNumberOfGroups] = useState<number>(1);
   const [useGradeTemplate, setUseGradeTemplate] = useState(false);
 
   // Grade template - Standard US education system
   const gradeTemplate: Grade[] = [
     // Pre-K
-    { name: "Pre-K", code: "PK", level: 0, category: "prekinder", isActive: true },
+    { name: "Pre-K", code: "PK", level: 0, category: "prekinder", numberOfGroups: 1, isActive: true },
     // Kindergarten
-    { name: "K - 1", code: "K1", level: 1, category: "kinder", isActive: true },
-    { name: "K - 2", code: "K2", level: 2, category: "kinder", isActive: true },
-    // 1st Grade
-    { name: "1st - 1", code: "1-1", level: 3, category: "elementary", isActive: true },
-    { name: "1st - 2", code: "1-2", level: 4, category: "elementary", isActive: true },
-    { name: "1st - 3", code: "1-3", level: 5, category: "elementary", isActive: true },
-    { name: "1st - 4", code: "1-4", level: 6, category: "elementary", isActive: true },
-    { name: "1st - 5", code: "1-5", level: 7, category: "elementary", isActive: true },
-    { name: "1st - 6", code: "1-6", level: 8, category: "elementary", isActive: true },
-    // 2nd Grade
-    { name: "2nd - 1", code: "2-1", level: 9, category: "elementary", isActive: true },
-    { name: "2nd - 2", code: "2-2", level: 10, category: "elementary", isActive: true },
-    { name: "2nd - 3", code: "2-3", level: 11, category: "elementary", isActive: true },
-    { name: "2nd - 4", code: "2-4", level: 12, category: "elementary", isActive: true },
-    { name: "2nd - 5", code: "2-5", level: 13, category: "elementary", isActive: true },
-    { name: "2nd - 6", code: "2-6", level: 14, category: "elementary", isActive: true },
-    // 3rd Grade
-    { name: "3rd - 1", code: "3-1", level: 15, category: "elementary", isActive: true },
-    { name: "3rd - 2", code: "3-2", level: 16, category: "elementary", isActive: true },
-    { name: "3rd - 3", code: "3-3", level: 17, category: "elementary", isActive: true },
-    { name: "3rd - 4", code: "3-4", level: 18, category: "elementary", isActive: true },
-    { name: "3rd - 5", code: "3-5", level: 19, category: "elementary", isActive: true },
-    { name: "3rd - 6", code: "3-6", level: 20, category: "elementary", isActive: true },
-    // 4th Grade
-    { name: "4th - 1", code: "4-1", level: 21, category: "elementary", isActive: true },
-    { name: "4th - 2", code: "4-2", level: 22, category: "elementary", isActive: true },
-    { name: "4th - 3", code: "4-3", level: 23, category: "elementary", isActive: true },
-    { name: "4th - 4", code: "4-4", level: 24, category: "elementary", isActive: true },
-    { name: "4th - 5", code: "4-5", level: 25, category: "elementary", isActive: true },
-    { name: "4th - 6", code: "4-6", level: 26, category: "elementary", isActive: true },
-    // 5th Grade
-    { name: "5th - 1", code: "5-1", level: 27, category: "elementary", isActive: true },
-    { name: "5th - 2", code: "5-2", level: 28, category: "elementary", isActive: true },
-    { name: "5th - 3", code: "5-3", level: 29, category: "elementary", isActive: true },
-    { name: "5th - 4", code: "5-4", level: 30, category: "elementary", isActive: true },
-    { name: "5th - 5", code: "5-5", level: 31, category: "elementary", isActive: true },
-    { name: "5th - 6", code: "5-6", level: 32, category: "elementary", isActive: true },
-    // 6th Grade
-    { name: "6th - 1", code: "6-1", level: 33, category: "middle", isActive: true },
-    { name: "6th - 2", code: "6-2", level: 34, category: "middle", isActive: true },
-    { name: "6th - 3", code: "6-3", level: 35, category: "middle", isActive: true },
-    { name: "6th - 4", code: "6-4", level: 36, category: "middle", isActive: true },
-    { name: "6th - 5", code: "6-5", level: 37, category: "middle", isActive: true },
-    { name: "6th - 6", code: "6-6", level: 38, category: "middle", isActive: true },
-    // 7th Grade
-    { name: "7th - 1", code: "7-1", level: 39, category: "middle", isActive: true },
-    { name: "7th - 2", code: "7-2", level: 40, category: "middle", isActive: true },
-    { name: "7th - 3", code: "7-3", level: 41, category: "middle", isActive: true },
-    { name: "7th - 4", code: "7-4", level: 42, category: "middle", isActive: true },
-    { name: "7th - 5", code: "7-5", level: 43, category: "middle", isActive: true },
-    { name: "7th - 6", code: "7-6", level: 44, category: "middle", isActive: true },
-    // 8th Grade
-    { name: "8th - 1", code: "8-1", level: 45, category: "middle", isActive: true },
-    { name: "8th - 2", code: "8-2", level: 46, category: "middle", isActive: true },
-    { name: "8th - 3", code: "8-3", level: 47, category: "middle", isActive: true },
-    { name: "8th - 4", code: "8-4", level: 48, category: "middle", isActive: true },
-    { name: "8th - 5", code: "8-5", level: 49, category: "middle", isActive: true },
-    { name: "8th - 6", code: "8-6", level: 50, category: "middle", isActive: true },
-    // 9th Grade
-    { name: "9th - 1", code: "9-1", level: 51, category: "high", isActive: true },
-    { name: "9th - 2", code: "9-2", level: 52, category: "high", isActive: true },
-    { name: "9th - 3", code: "9-3", level: 53, category: "high", isActive: true },
-    { name: "9th - 4", code: "9-4", level: 54, category: "high", isActive: true },
-    { name: "9th - 5", code: "9-5", level: 55, category: "high", isActive: true },
-    { name: "9th - 6", code: "9-6", level: 56, category: "high", isActive: true },
-    // 10th Grade
-    { name: "10th - 1", code: "10-1", level: 57, category: "high", isActive: true },
-    { name: "10th - 2", code: "10-2", level: 58, category: "high", isActive: true },
-    { name: "10th - 3", code: "10-3", level: 59, category: "high", isActive: true },
-    { name: "10th - 4", code: "10-4", level: 60, category: "high", isActive: true },
-    { name: "10th - 5", code: "10-5", level: 61, category: "high", isActive: true },
-    { name: "10th - 6", code: "10-6", level: 62, category: "high", isActive: true },
-    // 11th Grade
-    { name: "11th - 1", code: "11-1", level: 63, category: "high", isActive: true },
-    { name: "11th - 2", code: "11-2", level: 64, category: "high", isActive: true },
-    { name: "11th - 3", code: "11-3", level: 65, category: "high", isActive: true },
-    { name: "11th - 4", code: "11-4", level: 66, category: "high", isActive: true },
-    { name: "11th - 5", code: "11-5", level: 67, category: "high", isActive: true },
-    { name: "11th - 6", code: "11-6", level: 68, category: "high", isActive: true },
-    // 12th Grade
-    { name: "12th - 1", code: "12-1", level: 69, category: "high", isActive: true },
-    { name: "12th - 2", code: "12-2", level: 70, category: "high", isActive: true },
-    { name: "12th - 3", code: "12-3", level: 71, category: "high", isActive: true },
-    { name: "12th - 4", code: "12-4", level: 72, category: "high", isActive: true },
-    { name: "12th - 5", code: "12-5", level: 73, category: "high", isActive: true },
-    { name: "12th - 6", code: "12-6", level: 74, category: "high", isActive: true },
+    { name: "Kinder", code: "K", level: 1, category: "kinder", numberOfGroups: 2, isActive: true },
+    // Elementary Grades
+    { name: "1st Grade", code: "01", level: 2, category: "elementary", numberOfGroups: 6, isActive: true },
+    { name: "2nd Grade", code: "02", level: 3, category: "elementary", numberOfGroups: 6, isActive: true },
+    { name: "3rd Grade", code: "03", level: 4, category: "elementary", numberOfGroups: 6, isActive: true },
+    { name: "4th Grade", code: "04", level: 5, category: "elementary", numberOfGroups: 6, isActive: true },
+    { name: "5th Grade", code: "05", level: 6, category: "elementary", numberOfGroups: 6, isActive: true },
+    // Middle School Grades
+    { name: "6th Grade", code: "06", level: 7, category: "middle", numberOfGroups: 6, isActive: true },
+    { name: "7th Grade", code: "07", level: 8, category: "middle", numberOfGroups: 6, isActive: true },
+    { name: "8th Grade", code: "08", level: 9, category: "middle", numberOfGroups: 6, isActive: true },
+    // High School Grades
+    { name: "9th Grade", code: "09", level: 10, category: "high", numberOfGroups: 6, isActive: true },
+    { name: "10th Grade", code: "10", level: 11, category: "high", numberOfGroups: 6, isActive: true },
+    { name: "11th Grade", code: "11", level: 12, category: "high", numberOfGroups: 6, isActive: true },
+    { name: "12th Grade", code: "12", level: 13, category: "high", numberOfGroups: 6, isActive: true },
   ];
 
   // Setup drag and drop sensors
@@ -378,6 +316,14 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
       return;
     }
 
+    // Validar numberOfGroups
+    if (newGradeNumberOfGroups < 1) {
+      toast.error("Validation Error", {
+        description: "Number of groups must be at least 1.",
+      });
+      return;
+    }
+
     // Check for duplicate code
     const codeExists = grades.some(
       (grade) => grade.code.toLowerCase() === newGradeCode.trim().toLowerCase()
@@ -395,6 +341,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
       code: newGradeCode.trim(),
       level: grades.length, // Level is based on current position
       category: newGradeCategory as "prekinder" | "kinder" | "elementary" | "middle" | "high" | undefined,
+      numberOfGroups: newGradeNumberOfGroups,
       isActive: true,
     };
 
@@ -402,6 +349,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
     setNewGradeName("");
     setNewGradeCode("");
     setNewGradeCategory("");
+    setNewGradeNumberOfGroups(1);
   };
 
   const handleRemoveGrade = (index: number) => {
@@ -547,6 +495,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
             code: string;
             level: number;
             category?: "prekinder" | "kinder" | "elementary" | "middle" | "high";
+            numberOfGroups: number;
             isActive: boolean;
           }>;
           status?: "active" | "inactive" | "maintenance";
@@ -688,6 +637,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
             code: string;
             level: number;
             category?: "prekinder" | "kinder" | "elementary" | "middle" | "high";
+            numberOfGroups: number;
             isActive: boolean;
           }>;
         } = {
@@ -757,6 +707,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
         setNewGradeName("");
         setNewGradeCode("");
         setNewGradeCategory("");
+        setNewGradeNumberOfGroups(1);
 
         // Cerrar el dialog automáticamente después del éxito
         setIsOpen(false);
@@ -1041,7 +992,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
               {/* Add new grade form */}
               <div className="space-y-3">
                 <Label className="text-sm">Add New Grade</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div className="grid gap-2">
                     <Label htmlFor="gradeName" className="text-xs">
                       Name<span className="text-red-500">*</span>
@@ -1050,7 +1001,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                       id="gradeName"
                       value={newGradeName}
                       onChange={(e) => setNewGradeName(e.target.value)}
-                      placeholder="e.g., Prekinder, 1st Grade"
+                      placeholder="e.g., 1st Grade"
                     />
                   </div>
                   <div className="grid gap-2">
@@ -1061,7 +1012,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                       id="gradeCode"
                       value={newGradeCode}
                       onChange={(e) => setNewGradeCode(e.target.value)}
-                      placeholder="e.g., PK, G1"
+                      placeholder="e.g., 01"
                     />
                   </div>
                   <div className="grid gap-2">
@@ -1076,7 +1027,24 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                       label="Grade Categories"
                     />
                   </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="numberOfGroups" className="text-xs">
+                      Groups<span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="numberOfGroups"
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={newGradeNumberOfGroups}
+                      onChange={(e) => setNewGradeNumberOfGroups(parseInt(e.target.value) || 1)}
+                      placeholder="1"
+                    />
+                  </div>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Groups: Number of sections for this grade (e.g., 3 groups means 01-1, 01-2, 01-3)
+                </p>
                 <Button
                   type="button"
                   variant="outline"

@@ -46,36 +46,55 @@ interface TeacherDialogProps {
     title: string
   }
   assignmentId?: Id<"teacher_assignments">
+  selectedGrade?: string // Current selected grade from the page
   trigger?: React.ReactNode
 }
 
-export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogProps) {
+export function TeacherDialog({ lesson, assignmentId, selectedGrade, trigger }: TeacherDialogProps) {
   const { user } = useCurrentUser()
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [selectedGradeCode, setSelectedGradeCode] = useState<string | null>(null)
+  const [selectedGroupCode, setSelectedGroupCode] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [gradeToDelete, setGradeToDelete] = useState<string | null>(null) // Track which grade to delete
+  const [groupToDelete, setGroupToDelete] = useState<string | null>(null) // Track which group to delete
   const [evidenceDialogOpen, setEvidenceDialogOpen] = useState(false) // For evidence viewer dialog
   const [selectedEvidence, setSelectedEvidence] = useState<{
     storageId: Id<"_storage">,
     type: "image" | "pdf",
-    gradeName?: string
+    groupName?: string
   } | null>(null) // Track which evidence to view
 
-  // Query to get assignment details with grades
+  // Query to get assignment details with groups
   const assignmentData = useQuery(
     api.progress.getAssignmentLessonProgress,
     assignmentId ? { assignmentId } : "skip"
   )
 
-  // Get grades from assignment data
+  // Get groups from assignment data
+  const assignedGroupCodes = assignmentData?.assignedGroupCodes || []
   const grades = assignmentData?.grades || []
-  const hasMultipleGrades = grades.length > 1
 
-  // Query to get existing lesson progress (returns array for multi-grade support)
+  // Filter groups by selected grade (if provided from page)
+  const filteredGroupCodes = selectedGrade
+    ? assignedGroupCodes.filter((groupCode: string) => groupCode.startsWith(selectedGrade + "-"))
+    : assignedGroupCodes
+
+  // Build group objects with names
+  const groups = filteredGroupCodes.map((groupCode: string) => {
+    const [gradeCode, groupNumber] = groupCode.split('-')
+    const grade = grades.find(g => g.code === gradeCode)
+    return {
+      code: groupCode,
+      name: `${grade?.name || gradeCode} - Group ${groupNumber}`,
+      gradeCode,
+      groupNumber
+    }
+  })
+  const hasMultipleGroups = groups.length > 1
+
+  // Query to get existing lesson progress (returns array for multi-group support)
   const lessonProgressRecords = useQuery(
     api.lessons.getLessonProgress,
     user && lesson?.id
@@ -91,30 +110,30 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
   const saveLessonEvidence = useMutation(api.lessons.saveLessonEvidence)
   const deleteLessonEvidence = useMutation(api.lessons.deleteLessonEvidence)
 
-  // Check which grades have evidence (only count records that have actual files uploaded)
-  const gradesWithEvidence = new Set(
+  // Check which groups have evidence (only count records that have actual files uploaded)
+  const groupsWithEvidence = new Set(
     lessonProgressRecords
       ?.filter(p => p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
-      .map(p => p.gradeCode)
+      .map(p => p.groupCode)
       .filter(Boolean) || []
   )
   const hasEvidence = lessonProgressRecords?.some(p => p.evidenceDocumentStorageId || p.evidencePhotoStorageId) || false
 
-  // Get available grades (those without evidence yet) for upload
-  const availableGrades = hasMultipleGrades
-    ? grades.filter(g => !gradesWithEvidence.has(g.code))
-    : grades
+  // Get available groups (those without evidence yet) for upload
+  const availableGroups = hasMultipleGroups
+    ? groups.filter(g => !groupsWithEvidence.has(g.code))
+    : groups
 
-  // Reset file selection and grade when dialog opens/closes
+  // Reset file selection and group when dialog opens/closes
   useEffect(() => {
     if (!open) {
       setSelectedFile(null)
-      setSelectedGradeCode(null)
-    } else if (availableGrades.length === 1) {
-      // Auto-select if only one grade available
-      setSelectedGradeCode(availableGrades[0].code)
+      setSelectedGroupCode(null)
+    } else if (availableGroups.length === 1) {
+      // Auto-select if only one group available
+      setSelectedGroupCode(availableGroups[0].code)
     }
-  }, [open, availableGrades])
+  }, [open, availableGroups])
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -135,15 +154,15 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
       await deleteLessonEvidence({
         lessonId: lesson.id as Id<"curriculum_lessons">,
         teacherId: user._id,
-        gradeCode: gradeToDelete || undefined, // Pass gradeCode if deleting specific grade
+        groupCode: groupToDelete || undefined, // Pass groupCode if deleting specific group
       })
 
-      const gradeMessage = gradeToDelete && hasMultipleGrades
-        ? ` for ${grades.find(g => g.code === gradeToDelete)?.name}`
+      const groupMessage = groupToDelete && hasMultipleGroups
+        ? ` for ${groups.find(g => g.code === groupToDelete)?.name}`
         : ""
-      toast.success(`Evidence deleted successfully${gradeMessage}!`)
+      toast.success(`Evidence deleted successfully${groupMessage}!`)
       setShowDeleteConfirm(false)
-      setGradeToDelete(null)
+      setGroupToDelete(null)
     } catch (error) {
       console.error("Delete error:", error)
       toast.error(
@@ -162,8 +181,8 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
       return
     }
 
-    if (hasMultipleGrades && !selectedGradeCode) {
-      toast.error("Please select a grade")
+    if (hasMultipleGroups && !selectedGroupCode) {
+      toast.error("Please select a group")
       return
     }
 
@@ -207,17 +226,17 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
         storageId: storageId as Id<"_storage">,
         teacherId: user._id,
         assignmentId: assignmentId,
-        gradeCode: selectedGradeCode || undefined, // Include gradeCode if selected
+        groupCode: selectedGroupCode || undefined, // Include groupCode if selected
       })
 
-      const gradeMessage = hasMultipleGrades && selectedGradeCode
-        ? ` for ${grades.find(g => g.code === selectedGradeCode)?.name}`
+      const groupMessage = hasMultipleGroups && selectedGroupCode
+        ? ` for ${groups.find(g => g.code === selectedGroupCode)?.name}`
         : ""
-      toast.success(`Evidence uploaded successfully${gradeMessage}! Lesson marked as completed.`)
+      toast.success(`Evidence uploaded successfully${groupMessage}! Lesson marked as completed.`)
 
       // Reset form and close dialog
       setSelectedFile(null)
-      setSelectedGradeCode(null)
+      setSelectedGroupCode(null)
       setOpen(false)
     } catch (error) {
       console.error("Upload error:", error)
@@ -262,24 +281,24 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
 
             <div className="grid gap-6">
               {/* Existing Evidence Display */}
-              {hasEvidence && grades.length > 0 && (
+              {hasEvidence && groups.length > 0 && (
                 <div className="space-y-4">
-                  <h4 className="text-sm font-medium border-b pb-2">{hasMultipleGrades ? "Evidence by Grade" : "Current Evidence"}</h4>
+                  <h4 className="text-sm font-medium border-b pb-2">{hasMultipleGroups ? "Evidence by Group" : "Current Evidence"}</h4>
                   <div className="space-y-2">
-                    {grades.map((grade) => {
-                      const gradeProgress = lessonProgressRecords?.find(p => p.gradeCode === grade.code)
-                      const hasGradeEvidence = !!(gradeProgress?.evidenceDocumentStorageId || gradeProgress?.evidencePhotoStorageId)
+                    {groups.map((group) => {
+                      const groupProgress = lessonProgressRecords?.find(p => p.groupCode === group.code)
+                      const hasGroupEvidence = !!(groupProgress?.evidenceDocumentStorageId || groupProgress?.evidencePhotoStorageId)
                       return (
                         <div
-                          key={grade.code}
-                          className={`border rounded-lg p-3 ${hasGradeEvidence
+                          key={group.code}
+                          className={`border rounded-lg p-3 ${hasGroupEvidence
                             ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900"
                             : "bg-muted/30 border-border"
                             }`}
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3 flex-1 min-w-0">
-                              {hasGradeEvidence ? (
+                              {hasGroupEvidence ? (
                                 <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded flex-shrink-0">
                                   <FileCheck className="h-4 w-4 text-green-700 dark:text-green-400" />
                                 </div>
@@ -289,33 +308,33 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
                                 </div>
                               )}
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium">{grade.name}</p>
-                                <p className="text-xs text-muted-foreground">{grade.code}</p>
-                                {hasGradeEvidence && gradeProgress.completedAt && (
+                                <p className="text-sm font-medium">{group.name}</p>
+                                <p className="text-xs text-muted-foreground">{group.code}</p>
+                                {hasGroupEvidence && groupProgress.completedAt && (
                                   <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                                    Uploaded {new Date(gradeProgress.completedAt).toLocaleDateString()}
+                                    Uploaded {new Date(groupProgress.completedAt).toLocaleDateString()}
                                   </p>
                                 )}
                               </div>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
-                              <Badge variant={hasGradeEvidence ? "default" : "outline"} className="text-xs">
-                                {hasGradeEvidence ? "Uploaded" : "Pending"}
+                              <Badge variant={hasGroupEvidence ? "default" : "outline"} className="text-xs">
+                                {hasGroupEvidence ? "Uploaded" : "Pending"}
                               </Badge>
-                              {hasGradeEvidence && (
+                              {hasGroupEvidence && (
                                 <>
                                   <Button
                                     type="button"
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => {
-                                      const evidenceId = gradeProgress.evidenceDocumentStorageId || gradeProgress.evidencePhotoStorageId
-                                      const evidenceType = gradeProgress.evidencePhotoStorageId ? "image" : "pdf"
+                                      const evidenceId = groupProgress.evidenceDocumentStorageId || groupProgress.evidencePhotoStorageId
+                                      const evidenceType = groupProgress.evidencePhotoStorageId ? "image" : "pdf"
                                       if (evidenceId) {
                                         setSelectedEvidence({
                                           storageId: evidenceId,
                                           type: evidenceType,
-                                          gradeName: grade.name
+                                          groupName: group.name
                                         })
                                         setEvidenceDialogOpen(true)
                                       }
@@ -329,7 +348,7 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => {
-                                      setGradeToDelete(grade.code)
+                                      setGroupToDelete(group.code)
                                       setShowDeleteConfirm(true)
                                     }}
                                     disabled={isDeleting}
@@ -345,51 +364,51 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
                       )
                     })}
                   </div>
-                  {availableGrades.length === 0 && (
+                  {availableGroups.length === 0 && (
                     <p className="text-sm text-green-700 dark:text-green-400 font-medium">
-                      ✓ All grades have evidence uploaded
+                      ✓ All groups have evidence uploaded
                     </p>
                   )}
                 </div>
               )}
 
-              {/* File Input - Only shown if there are grades without evidence */}
-              {availableGrades.length > 0 && (
+              {/* File Input - Only shown if there are groups without evidence */}
+              {availableGroups.length > 0 && (
                 <div className="space-y-4">
-                  {hasEvidence && grades.length > 0 && (
+                  {hasEvidence && groups.length > 0 && (
                     <h4 className="text-sm font-medium border-b pb-2">Upload Additional Evidence</h4>
                   )}
                   {!hasEvidence && (
                     <h4 className="text-sm font-medium border-b pb-2">File Upload</h4>
                   )}
 
-                  {/* Grade Selector - Show available grades only */}
-                  {availableGrades.length > 0 && (
+                  {/* Group Selector - Show available groups only */}
+                  {availableGroups.length > 0 && (
                     <div className="grid gap-3">
-                      <Label htmlFor="grade-select" className="text-sm font-medium">
-                        Select Grade
-                        {hasMultipleGrades && <span className="text-red-500">*</span>}
+                      <Label htmlFor="group-select" className="text-sm font-medium">
+                        Select Group
+                        {hasMultipleGroups && <span className="text-red-500">*</span>}
                       </Label>
                       <Select
-                        value={selectedGradeCode || undefined}
-                        onValueChange={(value) => setSelectedGradeCode(value)}
+                        value={selectedGroupCode || undefined}
+                        onValueChange={(value) => setSelectedGroupCode(value)}
                         disabled={isUploading}
                       >
-                        <SelectTrigger id="grade-select">
-                          <SelectValue placeholder="Choose a grade..." />
+                        <SelectTrigger id="group-select">
+                          <SelectValue placeholder="Choose a group..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {availableGrades.map((grade) => (
-                            <SelectItem key={grade.code} value={grade.code}>
-                              {grade.name} ({grade.code})
+                          {availableGroups.map((group) => (
+                            <SelectItem key={group.code} value={group.code}>
+                              {group.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        {hasMultipleGrades
-                          ? `Select which grade section this evidence is for. ${gradesWithEvidence.size > 0 ? `${gradesWithEvidence.size} of ${grades.length} grades already have evidence.` : ''}`
-                          : `Evidence for ${availableGrades[0]?.name || 'this grade'}`
+                        {hasMultipleGroups
+                          ? `Select which group this evidence is for. ${groupsWithEvidence.size > 0 ? `${groupsWithEvidence.size} of ${groups.length} groups already have evidence.` : ''}`
+                          : `Evidence for ${availableGroups[0]?.name || 'this group'}`
                         }
                       </p>
                     </div>
@@ -430,13 +449,13 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
                 className="min-w-[100px]"
                 disabled={isUploading || isDeleting}
               >
-                {availableGrades.length === 0 ? "Close" : "Cancel"}
+                {availableGroups.length === 0 ? "Close" : "Cancel"}
               </Button>
-              {availableGrades.length > 0 && (
+              {availableGroups.length > 0 && (
                 <Button
                   type="submit"
                   className="bg-deep-koamaru dark:text-white min-w-[100px] gap-2"
-                  disabled={!selectedFile || isUploading || (hasMultipleGrades && !selectedGradeCode)}
+                  disabled={!selectedFile || isUploading || (hasMultipleGroups && !selectedGroupCode)}
                 >
                   {isUploading ? (
                     <>
@@ -462,8 +481,8 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Evidence</AlertDialogTitle>
             <AlertDialogDescription>
-              {gradeToDelete && hasMultipleGrades
-                ? `Are you sure you want to delete the evidence for ${grades.find(g => g.code === gradeToDelete)?.name}? This action cannot be undone.`
+              {groupToDelete && hasMultipleGroups
+                ? `Are you sure you want to delete the evidence for ${groups.find(g => g.code === groupToDelete)?.name}? This action cannot be undone.`
                 : "Are you sure you want to delete this evidence? This action cannot be undone. The lesson will be marked as incomplete."
               }
             </AlertDialogDescription>
@@ -495,14 +514,14 @@ export function TeacherDialog({ lesson, assignmentId, trigger }: TeacherDialogPr
       <Dialog open={evidenceDialogOpen} onOpenChange={setEvidenceDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[95vh] p-0 gap-0">
           <DialogTitle className="sr-only">
-            {selectedEvidence?.gradeName ? `${selectedEvidence.gradeName} Evidence` : "Lesson Evidence"}
+            {selectedEvidence?.groupName ? `${selectedEvidence.groupName} Evidence` : "Lesson Evidence"}
           </DialogTitle>
           {selectedEvidence && (
             <div className="p-4">
               <EvidenceViewer
                 storageId={selectedEvidence.storageId}
                 type={selectedEvidence.type}
-                title={selectedEvidence.gradeName || "Evidence"}
+                title={selectedEvidence.groupName || "Evidence"}
               />
             </div>
           )}

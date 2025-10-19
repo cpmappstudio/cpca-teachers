@@ -128,6 +128,7 @@ export const createCampus = mutation({
         v.literal("middle"),
         v.literal("high")
       )),
+      numberOfGroups: v.number(),
       isActive: v.boolean(),
     }))),
     createdBy: v.id("users"),
@@ -191,6 +192,7 @@ export const updateCampus = mutation({
           v.literal("middle"),
           v.literal("high")
         )),
+        numberOfGroups: v.number(),
         isActive: v.boolean(),
       }))),
       status: v.optional(v.union(

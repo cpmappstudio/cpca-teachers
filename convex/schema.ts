@@ -129,7 +129,7 @@ export default defineSchema({
     // Grades offered at this campus
     grades: v.optional(v.array(v.object({
       name: v.string(), // "Prekinder", "1st Grade", "2nd Grade", etc.
-      code: v.string(), // "PK", "G1", "G2", etc.
+      code: v.string(), // "PK", "01", "02", etc. (base grade code without group suffix)
       level: v.number(), // Numeric level for ordering (0 for prekinder, 1, 2, 3...)
       category: v.optional(v.union(
         v.literal("prekinder"),
@@ -138,6 +138,7 @@ export default defineSchema({
         v.literal("middle"),
         v.literal("high")
       )),
+      numberOfGroups: v.number(), // How many sections/groups this grade has (e.g., 3 means: 01-1, 01-2, 01-3)
       isActive: v.boolean(),
     }))),
 
@@ -238,6 +239,13 @@ export default defineSchema({
     // Quarter assignment
     quarter: v.number(), // 1, 2, 3, or 4
 
+    // Grade assignment (optional - if not set, applies to all grades)
+    // Changed to array to support multiple grades per lesson
+    gradeCodes: v.optional(v.array(v.string())), // e.g., ["PK", "K"], ["01", "02"]
+
+    // Legacy field for backward compatibility (deprecated, use gradeCodes)
+    gradeCode: v.optional(v.string()),
+
     // Ordering within quarter
     orderInQuarter: v.number(),
 
@@ -291,6 +299,11 @@ export default defineSchema({
       v.literal("co_teacher")
     ),
 
+    // Grade and group assignment
+    // Teacher can be assigned to specific grades (e.g., ["01", "K"]) and groups (e.g., ["01-1", "01-2", "K-1"])
+    assignedGrades: v.optional(v.array(v.string())), // Base grade codes the teacher teaches
+    assignedGroupCodes: v.optional(v.array(v.string())), // Specific group/section codes the teacher teaches
+
     // Progress tracking (denormalized)
     progressSummary: v.optional(v.object({
       totalLessons: v.number(),
@@ -341,6 +354,12 @@ export default defineSchema({
     // Stores the grade code (e.g., "PK1", "K1") from campus.grades
     gradeCode: v.optional(v.string()),
 
+    // Group tracking (for multi-group support within a grade)
+    // When a teacher teaches multiple groups within the same grade,
+    // each group needs separate progress tracking
+    // Stores the group code (e.g., "01-1", "01-2") which is gradeCode-groupNumber
+    groupCode: v.optional(v.string()),
+
     // Completion tracking
     status: v.union(
       v.literal("not_started"),
@@ -384,6 +403,7 @@ export default defineSchema({
   })
     .index("by_teacher_lesson", ["teacherId", "lessonId"])
     .index("by_teacher_lesson_grade", ["teacherId", "lessonId", "gradeCode"]) // For multi-grade progress queries
+    .index("by_teacher_lesson_group", ["teacherId", "lessonId", "groupCode"]) // For multi-group progress queries
     .index("by_assignment_status", ["assignmentId", "status"])
     .index("by_curriculum_teacher", ["curriculumId", "teacherId", "quarter"])
     .index("by_campus_date", ["campusId", "completedAt"])

@@ -29,10 +29,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 
 // Componente de tabla de lecciones para cada curriculum
 function LessonsTable({ teacherId }: { teacherId: string }) {
   const [expandedCurriculum, setExpandedCurriculum] = useState<string | null>(null);
+  const [selectedGradeByCurriculum, setSelectedGradeByCurriculum] = useState<Record<string, string>>({});
   const [expandedQuarter, setExpandedQuarter] = useState<string | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
 
@@ -47,6 +54,17 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
     if (!hasInitialized && assignmentsWithProgress && assignmentsWithProgress.length > 0) {
       const firstAssignment = assignmentsWithProgress[0];
       setExpandedCurriculum(firstAssignment._id);
+
+      // Inicializar el primer grade para cada curriculum
+      const initialGrades: Record<string, string> = {};
+      assignmentsWithProgress.forEach(assignment => {
+        const firstGrade = assignment.assignedGrades?.[0];
+        if (firstGrade) {
+          initialGrades[assignment._id] = firstGrade;
+        }
+      });
+      setSelectedGradeByCurriculum(initialGrades);
+
       setExpandedQuarter(`${firstAssignment._id}-Q1`);
       setHasInitialized(true);
     }
@@ -107,7 +125,7 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
         const lessons = isExpanded && assignmentLessonProgress ? assignmentLessonProgress.lessons : [];
 
         return (
-          <Card key={assignment._id} className="border-border/60 bg-card shadow-sm hover:shadow-md transition-shadow">
+          <Card key={assignment._id} className="border-border/60 bg-card shadow-sm hover:shadow-md transition-shadow py-0">
             <Collapsible
               open={isExpanded}
               onOpenChange={() =>
@@ -153,19 +171,95 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
               </CollapsibleTrigger>
 
               <CollapsibleContent>
-                <CardContent className="py-5 px-2 sm:px-6">
+                <CardContent className="py-5 px-2 spx-6m:">
                   <div className="border-t border-border/60 pt-4 sm:pt-6">
+                    {/* Grade Tabs - Only show if teacher has multiple grades assigned */}
+                    {assignment.assignedGrades && assignment.assignedGrades.length > 1 && (
+                      <Tabs
+                        value={selectedGradeByCurriculum[assignment._id] || assignment.assignedGrades[0]}
+                        onValueChange={(value) => {
+                          setSelectedGradeByCurriculum(prev => ({
+                            ...prev,
+                            [assignment._id]: value
+                          }));
+                        }}
+                        className="mb-6"
+                      >
+                        <TabsList>
+                          {assignment.assignedGrades.map((gradeCode) => {
+                            // Get grade name from campus data if available
+                            const gradeName = assignmentLessonProgress?.grades?.find(
+                              (g: { code: string; name: string }) => g.code === gradeCode
+                            )?.name || gradeCode;
+
+                            return (
+                              <TabsTrigger key={gradeCode} value={gradeCode}>
+                                {gradeName}
+                              </TabsTrigger>
+                            );
+                          })}
+                        </TabsList>
+                      </Tabs>
+                    )}
+
                     {/* Quarters Timeline */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6 mb-4 sm:mb-6">
                       {[1, 2, 3, 4].slice(0, assignment.numberOfQuarters).map((quarterNum) => {
-                        const quarterData = progressByQuarter[quarterNum] || {
-                          total: 0,
-                          completed: 0,
-                          inProgress: 0,
-                          notStarted: 0,
-                        };
-                        const quarterProgress = quarterData.total > 0
-                          ? Math.round((quarterData.completed / quarterData.total) * 100)
+                        // Get selected grade
+                        const selectedGrade = selectedGradeByCurriculum[assignment._id] || assignment.assignedGrades?.[0];
+
+                        // Filter lessons for this quarter and grade
+                        const lessonsInQuarter = lessons.filter((l: any) => {
+                          if (l.quarter !== quarterNum) return false;
+
+                          // If teacher has multiple grades, filter by selected grade
+                          if (assignment.assignedGrades && assignment.assignedGrades.length > 1 && selectedGrade) {
+                            if (l.gradeCodes && l.gradeCodes.length > 0) {
+                              return l.gradeCodes.includes(selectedGrade);
+                            }
+                            if (l.gradeCode) {
+                              return l.gradeCode === selectedGrade;
+                            }
+                          }
+
+                          return true;
+                        });
+
+                        // Calculate progress based on filtered lessons with incremental completion
+                        const total = lessonsInQuarter.length;
+                        let totalCompletionScore = 0;
+
+                        // Sum up the completion percentage of each lesson
+                        lessonsInQuarter.forEach((l: any) => {
+                          const multipleGrades = assignment.assignedGrades && assignment.assignedGrades.length > 1;
+
+                          if (multipleGrades && selectedGrade && assignmentLessonProgress?.assignedGroupCodes) {
+                            // Filter groups for selected grade
+                            const groupsForSelectedGrade = assignmentLessonProgress.assignedGroupCodes.filter(
+                              (groupCode: string) => groupCode.startsWith(selectedGrade + "-")
+                            );
+
+                            // Count completed groups for this grade
+                            const completedGroupsForGrade = l.progressByGrade?.filter((p: any) =>
+                              groupsForSelectedGrade.includes(p.groupCode || '') &&
+                              (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                            ).length || 0;
+
+                            // Calculate percentage for this lesson
+                            const lessonCompletionPercentage = groupsForSelectedGrade.length > 0
+                              ? (completedGroupsForGrade / groupsForSelectedGrade.length) * 100
+                              : 0;
+
+                            totalCompletionScore += lessonCompletionPercentage;
+                          } else {
+                            // Use overall completion percentage from backend
+                            totalCompletionScore += (l.completionPercentage || 0);
+                          }
+                        });
+
+                        // Average completion across all lessons in quarter
+                        const quarterProgress = total > 0
+                          ? Math.round(totalCompletionScore / total)
                           : 0;
                         const quarterKey = `${assignment._id}-Q${quarterNum}`;
                         const isQuarterExpanded = expandedQuarter === quarterKey;
@@ -173,9 +267,9 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                         return (
                           <Card
                             key={quarterNum}
-                            className={`cursor-pointer border-border/60 shadow-sm hover:shadow-md transition-all ${isQuarterExpanded
-                                ? "bg-deep-koamaru text-white border-deep-koamaru"
-                                : "bg-card hover:bg-accent/50"
+                            className={`cursor-pointer py-0 border-border/60 shadow-sm hover:shadow-md transition-all ${isQuarterExpanded
+                              ? "bg-deep-koamaru text-white border-deep-koamaru"
+                              : "bg-card hover:bg-accent/50"
                               }`}
                             onClick={() =>
                               setExpandedQuarter(
@@ -192,15 +286,15 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                               <Progress
                                 value={quarterProgress}
                                 className={`mb-1 sm:mb-2 ${isQuarterExpanded
-                                    ? "bg-white/20 [&>div]:bg-white"
-                                    : quarterProgress === 100
-                                      ? "bg-gray-200 [&>div]:bg-green-700"
-                                      : "bg-gray-200 [&>div]:bg-deep-koamaru"
+                                  ? "bg-white/20 [&>div]:bg-white"
+                                  : quarterProgress === 100
+                                    ? "bg-gray-200 [&>div]:bg-green-700"
+                                    : "bg-gray-200 [&>div]:bg-deep-koamaru"
                                   }`}
                               />
                               <CardDescription className={`text-center text-[10px] sm:text-xs ${isQuarterExpanded ? "text-white/90" : "text-muted-foreground"
                                 }`}>
-                                {quarterData.total} lessons
+                                {total} lesson{total !== 1 ? 's' : ''}
                               </CardDescription>
                             </CardHeader>
                           </Card>
@@ -217,17 +311,37 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                       const quarterKey = `${assignment._id}-Q${quarterNum}`;
                       if (expandedQuarter !== quarterKey) return null;
 
-                      const lessonsByQuarter = lessons.filter(l => l.quarter === quarterNum);
+                      // Get selected grade for this curriculum
+                      const selectedGrade = selectedGradeByCurriculum[assignment._id] || assignment.assignedGrades?.[0];
+
+                      // Filter lessons by quarter and selected grade
+                      const lessonsByQuarter = lessons.filter((l: any) => {
+                        if (l.quarter !== quarterNum) return false;
+
+                        // If teacher has multiple grades, filter by selected grade
+                        if (assignment.assignedGrades && assignment.assignedGrades.length > 1 && selectedGrade) {
+                          // Check if lesson applies to the selected grade
+                          if (l.gradeCodes && l.gradeCodes.length > 0) {
+                            return l.gradeCodes.includes(selectedGrade);
+                          }
+                          // Legacy single grade support
+                          if (l.gradeCode) {
+                            return l.gradeCode === selectedGrade;
+                          }
+                        }
+
+                        return true;
+                      });
 
                       return (
-                        <Card key={quarterNum} className="bg-accent/20 border-border/60 shadow-sm">
-                          <CardHeader className="py-4 px-3 sm:px-6">
+                        <Card key={quarterNum} className="bg-accent/20  py-0 shadow-sm ">
+                          <CardHeader className="py-4 px-3 ">
                             <CardTitle className="text-base sm:text-lg font-semibold flex items-center flex-wrap gap-2">
                               <Badge className="bg-deep-koamaru">Q{quarterNum}</Badge>
                               <span className="text-sm sm:text-base">Lessons</span>
                             </CardTitle>
                           </CardHeader>
-                          <CardContent className="py-0 px-3 sm:px-6 pb-4 sm:pb-6">
+                          <CardContent className="py-0 rounded-none pb-4 px-0 sm:pb-6">
                             {lessonsByQuarter.length === 0 ? (
                               <p className="text-center text-muted-foreground py-8">
                                 No lessons in this quarter
@@ -237,9 +351,9 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                 {lessonsByQuarter.map((lessonData) => (
                                   <Card
                                     key={lessonData.lessonId}
-                                    className="border-border/60 bg-card shadow-sm"
+                                    className="border-border/60 bg-card mx-0 rounded-none shadow-sm py-0"
                                   >
-                                    <CardContent className="py-4 px-3 sm:px-4">
+                                    <CardContent className="py-4 sm:px-4">
                                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                                         <div
                                           className="flex items-start sm:items-center gap-2 sm:gap-4 flex-1 min-w-0"
@@ -270,23 +384,39 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                               <p className="text-xs sm:text-sm text-muted-foreground">
                                                 {getStatusText(lessonData.overallStatus || lessonData.progress?.status || "not_started")}
                                               </p>
-                                              {lessonData.totalGrades > 1 && assignmentLessonProgress?.grades && assignmentLessonProgress.grades.length > 0 && (
+                                              {/* Show groups for the selected grade */}
+                                              {assignmentLessonProgress?.assignedGroupCodes && (
                                                 <div className="flex items-center gap-1 flex-wrap">
-                                                  {assignmentLessonProgress.grades.map((grade: { code: string; name: string }) => {
-                                                    const hasEvidence = lessonData.progressByGrade?.find((p: { gradeCode?: string; evidenceDocumentStorageId?: Id<"_storage">; evidencePhotoStorageId?: Id<"_storage"> }) =>
-                                                      p.gradeCode === grade.code && (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                                  {(() => {
+                                                    // Get selected grade
+                                                    const selectedGrade = selectedGradeByCurriculum[assignment._id] || assignment.assignedGrades?.[0];
+
+                                                    // Filter groups that belong to the selected grade
+                                                    const groupsForSelectedGrade = assignmentLessonProgress.assignedGroupCodes.filter(
+                                                      (groupCode: string) => groupCode.startsWith(selectedGrade + "-")
                                                     );
-                                                    return (
-                                                      <Badge
-                                                        key={grade.code}
-                                                        variant={hasEvidence ? "default" : "outline"}
-                                                        className="text-xs h-5 px-1.5"
-                                                      >
-                                                        {grade.name}
-                                                        {hasEvidence && " ✓"}
-                                                      </Badge>
-                                                    );
-                                                  })}
+
+                                                    return groupsForSelectedGrade.map((groupCode: string) => {
+                                                      // Extract group number from code (e.g., "01-1" -> "1")
+                                                      const groupNumber = groupCode.split('-')[1];
+
+                                                      // Check if this group has evidence
+                                                      const hasEvidence = lessonData.progressByGrade?.find((p: { gradeCode?: string; groupCode?: string; evidenceDocumentStorageId?: Id<"_storage">; evidencePhotoStorageId?: Id<"_storage"> }) =>
+                                                        p.groupCode === groupCode && (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                                      );
+
+                                                      return (
+                                                        <Badge
+                                                          key={groupCode}
+                                                          variant={hasEvidence ? "default" : "outline"}
+                                                          className="text-xs h-5 px-1.5"
+                                                        >
+                                                          Group {groupNumber}
+                                                          {hasEvidence && " ✓"}
+                                                        </Badge>
+                                                      );
+                                                    });
+                                                  })()}
                                                 </div>
                                               )}
                                             </div>
@@ -296,11 +426,30 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                           <div className="flex items-center gap-1.5 sm:gap-2 text-muted-foreground">
                                             <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
                                             <span className="text-xs sm:text-sm font-medium whitespace-nowrap">
-                                              {lessonData.progressByGrade && lessonData.progressByGrade.length > 0
-                                                ? `${lessonData.progressByGrade.filter((p: { evidenceDocumentStorageId?: Id<"_storage">; evidencePhotoStorageId?: Id<"_storage"> }) => p.evidenceDocumentStorageId || p.evidencePhotoStorageId).length} evidence`
-                                                : lessonData.progress?.evidencePhotoStorageId || lessonData.progress?.evidenceDocumentStorageId
-                                                  ? 'Evidence uploaded'
-                                                  : 'No evidence'}
+                                              {(() => {
+                                                if (!assignmentLessonProgress?.assignedGroupCodes) {
+                                                  return lessonData.progress?.evidencePhotoStorageId || lessonData.progress?.evidenceDocumentStorageId
+                                                    ? 'Evidence uploaded'
+                                                    : 'No evidence';
+                                                }
+
+                                                // Get selected grade
+                                                const selectedGrade = selectedGradeByCurriculum[assignment._id] || assignment.assignedGrades?.[0];
+
+                                                // Filter groups for selected grade
+                                                const groupsForSelectedGrade = assignmentLessonProgress.assignedGroupCodes.filter(
+                                                  (groupCode: string) => groupCode.startsWith(selectedGrade + "-")
+                                                );
+
+                                                // Count evidence for these groups
+                                                const evidenceCount = lessonData.progressByGrade?.filter((p: { groupCode?: string; evidenceDocumentStorageId?: Id<"_storage">; evidencePhotoStorageId?: Id<"_storage"> }) =>
+                                                  groupsForSelectedGrade.includes(p.groupCode || '') && (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                                ).length || 0;
+
+                                                return evidenceCount > 0
+                                                  ? `${evidenceCount}/${groupsForSelectedGrade.length} evidence`
+                                                  : 'No evidence';
+                                              })()}
                                             </span>
                                           </div>
                                           <TeacherDialog
@@ -309,6 +458,7 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                               title: lessonData.title
                                             }}
                                             assignmentId={assignment._id}
+                                            selectedGrade={selectedGrade}
                                             trigger={
                                               <Button size="sm" className="h-8 sm:h-9 text-xs sm:text-sm">
                                                 <Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1" />

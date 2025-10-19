@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter, useParams } from "next/navigation"
 import {
     flexRender,
     getCoreRowModel,
@@ -236,6 +237,9 @@ interface CurriculumLessonsCardProps {
 export function CurriculumLessonsCard({
     curriculumId,
 }: CurriculumLessonsCardProps) {
+    const router = useRouter()
+    const params = useParams()
+    const locale = params.locale as string
 
     // Get lessons from Convex - by default only active lessons
     const lessons = useQuery(
@@ -318,29 +322,6 @@ export function CurriculumLessonsCard({
                 <CardContent>
                     <div className="flex items-center justify-center py-8">
                         <div className="text-muted-foreground">Loading lessons...</div>
-                    </div>
-                </CardContent>
-            </Card>
-        )
-    }
-
-    // Empty state
-    if (lessons.length === 0) {
-        return (
-            <Card className="border shadow-sm overflow-hidden">
-                <CardHeader className="pb-4">
-                    <CardTitle className="text-lg font-semibold tracking-tight">
-                        Curriculum Lessons
-                    </CardTitle>
-                    <CardDescription className="text-sm">
-                        All lessons assigned to this curriculum
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex items-center justify-center py-8">
-                        <div className="text-muted-foreground">
-                            No lessons found for this curriculum
-                        </div>
                     </div>
                 </CardContent>
             </Card>
@@ -558,6 +539,10 @@ export function CurriculumLessonsCard({
                                             key={row.id}
                                             data-state={row.getIsSelected() && "selected"}
                                             className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
+                                            onClick={() => {
+                                                const lessonId = row.original._id
+                                                router.push(`/${locale}/lessons/${lessonId}`)
+                                            }}
                                         >
                                             {row.getVisibleCells().map((cell) => (
                                                 <TableCell

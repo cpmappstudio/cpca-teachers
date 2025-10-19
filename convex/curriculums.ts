@@ -750,6 +750,8 @@ export const addTeacherToCurriculum = mutation({
     curriculumId: v.id("curriculums"),
     teacherId: v.id("users"),
     campusId: v.id("campuses"),
+    assignedGrades: v.optional(v.array(v.string())), // Base grade codes (e.g., ["01", "K"])
+    assignedGroupCodes: v.optional(v.array(v.string())), // Specific group codes (e.g., ["01-1", "01-2", "K-1"])
   },
   handler: async (ctx, args) => {
     const curriculum = await ctx.db.get(args.curriculumId);
@@ -834,6 +836,8 @@ export const addTeacherToCurriculum = mutation({
           academicYear,
           startDate: now,
           assignmentType: "primary",
+          assignedGrades: args.assignedGrades,
+          assignedGroupCodes: args.assignedGroupCodes,
           progressSummary: {
             totalLessons: lessons.length,
             completedLessons: 0,
@@ -848,15 +852,19 @@ export const addTeacherToCurriculum = mutation({
 
         // Get gradeCodes from campus assignment for this campus
         const campusAssignment = campusAssignments.find(ca => ca.campusId === args.campusId);
-        const gradeCodes = campusAssignment?.gradeCodes || [];
+        const curriculumGradeCodes = campusAssignment?.gradeCodes || [];
+
+        // Use assigned group codes if provided, otherwise use curriculum grade codes
+        const groupCodesToUse = args.assignedGroupCodes && args.assignedGroupCodes.length > 0
+          ? args.assignedGroupCodes
+          : curriculumGradeCodes;
 
         // Create lesson_progress records for each lesson
-        // If there are multiple grades, create one progress record per grade per lesson
-        // If there are no grades yet, create one progress record per lesson (can be updated later)
+        // Create one progress record per assigned group per lesson
         for (const lesson of lessons) {
-          if (gradeCodes.length > 0) {
-            // Multi-grade: create one progress record per grade
-            for (const gradeCode of gradeCodes) {
+          if (groupCodesToUse.length > 0) {
+            // Create one progress record per assigned group
+            for (const groupCode of groupCodesToUse) {
               await ctx.db.insert("lesson_progress", {
                 teacherId: args.teacherId,
                 lessonId: lesson._id,
@@ -864,7 +872,7 @@ export const addTeacherToCurriculum = mutation({
                 curriculumId: args.curriculumId,
                 campusId: args.campusId,
                 quarter: lesson.quarter,
-                gradeCode,
+                gradeCode: groupCode, // Using groupCode (e.g., "01-1") in gradeCode field
                 status: "not_started",
                 isVerified: false,
                 createdAt: now,
@@ -992,5 +1000,174 @@ export const getCurriculumCampusAssignments = query({
     );
 
     return detailedAssignments;
+  },
+});
+
+/**
+ * Get available grades for a curriculum
+ * Returns all unique grades from all campuses assigned to this curriculum
+ */
+export const getCurriculumGrades = query({
+  args: {
+    curriculumId: v.id("curriculums"),
+  },
+  handler: async (ctx, args) => {
+    // Get the curriculum
+    const curriculum = await ctx.db.get(args.curriculumId);
+
+    if (!curriculum || !curriculum.campusAssignments) {
+      return [];
+    }
+
+    // Collect all unique grade codes from campus assignments
+    const gradeCodesSet = new Set<string>();
+    curriculum.campusAssignments.forEach(assignment => {
+      assignment.gradeCodes.forEach(code => gradeCodesSet.add(code));
+    });
+
+    // Get all campuses to find grade details
+    const campusIds = curriculum.campusAssignments.map(ca => ca.campusId);
+    const campuses = await Promise.all(
+      campusIds.map(id => ctx.db.get(id))
+    );
+
+    // Build a map of grade code to grade details
+    const gradeMap = new Map<string, { name: string; code: string; level: number }>();
+
+    campuses.forEach(campus => {
+      if (campus?.grades) {
+        campus.grades.forEach(grade => {
+          if (gradeCodesSet.has(grade.code) && grade.isActive) {
+            gradeMap.set(grade.code, {
+              name: grade.name,
+              code: grade.code,
+              level: grade.level,
+            });
+          }
+        });
+      }
+    });
+
+    // Return sorted by level
+    return Array.from(gradeMap.values()).sort((a, b) => a.level - b.level);
+  },
+});
+
+/**
+ * Get teacher assignments with grade/group details
+ * Used to initialize grade/group selections in add-curriculum-dialog
+ */
+export const getTeacherAssignmentsDetails = query({
+  args: {
+    teacherId: v.id("users"),
+    campusId: v.id("campuses"),
+  },
+  handler: async (ctx, args) => {
+    // Get all active teacher_assignments for this teacher and campus
+    const assignments = await ctx.db
+      .query("teacher_assignments")
+      .withIndex("by_teacher_campus", (q) =>
+        q.eq("teacherId", args.teacherId).eq("campusId", args.campusId).eq("isActive", true)
+      )
+      .collect();
+
+    // Return assignments with their assigned grades and group codes
+    return assignments.map(assignment => ({
+      _id: assignment._id,
+      curriculumId: assignment.curriculumId,
+      assignedGrades: assignment.assignedGrades || [],
+      assignedGroupCodes: assignment.assignedGroupCodes || [],
+    }));
+  },
+});
+
+/**
+ * Check for conflicts when assigning a teacher to curriculum/grade/groups
+ * Returns array of conflicts with teacher info
+ */
+export const checkTeacherAssignmentConflicts = query({
+  args: {
+    curriculumId: v.id("curriculums"),
+    campusId: v.id("campuses"),
+    groupCodes: v.array(v.string()),
+    excludeTeacherId: v.optional(v.id("users")), // To exclude current teacher when updating
+  },
+  handler: async (ctx, args) => {
+    // Get all active assignments for this curriculum and campus
+    const allAssignments = await ctx.db
+      .query("teacher_assignments")
+      .withIndex("by_campus_curriculum", (q) =>
+        q.eq("campusId", args.campusId)
+          .eq("curriculumId", args.curriculumId)
+          .eq("isActive", true)
+      )
+      .collect();
+
+    // Filter out the current teacher if we're updating
+    const otherAssignments = args.excludeTeacherId
+      ? allAssignments.filter(a => a.teacherId !== args.excludeTeacherId)
+      : allAssignments;
+
+    // Find conflicts
+    const conflicts: Array<{
+      teacherId: string;
+      teacherName: string;
+      conflictingGroups: string[];
+    }> = [];
+
+    for (const assignment of otherAssignments) {
+      const assignedGroupCodes = assignment.assignedGroupCodes || [];
+
+      // Find intersection between requested groups and this teacher's groups
+      const conflictingGroups = args.groupCodes.filter(code =>
+        assignedGroupCodes.includes(code)
+      );
+
+      if (conflictingGroups.length > 0) {
+        // Get teacher info
+        const teacher = await ctx.db.get(assignment.teacherId);
+        if (teacher) {
+          conflicts.push({
+            teacherId: assignment.teacherId,
+            teacherName: teacher.fullName || teacher.email || "Unknown",
+            conflictingGroups,
+          });
+        }
+      }
+    }
+
+    return conflicts;
+  },
+});
+
+/**
+ * Update assigned grades and groups for a teacher assignment
+ */
+export const updateTeacherAssignmentGrades = mutation({
+  args: {
+    assignmentId: v.id("teacher_assignments"),
+    assignedGrades: v.array(v.string()),
+    assignedGroupCodes: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Unauthenticated");
+    }
+
+    // Get the assignment to verify it exists
+    const assignment = await ctx.db.get(args.assignmentId);
+    if (!assignment) {
+      throw new Error("Assignment not found");
+    }
+
+    // Update the assignment with new grades and groups
+    await ctx.db.patch(args.assignmentId, {
+      assignedGrades: args.assignedGrades,
+      assignedGroupCodes: args.assignedGroupCodes,
+      updatedAt: Date.now(),
+    });
+
+    return args.assignmentId;
   },
 });

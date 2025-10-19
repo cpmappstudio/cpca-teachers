@@ -38,10 +38,12 @@ import {
     DialogContent,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { AspectRatio } from "@/components/ui/aspect-ratio";
 
 // Type for progress by grade
 type ProgressByGrade = {
     gradeCode?: string;
+    groupCode?: string;
     evidenceDocumentStorageId?: Id<"_storage">;
     evidencePhotoStorageId?: Id<"_storage">;
     status?: string;
@@ -138,6 +140,9 @@ export function CurriculumAssignmentItem({
     const [evidenceDialogOpen, setEvidenceDialogOpen] = React.useState(false);
     const [selectedLesson, setSelectedLesson] = React.useState<LessonWithProgress | null>(null);
 
+    // State for selected grade
+    const [selectedGrade, setSelectedGrade] = React.useState<string | null>(null);
+
     // Get detailed lesson progress when curriculum is expanded
     const assignmentLessonProgress = useQuery(
         api.progress.getAssignmentLessonProgress,
@@ -148,6 +153,30 @@ export function CurriculumAssignmentItem({
     const lessons = assignmentLessonProgress
         ? assignmentLessonProgress.lessons
         : [];
+
+    // Get assigned grades and groups
+    const assignedGrades = assignmentLessonProgress?.grades || [];
+    const assignedGroupCodes = assignmentLessonProgress?.assignedGroupCodes || [];
+    const hasMultipleGrades = assignedGrades.length > 1;
+
+    // Calculate overall progress from lessons
+    const overallProgress = React.useMemo(() => {
+        if (lessons.length === 0) return 0;
+
+        let totalCompletionScore = 0;
+        lessons.forEach((lesson: any) => {
+            totalCompletionScore += (lesson.completionPercentage || 0);
+        });
+
+        return Math.round(totalCompletionScore / lessons.length);
+    }, [lessons]);
+
+    // Initialize selected grade when data loads
+    React.useEffect(() => {
+        if (assignedGrades.length > 0 && !selectedGrade) {
+            setSelectedGrade(assignedGrades[0].code);
+        }
+    }, [assignedGrades, selectedGrade]);
 
 
 
@@ -202,10 +231,10 @@ export function CurriculumAssignmentItem({
                         {/* Progress Stats - Bottom (horizontal) */}
                         <div className="flex items-center gap-2 text-xs">
                             <span className="text-muted-foreground whitespace-nowrap">
-                                {assignment.progressSummary.completedLessons}/{assignment.progressSummary.totalLessons} lessons
+                                {lessons.length} lessons
                             </span>
                             <span className="font-semibold text-primary whitespace-nowrap hidden sm:inline">
-                                {assignment.progressSummary.progressPercentage}% complete
+                                {overallProgress}% complete
                             </span>
                         </div>
                     </div>
@@ -213,30 +242,94 @@ export function CurriculumAssignmentItem({
             </AccordionTrigger>
 
             <AccordionContent className="border-t px-4 pb-4">
+                {/* Grade Selection Tabs (if multiple grades) */}
+                {hasMultipleGrades && assignedGrades.length > 0 && (
+                    <div className="mb-4">
+                        <Tabs value={selectedGrade || assignedGrades[0].code} onValueChange={setSelectedGrade}>
+                            <TabsList className="w-full">
+                                {assignedGrades.map((grade: { code: string; name: string }) => (
+                                    <TabsTrigger
+                                        key={grade.code}
+                                        value={grade.code}
+                                        className="flex-1"
+                                    >
+                                        {grade.name}
+                                    </TabsTrigger>
+                                ))}
+                            </TabsList>
+                        </Tabs>
+                    </div>
+                )}
+
                 {/* Simple Tabs for Quarters */}
                 <Tabs defaultValue="1" className="w-full">
                     <div className="w-full overflow-x-auto">
                         <TabsList className="inline-flex w-auto min-w-full">
                             {[1, 2, 3, 4].slice(0, assignment.numberOfQuarters).map((quarterNum) => {
-                                const quarterData = progressByQuarter[quarterNum] || {
-                                    total: 0,
-                                    completed: 0,
-                                    inProgress: 0,
-                                    notStarted: 0,
-                                };
-                                const quarterProgress = quarterData.total > 0
-                                    ? Math.round((quarterData.completed / quarterData.total) * 100)
+                                // Filter lessons by quarter and selected grade
+                                const quarterLessons = lessons.filter((l: any) => {
+                                    if (l.quarter !== quarterNum) return false;
+
+                                    // If teacher has multiple grades, filter by selected grade
+                                    if (hasMultipleGrades && selectedGrade) {
+                                        if (l.gradeCodes && l.gradeCodes.length > 0) {
+                                            return l.gradeCodes.includes(selectedGrade);
+                                        }
+                                        if (l.gradeCode) {
+                                            return l.gradeCode === selectedGrade;
+                                        }
+                                    }
+
+                                    return true;
+                                });
+
+                                // Calculate quarter progress with incremental completion
+                                const total = quarterLessons.length;
+                                let totalCompletionScore = 0;
+
+                                quarterLessons.forEach((l: any) => {
+                                    if (hasMultipleGrades && selectedGrade) {
+                                        // Filter groups for selected grade
+                                        const groupsForSelectedGrade = assignedGroupCodes.filter(
+                                            (groupCode: string) => groupCode.startsWith(selectedGrade + "-")
+                                        );
+
+                                        // Count completed groups for this grade
+                                        const completedGroupsForGrade = l.progressByGrade?.filter((p: any) =>
+                                            groupsForSelectedGrade.includes(p.groupCode || '') &&
+                                            (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                        ).length || 0;
+
+                                        // Calculate percentage for this lesson
+                                        const lessonCompletionPercentage = groupsForSelectedGrade.length > 0
+                                            ? (completedGroupsForGrade / groupsForSelectedGrade.length) * 100
+                                            : 0;
+
+                                        totalCompletionScore += lessonCompletionPercentage;
+                                    } else {
+                                        // Use overall completion percentage from backend
+                                        totalCompletionScore += (l.completionPercentage || 0);
+                                    }
+                                });
+
+                                const quarterProgress = total > 0
+                                    ? Math.round(totalCompletionScore / total)
                                     : 0;
 
+                                // Calculate end angle based on progress (0% = 90, 100% = -270)
+                                // Full circle is 360 degrees, so we need to map 0-100% to that range
+                                const startAngle = 90;
+                                const endAngle = 90 - (quarterProgress * 3.6); // 360 degrees / 100 = 3.6 degrees per percent
+
                                 const chartData = [{
-                                    progress: quarterProgress,
-                                    fill: "var(--sidebar-accent)"
+                                    progress: 100, // Always use 100 as the value
+                                    fill: "hsl(var(--primary))"
                                 }];
 
                                 const chartConfig = {
                                     progress: {
                                         label: "Progress",
-                                        color: "var(--sidebar-accent)",
+                                        color: "hsl(var(--primary))",
                                     },
                                 } satisfies ChartConfig;
 
@@ -250,6 +343,8 @@ export function CurriculumAssignmentItem({
                                             <ChartContainer config={chartConfig} className="w-full h-full">
                                                 <RadialBarChart
                                                     data={chartData}
+                                                    startAngle={startAngle}
+                                                    endAngle={endAngle}
                                                     innerRadius="60%"
                                                     outerRadius="100%"
                                                 >
@@ -270,9 +365,22 @@ export function CurriculumAssignmentItem({
 
                     {/* Tab Content: Lessons by Quarter */}
                     {[1, 2, 3, 4].slice(0, assignment.numberOfQuarters).map((quarterNum) => {
-                        const quarterLessons = lessons.filter(
-                            (lesson) => lesson.quarter === quarterNum
-                        );
+                        // Filter lessons by quarter and selected grade
+                        const quarterLessons = lessons.filter((lesson) => {
+                            if (lesson.quarter !== quarterNum) return false;
+
+                            // If teacher has multiple grades, filter by selected grade
+                            if (hasMultipleGrades && selectedGrade) {
+                                if (lesson.gradeCodes && lesson.gradeCodes.length > 0) {
+                                    return lesson.gradeCodes.includes(selectedGrade);
+                                }
+                                if (lesson.gradeCode) {
+                                    return lesson.gradeCode === selectedGrade;
+                                }
+                            }
+
+                            return true;
+                        });
 
                         return (
                             <TabsContent key={quarterNum} value={quarterNum.toString()} className="">
@@ -283,12 +391,28 @@ export function CurriculumAssignmentItem({
                                         </div>
                                     ) : (
                                         quarterLessons.map((lesson) => {
-                                            // Multi-grade support
-                                            const hasMultipleGrades = (lesson.totalGrades || 0) > 1;
-                                            const completionPercentage = lesson.completionPercentage || 0;
+                                            // Calculate completion percentage for selected grade
                                             const progressByGrade = lesson.progressByGrade || [];
 
-                                            // Get grades that have evidence
+                                            let displayCompletionPercentage = lesson.completionPercentage || 0;
+
+                                            // If teacher has multiple grades and one is selected, calculate for that grade only
+                                            if (hasMultipleGrades && selectedGrade) {
+                                                const groupsForSelectedGrade = assignedGroupCodes.filter(
+                                                    (groupCode: string) => groupCode.startsWith(selectedGrade + "-")
+                                                );
+
+                                                const completedGroupsForGrade = progressByGrade.filter((p: any) =>
+                                                    groupsForSelectedGrade.includes(p.groupCode || '') &&
+                                                    (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                                ).length;
+
+                                                displayCompletionPercentage = groupsForSelectedGrade.length > 0
+                                                    ? Math.round((completedGroupsForGrade / groupsForSelectedGrade.length) * 100)
+                                                    : 0;
+                                            }
+
+                                            // Get grades that have evidence (for legacy support)
                                             const gradesWithEvidence = new Set(
                                                 progressByGrade
                                                     .filter((p: ProgressByGrade) => p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
@@ -301,7 +425,7 @@ export function CurriculumAssignmentItem({
                                             const evidenceType = lesson.progress?.evidencePhotoStorageId ? "image" : "pdf";
 
                                             // Determine background color based on completion
-                                            const isFullyComplete = completionPercentage === 100;
+                                            const isFullyComplete = displayCompletionPercentage === 100;
                                             const isPartiallyComplete = hasEvidence && !isFullyComplete;
 
                                             return (
@@ -361,31 +485,37 @@ export function CurriculumAssignmentItem({
                                                                             <span className="font-medium text-sm break-words">
                                                                                 {lesson.orderInQuarter}. {lesson.title}
                                                                             </span>
-                                                                            {hasMultipleGrades && (
+                                                                            {assignedGroupCodes.length > 0 && (
                                                                                 <Badge
-                                                                                    variant={completionPercentage === 100 ? "default" : completionPercentage > 0 ? "secondary" : "outline"}
+                                                                                    variant={displayCompletionPercentage === 100 ? "default" : displayCompletionPercentage > 0 ? "secondary" : "outline"}
                                                                                     className="text-xs h-5"
                                                                                 >
-                                                                                    {completionPercentage}%
+                                                                                    {displayCompletionPercentage}%
                                                                                 </Badge>
                                                                             )}
                                                                         </div>
-                                                                        {/* Grade badges for mobile */}
-                                                                        {hasMultipleGrades && assignment.gradeNames && assignment.gradeNames.length > 0 && (
+                                                                        {/* Group badges for mobile - Show groups for selected grade */}
+                                                                        {assignedGroupCodes.length > 0 && selectedGrade && (
                                                                             <div className="flex items-center gap-1 flex-wrap mt-1">
-                                                                                {assignmentLessonProgress?.grades?.map((grade: { code: string; name: string }) => {
-                                                                                    const hasEvidence = gradesWithEvidence.has(grade.code);
-                                                                                    return (
-                                                                                        <Badge
-                                                                                            key={grade.code}
-                                                                                            variant={hasEvidence ? "default" : "outline"}
-                                                                                            className="text-[10px] h-4 px-1"
-                                                                                        >
-                                                                                            {grade.name}
-                                                                                            {hasEvidence && " ✓"}
-                                                                                        </Badge>
-                                                                                    );
-                                                                                })}
+                                                                                {assignedGroupCodes
+                                                                                    .filter((groupCode: string) => groupCode.startsWith(selectedGrade + "-"))
+                                                                                    .map((groupCode: string) => {
+                                                                                        const [gradeCode, groupNumber] = groupCode.split('-');
+                                                                                        const hasEvidence = progressByGrade.find(
+                                                                                            (p: any) => p.groupCode === groupCode &&
+                                                                                                (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                                                                        );
+                                                                                        return (
+                                                                                            <Badge
+                                                                                                key={groupCode}
+                                                                                                variant={hasEvidence ? "default" : "outline"}
+                                                                                                className="text-[10px] h-4 px-1"
+                                                                                            >
+                                                                                                Group {groupNumber}
+                                                                                                {hasEvidence && " ✓"}
+                                                                                            </Badge>
+                                                                                        );
+                                                                                    })}
                                                                             </div>
                                                                         )}
                                                                     </div>
@@ -448,32 +578,38 @@ export function CurriculumAssignmentItem({
                                                                     <span className="font-medium text-sm break-words">
                                                                         {lesson.orderInQuarter}. {lesson.title}
                                                                     </span>
-                                                                    {hasMultipleGrades && (
+                                                                    {assignedGroupCodes.length > 0 && (
                                                                         <Badge
-                                                                            variant={completionPercentage === 100 ? "default" : completionPercentage > 0 ? "secondary" : "outline"}
+                                                                            variant={displayCompletionPercentage === 100 ? "default" : displayCompletionPercentage > 0 ? "secondary" : "outline"}
                                                                             className="text-xs"
                                                                         >
-                                                                            {completionPercentage}%
+                                                                            {displayCompletionPercentage}%
                                                                         </Badge>
                                                                     )}
                                                                 </div>
 
-                                                                {/* Grade badges for desktop */}
-                                                                {hasMultipleGrades && assignment.gradeNames && assignment.gradeNames.length > 0 && (
+                                                                {/* Group badges for desktop - Show groups for selected grade */}
+                                                                {assignedGroupCodes.length > 0 && selectedGrade && (
                                                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                                                        {assignmentLessonProgress?.grades?.map((grade: { code: string; name: string }) => {
-                                                                            const hasEvidence = gradesWithEvidence.has(grade.code);
-                                                                            return (
-                                                                                <Badge
-                                                                                    key={grade.code}
-                                                                                    variant={hasEvidence ? "default" : "outline"}
-                                                                                    className="text-xs h-5 px-2"
-                                                                                >
-                                                                                    {grade.name}
-                                                                                    {hasEvidence && " ✓"}
-                                                                                </Badge>
-                                                                            );
-                                                                        })}
+                                                                        {assignedGroupCodes
+                                                                            .filter((groupCode: string) => groupCode.startsWith(selectedGrade + "-"))
+                                                                            .map((groupCode: string) => {
+                                                                                const [gradeCode, groupNumber] = groupCode.split('-');
+                                                                                const hasEvidence = progressByGrade.find(
+                                                                                    (p: any) => p.groupCode === groupCode &&
+                                                                                        (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                                                                );
+                                                                                return (
+                                                                                    <Badge
+                                                                                        key={groupCode}
+                                                                                        variant={hasEvidence ? "default" : "outline"}
+                                                                                        className="text-xs h-5 px-2"
+                                                                                    >
+                                                                                        Group {groupNumber}
+                                                                                        {hasEvidence && " ✓"}
+                                                                                    </Badge>
+                                                                                );
+                                                                            })}
                                                                     </div>
                                                                 )}
 
@@ -519,36 +655,46 @@ export function CurriculumAssignmentItem({
                         {selectedLesson?.title || "Lesson Evidence"}
                     </DialogTitle>
                     {selectedLesson?.progressByGrade && selectedLesson.progressByGrade.length > 0 && (
-                        <Tabs defaultValue={selectedLesson.progressByGrade[0]?.gradeCode || "0"} >
+                        <Tabs defaultValue={selectedLesson.progressByGrade[0]?.groupCode || "0"} >
                             <TabsList>
                                 {selectedLesson.progressByGrade
-                                    .filter((p: ProgressByGrade) => p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
-                                    .map((gradeProgress: ProgressByGrade & { gradeName?: string }) => (
-                                        <TabsTrigger
-                                            key={gradeProgress.gradeCode}
-                                            value={gradeProgress.gradeCode || ""}
-                                            className="flex-1"
-                                        >
-                                            {gradeProgress.gradeName || gradeProgress.gradeCode}
-                                        </TabsTrigger>
-                                    ))
+                                    .filter((p: ProgressByGrade) =>
+                                        p.groupCode &&
+                                        (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                    )
+                                    .map((groupProgress: ProgressByGrade) => {
+                                        const [gradeCode, groupNumber] = (groupProgress.groupCode || '').split('-');
+                                        return (
+                                            <TabsTrigger
+                                                key={groupProgress.groupCode}
+                                                value={groupProgress.groupCode || ""}
+                                                className="flex-1"
+                                            >
+                                                Group {groupNumber}
+                                            </TabsTrigger>
+                                        );
+                                    })
                                 }
                             </TabsList>
                             {selectedLesson.progressByGrade
-                                .filter((p: ProgressByGrade) => p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
-                                .map((gradeProgress: ProgressByGrade & { gradeName?: string }) => {
-                                    const evidenceId = gradeProgress.evidenceDocumentStorageId || gradeProgress.evidencePhotoStorageId;
-                                    const evidenceType = gradeProgress.evidencePhotoStorageId ? "image" : "pdf";
+                                .filter((p: ProgressByGrade) =>
+                                    p.groupCode &&
+                                    (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                )
+                                .map((groupProgress: ProgressByGrade) => {
+                                    const evidenceId = groupProgress.evidenceDocumentStorageId || groupProgress.evidencePhotoStorageId;
+                                    const evidenceType = groupProgress.evidencePhotoStorageId ? "image" : "pdf";
+                                    const [gradeCode, groupNumber] = (groupProgress.groupCode || '').split('-');
 
-                                    if (!evidenceId || !gradeProgress.gradeCode) return null;
+                                    if (!evidenceId || !groupProgress.groupCode) return null;
 
                                     return (
-                                        <TabsContent key={gradeProgress.gradeCode} value={gradeProgress.gradeCode} className="m-0 p-4">
+                                        <TabsContent key={groupProgress.groupCode} value={groupProgress.groupCode} className="m-0 p-4">
                                             <EvidenceViewer
                                                 storageId={evidenceId}
                                                 type={evidenceType}
-                                                title={`${gradeProgress.gradeName || gradeProgress.gradeCode} Evidence`}
-                                                uploadedAt={gradeProgress.completedAt}
+                                                title={`Group ${groupNumber} Evidence`}
+                                                uploadedAt={groupProgress.completedAt}
                                             />
                                         </TabsContent>
                                     );
@@ -593,19 +739,18 @@ function EvidenceViewer({
 
     if (type === "image") {
         return (
-            <div className="w-full space-y-3">
+            <div className="space-y-3">
                 {uploadDateText && (
                     <div className="text-sm text-muted-foreground">
-                        <span className="font-medium">Uploaded:</span> {uploadDateText}
+                        <span className="font-medium">Uploadedaa:</span> {uploadDateText}
                     </div>
                 )}
-                <div className="relative w-full" style={{ height: 'calc(90vh - 140px)' }}>
-                    <Image
+                <div className="flex justify-center">
+                    <img
                         src={url}
                         alt={title}
-                        fill
-                        className="object-contain"
-                        unoptimized
+                        className="rounded-lg"
+                        style={{ maxWidth: '400px', maxHeight: '300px', objectFit: 'contain' }}
                     />
                 </div>
             </div>
@@ -614,7 +759,7 @@ function EvidenceViewer({
 
     // PDF viewer
     return (
-        <div className="w-full space-y-3">
+        <div className="space-y-3">
             {uploadDateText && (
                 <div className="text-sm text-muted-foreground">
                     <span className="font-medium">Uploaded:</span> {uploadDateText}
@@ -622,8 +767,8 @@ function EvidenceViewer({
             )}
             <iframe
                 src={url}
-                className="w-full border-0"
-                style={{ height: 'calc(90vh - 140px)' }}
+                className="border-0 w-full rounded-lg"
+                style={{ height: 'calc(90vh - 200px)' }}
                 title={title}
             />
         </div>

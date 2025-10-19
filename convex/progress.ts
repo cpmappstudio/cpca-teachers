@@ -41,17 +41,34 @@ export const getTeacherAssignmentsWithProgress = query({
                     ca => ca.campusId === assignment.campusId
                 );
                 const gradeCodes = campusAssignment?.gradeCodes || [];
+
+                // Use assigned grades to teacher, fallback to all curriculum grades
+                const assignedGrades = assignment.assignedGrades || gradeCodes;
                 const gradeNames = campus?.grades
-                    ?.filter(g => gradeCodes.includes(g.code))
+                    ?.filter(g => assignedGrades.includes(g.code))
                     .map(g => g.name) || [];
 
                 // Get all lessons for this curriculum
-                const lessons = await ctx.db
+                const allLessons = await ctx.db
                     .query("curriculum_lessons")
                     .withIndex("by_curriculum_active", (q) =>
                         q.eq("curriculumId", curriculum._id).eq("isActive", true)
                     )
                     .collect();
+
+                // Filter lessons based on assigned grades (only show lessons for grades assigned to teacher)
+                const lessons = allLessons.filter(lesson => {
+                    // If lesson has gradeCodes, check intersection with assigned grades
+                    if (lesson.gradeCodes && lesson.gradeCodes.length > 0) {
+                        return lesson.gradeCodes.some(gradeCode => assignedGrades.includes(gradeCode));
+                    }
+                    // If lesson has legacy gradeCode, check if in assigned grades
+                    if (lesson.gradeCode) {
+                        return assignedGrades.includes(lesson.gradeCode);
+                    }
+                    // If no grade specified, show to all (applies to all grades)
+                    return true;
+                });
 
                 // Get lesson progress for this teacher and assignment
                 const progressRecords = await ctx.db
@@ -61,32 +78,69 @@ export const getTeacherAssignmentsWithProgress = query({
                     )
                     .collect();
 
-                // Calculate progress statistics considering multi-grade support
+                // Calculate progress statistics with granular group-based completion
                 const totalLessons = lessons.length;
-                const totalGrades = gradeNames.length || 1; // Default to 1 if no grades
+                const assignedGroupCodes = assignment.assignedGroupCodes || [];
+                const hasGroups = assignedGroupCodes.length > 0;
+                const totalGrades = gradeNames.length || 1;
 
-                // For multi-grade curriculums, calculate lesson completion based on grades
-                let completedLessons = 0;
-                let inProgressLessons = 0;
+                // Calculate total completion as a sum of partial completions
+                let totalCompletionScore = 0;
+                let completedLessons = 0; // Lessons at 100%
+                let inProgressLessons = 0; // Lessons with partial completion
 
                 for (const lesson of lessons) {
                     const lessonProgressRecords = progressRecords.filter(p => p.lessonId === lesson._id);
 
-                    if (totalGrades > 1) {
-                        // Multi-grade: check how many grades have completed this lesson
-                        const completedGrades = lessonProgressRecords.filter(p => p.status === "completed").length;
+                    if (hasGroups) {
+                        // Group-based: calculate percentage of completed groups
+                        const completedGroupsCount = lessonProgressRecords.filter(p =>
+                            p.groupCode &&
+                            assignedGroupCodes.includes(p.groupCode) &&
+                            p.status === "completed" &&
+                            (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                        ).length;
 
-                        if (completedGrades === totalGrades) {
-                            // All grades completed
+                        const totalAssignedGroups = assignedGroupCodes.length;
+                        const lessonCompletionPercentage = totalAssignedGroups > 0
+                            ? (completedGroupsCount / totalAssignedGroups) * 100
+                            : 0;
+
+                        // Add this lesson's completion to total score
+                        totalCompletionScore += lessonCompletionPercentage;
+
+                        if (lessonCompletionPercentage === 100) {
                             completedLessons++;
-                        } else if (completedGrades > 0) {
-                            // Some grades completed, count as in progress
+                        } else if (lessonCompletionPercentage > 0) {
+                            inProgressLessons++;
+                        }
+                    } else if (totalGrades > 1) {
+                        // Legacy multi-grade: calculate percentage of completed grades
+                        const completedGradesCount = lessonProgressRecords.filter(p =>
+                            p.status === "completed" &&
+                            (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                        ).length;
+
+                        const lessonCompletionPercentage = totalGrades > 0
+                            ? (completedGradesCount / totalGrades) * 100
+                            : 0;
+
+                        totalCompletionScore += lessonCompletionPercentage;
+
+                        if (lessonCompletionPercentage === 100) {
+                            completedLessons++;
+                        } else if (lessonCompletionPercentage > 0) {
                             inProgressLessons++;
                         }
                     } else {
                         // Single grade or no grades specified
                         const lessonProgress = lessonProgressRecords[0];
-                        if (lessonProgress?.status === "completed") {
+                        const isCompleted = lessonProgress?.status === "completed" &&
+                            (lessonProgress.evidenceDocumentStorageId || lessonProgress.evidencePhotoStorageId);
+
+                        totalCompletionScore += isCompleted ? 100 : 0;
+
+                        if (isCompleted) {
                             completedLessons++;
                         } else if (lessonProgress?.status === "in_progress") {
                             inProgressLessons++;
@@ -94,17 +148,16 @@ export const getTeacherAssignmentsWithProgress = query({
                     }
                 }
 
+                // Calculate overall percentage: sum of all lesson percentages / total lessons
                 const progressPercentage = totalLessons > 0
-                    ? Math.round((completedLessons / totalLessons) * 100)
-                    : 0;
-
-                // Get last completed lesson date
+                    ? Math.round(totalCompletionScore / totalLessons)
+                    : 0;                // Get last completed lesson date
                 const completedProgress = progressRecords
                     .filter(p => p.completedAt)
                     .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
                 const lastLessonDate = completedProgress[0]?.completedAt;
 
-                // Progress by quarter (considering multi-grade support)
+                // Progress by quarter (with granular group-based completion)
                 const progressByQuarter = lessons.reduce((acc, lesson) => {
                     const quarter = lesson.quarter;
                     if (!acc[quarter]) {
@@ -113,19 +166,52 @@ export const getTeacherAssignmentsWithProgress = query({
                             completed: 0,
                             inProgress: 0,
                             notStarted: 0,
+                            completionScore: 0, // Sum of lesson completion percentages
                         };
                     }
                     acc[quarter].total++;
 
                     const lessonProgressRecords = progressRecords.filter(p => p.lessonId === lesson._id);
 
-                    if (totalGrades > 1) {
-                        // Multi-grade: check completion across all grades
-                        const completedGrades = lessonProgressRecords.filter(p => p.status === "completed").length;
+                    if (hasGroups) {
+                        // Group-based: calculate percentage completion
+                        const completedGroupsCount = lessonProgressRecords.filter(p =>
+                            p.groupCode &&
+                            assignedGroupCodes.includes(p.groupCode) &&
+                            p.status === "completed" &&
+                            (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                        ).length;
 
-                        if (completedGrades === totalGrades) {
+                        const totalAssignedGroups = assignedGroupCodes.length;
+                        const lessonCompletionPercentage = totalAssignedGroups > 0
+                            ? (completedGroupsCount / totalAssignedGroups) * 100
+                            : 0;
+
+                        acc[quarter].completionScore += lessonCompletionPercentage;
+
+                        if (lessonCompletionPercentage === 100) {
                             acc[quarter].completed++;
-                        } else if (completedGrades > 0) {
+                        } else if (lessonCompletionPercentage > 0) {
+                            acc[quarter].inProgress++;
+                        } else {
+                            acc[quarter].notStarted++;
+                        }
+                    } else if (totalGrades > 1) {
+                        // Legacy multi-grade: calculate percentage completion
+                        const completedGradesCount = lessonProgressRecords.filter(p =>
+                            p.status === "completed" &&
+                            (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                        ).length;
+
+                        const lessonCompletionPercentage = totalGrades > 0
+                            ? (completedGradesCount / totalGrades) * 100
+                            : 0;
+
+                        acc[quarter].completionScore += lessonCompletionPercentage;
+
+                        if (lessonCompletionPercentage === 100) {
+                            acc[quarter].completed++;
+                        } else if (lessonCompletionPercentage > 0) {
                             acc[quarter].inProgress++;
                         } else {
                             acc[quarter].notStarted++;
@@ -133,14 +219,15 @@ export const getTeacherAssignmentsWithProgress = query({
                     } else {
                         // Single grade
                         const progress = lessonProgressRecords[0];
-                        if (progress) {
-                            if (progress.status === "completed") {
-                                acc[quarter].completed++;
-                            } else if (progress.status === "in_progress") {
-                                acc[quarter].inProgress++;
-                            } else {
-                                acc[quarter].notStarted++;
-                            }
+                        const isCompleted = progress?.status === "completed" &&
+                            (progress.evidenceDocumentStorageId || progress.evidencePhotoStorageId);
+
+                        acc[quarter].completionScore += isCompleted ? 100 : 0;
+
+                        if (isCompleted) {
+                            acc[quarter].completed++;
+                        } else if (progress?.status === "in_progress") {
+                            acc[quarter].inProgress++;
                         } else {
                             acc[quarter].notStarted++;
                         }
@@ -152,9 +239,17 @@ export const getTeacherAssignmentsWithProgress = query({
                     completed: number;
                     inProgress: number;
                     notStarted: number;
+                    completionScore: number;
+                    percentage?: number; // Calculated percentage
                 }>);
 
-                return {
+                // Calculate percentage for each quarter
+                Object.keys(progressByQuarter).forEach(quarterKey => {
+                    const quarter = progressByQuarter[Number(quarterKey)];
+                    quarter.percentage = quarter.total > 0
+                        ? Math.round(quarter.completionScore / quarter.total)
+                        : 0;
+                }); return {
                     // Assignment info
                     _id: assignment._id,
                     assignmentId: assignment._id,
@@ -177,6 +272,7 @@ export const getTeacherAssignmentsWithProgress = query({
 
                     // Grade info
                     gradeNames, // Grade names from curriculum campus assignments
+                    assignedGrades: assignment.assignedGrades || [], // Grades assigned to this teacher
 
                     // Progress summary
                     progressSummary: {
@@ -237,9 +333,13 @@ export const getAssignmentLessonProgress = query({
         );
         const gradeCodes = campusAssignment?.gradeCodes || [];
 
-        // Get grades from campus.grades (not from a separate grades table)
+        // Filter lessons based on assigned grades
+        // Only show lessons that match the grades the teacher is assigned to teach
+        const assignedGrades = assignment.assignedGrades || gradeCodes;
+
+        // Get grades from campus.grades - ONLY the ones assigned to this teacher
         const grades = campus?.grades
-            ?.filter(g => gradeCodes.includes(g.code))
+            ?.filter(g => assignedGrades.includes(g.code))
             .map(g => ({
                 id: g.code, // Use code as ID since grades are not separate entities
                 name: g.name,
@@ -248,17 +348,30 @@ export const getAssignmentLessonProgress = query({
             })) || [];
 
         // Get all lessons for this curriculum
-        const lessons = await ctx.db
+        const allLessons = await ctx.db
             .query("curriculum_lessons")
             .withIndex("by_curriculum_active", (q) =>
                 q.eq("curriculumId", curriculum._id).eq("isActive", true)
             )
             .collect();
 
+        const lessons = allLessons.filter(lesson => {
+            // Si la lección tiene gradeCodes (nuevo formato), verificar intersección
+            if (lesson.gradeCodes && lesson.gradeCodes.length > 0) {
+                return lesson.gradeCodes.some(gradeCode => assignedGrades.includes(gradeCode));
+            }
+            // Si usa gradeCode legacy (viejo formato), verificar si está en assignedGrades
+            if (lesson.gradeCode) {
+                return assignedGrades.includes(lesson.gradeCode);
+            }
+            // Si no tiene grade asignado, mostrarla (aplica a todos)
+            return true;
+        });
+
         // Get progress for each lesson (including all grade-specific progress)
         const lessonsWithProgress = await Promise.all(
             lessons.map(async (lesson) => {
-                // Find ALL progress records for this lesson (across all grades)
+                // Find ALL progress records for this lesson (across all grades/groups)
                 const allProgressRecords = await ctx.db
                     .query("lesson_progress")
                     .withIndex("by_teacher_lesson", (q) =>
@@ -266,27 +379,63 @@ export const getAssignmentLessonProgress = query({
                     )
                     .collect();
 
-                // Calculate overall lesson status based on grade completion
-                const totalGrades = grades.length || 1;
-                const completedGrades = allProgressRecords.filter(p => p.status === "completed").length;
+                // Calculate overall lesson status based on assigned groups
+                // Now uses incremental completion: each group contributes proportionally
+                const assignedGroupCodes = assignment.assignedGroupCodes || [];
+                const hasGroups = assignedGroupCodes.length > 0;
 
                 let overallStatus: "not_started" | "in_progress" | "completed";
                 let completionPercentage = 0;
+                let completedGroups = 0;
+                let totalGroups = 0;
+                let completedGrades = 0;
+                let totalGrades = 0;
 
-                if (completedGrades === 0) {
-                    overallStatus = "not_started";
-                    completionPercentage = 0;
-                } else if (completedGrades === totalGrades) {
-                    overallStatus = "completed";
-                    completionPercentage = 100;
+                if (hasGroups) {
+                    // Check completion by groups with incremental progress
+                    completedGroups = allProgressRecords.filter(p =>
+                        p.groupCode &&
+                        assignedGroupCodes.includes(p.groupCode) &&
+                        p.status === "completed" &&
+                        (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                    ).length;
+
+                    totalGroups = assignedGroupCodes.length;
+                    completionPercentage = totalGroups > 0
+                        ? Math.round((completedGroups / totalGroups) * 100)
+                        : 0;
+
+                    // Status based on completion percentage
+                    if (completionPercentage === 0) {
+                        overallStatus = "not_started";
+                    } else if (completionPercentage === 100) {
+                        overallStatus = "completed";
+                    } else {
+                        overallStatus = "in_progress";
+                    }
                 } else {
-                    overallStatus = "in_progress";
-                    completionPercentage = Math.round((completedGrades / totalGrades) * 100);
-                }
+                    // Legacy: Check by grades (backward compatibility)
+                    totalGrades = grades.length || 1;
+                    completedGrades = allProgressRecords.filter(p =>
+                        p.status === "completed" &&
+                        (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                    ).length;
 
-                // Group progress by grade
+                    completionPercentage = totalGrades > 0
+                        ? Math.round((completedGrades / totalGrades) * 100)
+                        : 0;
+
+                    if (completionPercentage === 0) {
+                        overallStatus = "not_started";
+                    } else if (completionPercentage === 100) {
+                        overallStatus = "completed";
+                    } else {
+                        overallStatus = "in_progress";
+                    }
+                }                // Group progress by grade/group
                 const progressByGrade = allProgressRecords.map(p => ({
                     gradeCode: p.gradeCode,
+                    groupCode: p.groupCode, // Include groupCode for group-based tracking
                     gradeName: grades.find(g => g.code === p.gradeCode)?.name,
                     progressId: p._id,
                     status: p.status,
@@ -319,11 +468,17 @@ export const getAssignmentLessonProgress = query({
                     objectives: lesson.objectives,
                     resources: lesson.resources,
 
-                    // Overall status (considering all grades)
+                    // Grade assignment (for filtering)
+                    gradeCodes: lesson.gradeCodes,
+                    gradeCode: lesson.gradeCode,
+
+                    // Overall status (considering all grades/groups)
                     overallStatus,
                     completionPercentage,
                     completedGrades,
                     totalGrades,
+                    completedGroups, // For group-based tracking
+                    totalGroups, // For group-based tracking
 
                     // Progress by grade (for multi-grade curriculums)
                     progressByGrade,
@@ -355,6 +510,7 @@ export const getAssignmentLessonProgress = query({
             curriculum,
             lessons: lessonsWithProgress,
             grades, // Return grades for multi-grade support
+            assignedGroupCodes: assignment.assignedGroupCodes || [], // Groups assigned to teacher
         };
     },
 });

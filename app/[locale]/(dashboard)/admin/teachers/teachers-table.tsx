@@ -17,11 +17,7 @@ import {
   useReactTable,
   VisibilityState,
 } from "@tanstack/react-table";
-import {
-  ArrowUpDown,
-  Filter,
-  Search,
-} from "lucide-react";
+import { ArrowUpDown, Filter, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -72,10 +68,11 @@ export type Teacher = {
 function TeacherAvatar({ teacher }: { teacher: Teacher }) {
   const avatarUrl = useQuery(
     api.users.getAvatarUrl,
-    teacher.avatarStorageId ? { storageId: teacher.avatarStorageId } : "skip"
+    teacher.avatarStorageId ? { storageId: teacher.avatarStorageId } : "skip",
   );
 
-  const initials = `${teacher.firstName?.charAt(0) || ""}${teacher.lastName?.charAt(0) || ""}`.toUpperCase();
+  const initials =
+    `${teacher.firstName?.charAt(0) || ""}${teacher.lastName?.charAt(0) || ""}`.toUpperCase();
 
   return (
     <Avatar className="h-8 w-8 lg:h-10 lg:w-10">
@@ -108,7 +105,9 @@ export const columns: ColumnDef<Teacher>[] = [
         <div className="flex items-center gap-3 py-1">
           <TeacherAvatar teacher={teacher} />
           <div className="space-y-2">
-            <div className="font-medium text-sm lg:text-base">{row.getValue("fullName")}</div>
+            <div className="font-medium text-sm lg:text-base">
+              {row.getValue("fullName")}
+            </div>
             <div className="flex lg:hidden flex-col gap-1.5 text-xs lg:text-sm text-muted-foreground">
               <span className="truncate">{teacher.email}</span>
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -387,8 +386,8 @@ export function TeachersTable() {
   const data: Teacher[] = React.useMemo(() => {
     if (!users || !campuses) return [];
 
-    return users.map(user => {
-      const campus = campuses.find(c => c._id === user.campusId);
+    return users.map((user) => {
+      const campus = campuses.find((c) => c._id === user.campusId);
       // Use progressPercentage directly from progressMetrics (already calculated with multi-grade support)
       const progressAvg = user.progressMetrics?.progressPercentage ?? 0;
 
@@ -481,20 +480,21 @@ export function TeachersTable() {
           {/* Botón Clear all - visible solo cuando hay filtros activos */}
           {(statusFilter !== "all" ||
             campusFilter !== "all" ||
-            (table.getColumn("fullName")?.getFilterValue() as string)?.length > 0) && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setStatusFilter("all");
-                  setCampusFilter("all");
-                  table.getColumn("fullName")?.setFilterValue("");
-                }}
-                className="px-3"
-              >
-                Clear all
-              </Button>
-            )}
+            (table.getColumn("fullName")?.getFilterValue() as string)?.length >
+              0) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setStatusFilter("all");
+                setCampusFilter("all");
+                table.getColumn("fullName")?.setFilterValue("");
+              }}
+              className="px-3"
+            >
+              Clear all
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="lg" className="px-3 h-9 bg-card">
@@ -577,20 +577,25 @@ export function TeachersTable() {
         <Table>
           <TableHeader className="bg-deep-koamaru text-white">
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="border-b hover:bg-deep-koamaru">
+              <TableRow
+                key={headerGroup.id}
+                className="border-b hover:bg-deep-koamaru"
+              >
                 {headerGroup.headers.map((header) => {
-                  const meta = header.column.columnDef.meta as { className?: string } | undefined;
+                  const meta = header.column.columnDef.meta as
+                    | { className?: string }
+                    | undefined;
                   return (
                     <TableHead
                       key={header.id}
-                      className={`py-3 px-0 lg:px-5 ${meta?.className || ''}`}
+                      className={`py-3 px-0 lg:px-5 ${meta?.className || ""}`}
                     >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
                     </TableHead>
                   );
                 })}
@@ -610,11 +615,13 @@ export function TeachersTable() {
                   }}
                 >
                   {row.getVisibleCells().map((cell) => {
-                    const meta = cell.column.columnDef.meta as { className?: string } | undefined;
+                    const meta = cell.column.columnDef.meta as
+                      | { className?: string }
+                      | undefined;
                     return (
                       <TableCell
                         key={cell.id}
-                        className={`py-4 px-2 lg:px-5 ${meta?.className || ''}`}
+                        className={`py-4 px-2 lg:px-5 ${meta?.className || ""}`}
                       >
                         {flexRender(
                           cell.column.columnDef.cell,

@@ -7,6 +7,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SelectDropdown } from "@/components/ui/select-dropdown";
 import { EntityDialog } from "@/components/ui/entity-dialog";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +30,9 @@ import {
   Plus,
   Edit,
   Trash2,
+  ChevronDown,
+  GraduationCap,
+  X,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useMutation, useQuery } from "convex/react";
@@ -51,16 +63,6 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
     clerkUser?.id ? { clerkId: clerkUser.id } : "skip",
   );
 
-  // Get curriculums from database
-  const curriculums = useQuery(api.curriculums.getCurriculums, {
-    isActive: true,
-  });
-
-  // Mutations
-  const createLessonMutation = useMutation(api.lessons.createLesson);
-  const updateLessonMutation = useMutation(api.lessons.updateLesson);
-  const deleteLessonMutation = useMutation(api.lessons.deleteLesson);
-
   // Dialog state
   const [isOpen, setIsOpen] = useState(false);
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
@@ -68,19 +70,19 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
   // Loading state
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Transform curriculums to options format
-  const curriculumOptions =
-    curriculums?.map((curriculum) => ({
-      value: curriculum._id,
-      label: `${curriculum.name}${curriculum.code ? ` (${curriculum.code})` : ""}`,
-    })) || [];
-
+  // Form states
   const [selectedCurriculum, setSelectedCurriculum] = useState<string>(
     lesson?.curriculumId || defaultCurriculumId || "",
   );
   const [selectedQuarter, setSelectedQuarter] = useState<string>(
     lesson?.quarter?.toString() || "",
   );
+
+  // Multi-grade selection (now supports multiple grades per lesson)
+  const [selectedGradeCodes, setSelectedGradeCodes] = useState<string[]>(
+    lesson?.gradeCodes || (lesson?.gradeCode ? [lesson.gradeCode] : [])
+  );
+
   const [isMandatory, setIsMandatory] = useState<boolean>(
     lesson?.isMandatory ?? false,
   );
@@ -95,6 +97,29 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
     { name: string; url: string; type: string; isRequired: boolean }[]
   >(lesson?.resources || []);
 
+  // Get curriculums from database
+  const curriculums = useQuery(api.curriculums.getCurriculums, {
+    isActive: true,
+  });
+
+  // Get available grades for selected curriculum
+  const availableGrades = useQuery(
+    api.curriculums.getCurriculumGrades,
+    selectedCurriculum ? { curriculumId: selectedCurriculum as Id<"curriculums"> } : "skip"
+  );
+
+  // Mutations
+  const createLessonMutation = useMutation(api.lessons.createLesson);
+  const updateLessonMutation = useMutation(api.lessons.updateLesson);
+  const deleteLessonMutation = useMutation(api.lessons.deleteLesson);
+
+  // Transform curriculums to options format
+  const curriculumOptions =
+    curriculums?.map((curriculum) => ({
+      value: curriculum._id,
+      label: `${curriculum.name}${curriculum.code ? ` (${curriculum.code})` : ""}`,
+    })) || [];
+
   // Reset curriculum when dialog opens with defaultCurriculumId
   useEffect(() => {
     if (isOpen && defaultCurriculumId && !isEditing) {
@@ -105,18 +130,6 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
   // Get selected curriculum details
   const selectedCurriculumData = curriculums?.find(
     (c) => c._id === selectedCurriculum
-  );
-
-  // Get occupied orders for the selected curriculum and quarter
-  const occupiedOrders = useQuery(
-    api.lessons.getOccupiedOrders,
-    selectedCurriculum && selectedQuarter
-      ? {
-        curriculumId: selectedCurriculum as Id<"curriculums">,
-        quarter: parseInt(selectedQuarter),
-        excludeLessonId: lesson?._id,
-      }
-      : "skip"
   );
 
   // Generate quarter options based on selected curriculum
@@ -131,6 +144,28 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
       { value: "3", label: "Quarter 3" },
       { value: "4", label: "Quarter 4" },
     ];
+
+  // Grade selection handlers
+  const handleGradeToggle = (gradeCode: string) => {
+    setSelectedGradeCodes(prev => {
+      if (prev.includes(gradeCode)) {
+        // Remover grade
+        return prev.filter(code => code !== gradeCode)
+      } else {
+        // Agregar grade
+        return [...prev, gradeCode]
+      }
+    })
+  }
+
+  const handleRemoveGrade = (gradeCode: string) => {
+    setSelectedGradeCodes(prev => prev.filter(code => code !== gradeCode))
+  }
+
+  // Get selected grades with full info
+  const selectedGrades = availableGrades?.filter(grade =>
+    selectedGradeCodes.includes(grade.code)
+  ) || []
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -151,12 +186,21 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
     // Obtener datos del formulario
     const curriculumId = formData.get("curriculumId") as string;
     const title = formData.get("title") as string;
-    const description = formData.get("description") as string | null;
     const quarter = formData.get("quarter") as string;
-    const orderInQuarter = formData.get("orderInQuarter") as string;
-    const expectedDurationMinutes = formData.get("expectedDurationMinutes") as
-      | string
-      | null;
+    const description = formData.get("description") as string;
+
+    // Obtener grades del JSON
+    const selectedGradeCodesJson = formData.get("selectedGradeCodes") as string;
+
+    let parsedGradeCodes: string[] = [];
+
+    try {
+      if (selectedGradeCodesJson) {
+        parsedGradeCodes = JSON.parse(selectedGradeCodesJson);
+      }
+    } catch (e) {
+      console.error("Error parsing grade data:", e);
+    }
 
     // Validación básica
     if (!curriculumId?.trim()) {
@@ -180,18 +224,10 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
       return;
     }
 
-    if (!orderInQuarter) {
+    // Validar que se haya seleccionado al menos un grade
+    if (!isEditing && parsedGradeCodes.length === 0) {
       toast.error("Validation Error", {
-        description: "Order in quarter is required.",
-      });
-      return;
-    }
-
-    // Client-side validation: Check if order is already occupied
-    const orderNum = parseInt(orderInQuarter);
-    if (occupiedOrders && occupiedOrders.includes(orderNum)) {
-      toast.error("Validation Error", {
-        description: `Position ${orderNum} is already occupied in Quarter ${quarter}. Please choose a different order number. Occupied positions: ${occupiedOrders.join(", ")}`,
+        description: "Please select at least one grade.",
       });
       return;
     }
@@ -220,8 +256,8 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
           title?: string;
           description?: string;
           quarter?: number;
-          orderInQuarter?: number;
-          expectedDurationMinutes?: number;
+          gradeCodes?: string[];
+          gradeCode?: string; // Legacy field
           resources?: {
             name: string;
             url: string;
@@ -237,6 +273,7 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
           updates.title = title.trim();
         }
 
+        // Descripción general
         if (description?.trim() !== (lesson.description || "")) {
           updates.description = description?.trim() || undefined;
         }
@@ -246,16 +283,12 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
           updates.quarter = newQuarter;
         }
 
-        const newOrder = parseInt(orderInQuarter);
-        if (newOrder !== lesson.orderInQuarter) {
-          updates.orderInQuarter = newOrder;
-        }
-
-        const newDuration = expectedDurationMinutes
-          ? parseInt(expectedDurationMinutes)
-          : undefined;
-        if (newDuration !== lesson.expectedDurationMinutes) {
-          updates.expectedDurationMinutes = newDuration;
+        // Actualizar gradeCodes (nuevo campo con múltiples grades)
+        const currentGradeCodes = lesson.gradeCodes || (lesson.gradeCode ? [lesson.gradeCode] : []);
+        if (JSON.stringify(parsedGradeCodes.sort()) !== JSON.stringify(currentGradeCodes.sort())) {
+          updates.gradeCodes = parsedGradeCodes.length > 0 ? parsedGradeCodes : undefined;
+          // También actualizar el campo legacy
+          updates.gradeCode = parsedGradeCodes.length > 0 ? parsedGradeCodes[0] : undefined;
         }
 
         // Comparar resources (stringify para comparación profunda)
@@ -301,14 +334,14 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
           return;
         }
       } else {
-        // Crear lesson
+        // Crear UNA sola lección asociada a múltiples grades
         const lessonData: {
           curriculumId: Id<"curriculums">;
           title: string;
           description?: string;
           quarter: number;
-          orderInQuarter: number;
-          expectedDurationMinutes?: number;
+          gradeCodes?: string[]; // Nuevo: array de grades
+          gradeCode?: string; // Legacy: primer grade para compatibilidad
           resources?: {
             name: string;
             url: string;
@@ -322,20 +355,14 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
           curriculumId: curriculumId as Id<"curriculums">,
           title: title.trim(),
           quarter: parseInt(quarter),
-          orderInQuarter: parseInt(orderInQuarter),
+          gradeCodes: parsedGradeCodes, // Array de todos los grades seleccionados
+          gradeCode: parsedGradeCodes.length > 0 ? parsedGradeCodes[0] : undefined, // Legacy
           createdBy: currentUser._id,
         };
 
-        // Descripción opcional
+        // Descripción general (ya no es específica por grade)
         if (description?.trim()) {
           lessonData.description = description.trim();
-        }
-
-        // Duración esperada opcional
-        if (expectedDurationMinutes?.trim()) {
-          lessonData.expectedDurationMinutes = parseInt(
-            expectedDurationMinutes,
-          );
         }
 
         // Resources opcionales
@@ -355,13 +382,14 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
         await createLessonMutation(lessonData);
 
         toast.success("Lesson created successfully", {
-          description: `"${title}" has been created.`,
+          description: `"${title}" has been created for grade${parsedGradeCodes.length > 1 ? 's' : ''}: ${parsedGradeCodes.join(', ')}.`,
         });
 
         // Resetear formulario
         form.reset();
         setSelectedCurriculum("");
         setSelectedQuarter("");
+        setSelectedGradeCodes([]);
         setIsMandatory(false);
         setObjectives([]);
         setResources([]);
@@ -500,6 +528,7 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
           {/* Hidden inputs */}
           <input type="hidden" name="curriculumId" value={selectedCurriculum} />
           <input type="hidden" name="quarter" value={selectedQuarter} />
+          <input type="hidden" name="selectedGradeCodes" value={JSON.stringify(selectedGradeCodes)} />
           <input
             type="hidden"
             name="isMandatory"
@@ -568,25 +597,8 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
                 </div>
               </div>
 
-              {/* Description - Full width */}
-              <div className="grid gap-3">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  name="description"
-                  defaultValue={lesson?.description || ""}
-                  placeholder={
-                    isEditing
-                      ? ""
-                      : "Provide a brief description of the lesson..."
-                  }
-                  rows={4}
-                  className="resize-none"
-                />
-              </div>
-
               {/* Curriculum Structure */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-3">
                   <Label htmlFor="quarter">
                     Quarter
@@ -601,38 +613,112 @@ export function LessonsDialog({ lesson, trigger, defaultCurriculumId }: LessonDi
                     disabled={!selectedCurriculum}
                   />
                 </div>
+              </div>
+
+              {/* Grade Selection */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium border-b pb-2">Grades</h4>
                 <div className="grid gap-3">
-                  <Label htmlFor="orderInQuarter">
-                    Order in Quarter
-                    <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="orderInQuarter"
-                    name="orderInQuarter"
-                    type="number"
-                    min={1}
-                    defaultValue={lesson?.orderInQuarter || ""}
-                    placeholder={selectedQuarter ? "Select order..." : "Select quarter first"}
-                    required
-                    disabled={!selectedCurriculum || !selectedQuarter}
-                  />
-                  {occupiedOrders && occupiedOrders.length > 0 && (
+                  <Label htmlFor="grades">Select Grades</Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-between"
+                        disabled={!selectedCurriculum || !availableGrades || availableGrades.length === 0}
+                      >
+                        <span className="text-muted-foreground">
+                          {selectedGradeCodes.length > 0
+                            ? `${selectedGradeCodes.length} grade${selectedGradeCodes.length > 1 ? 's' : ''} selected`
+                            : "Choose grades..."
+                          }
+                        </span>
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-80 max-h-80 overflow-y-auto" align="start">
+                      <DropdownMenuLabel>Available Grades ({availableGrades?.length || 0})</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {availableGrades && availableGrades.length > 0 ? (
+                        availableGrades.map((grade) => {
+                          const isSelected = selectedGradeCodes.includes(grade.code)
+                          return (
+                            <DropdownMenuItem
+                              key={grade.code}
+                              onClick={() => handleGradeToggle(grade.code)}
+                              className={`${isSelected ? "bg-accent" : ""} cursor-pointer`}
+                            >
+                              <div className="flex items-center gap-2 w-full">
+                                <GraduationCap className="h-4 w-4" />
+                                <span className="font-medium">{grade.name}</span>
+                                <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
+                                  {grade.code}
+                                </span>
+                                {isSelected && (
+                                  <Badge variant="secondary" className="text-xs ml-auto">
+                                    Selected
+                                  </Badge>
+                                )}
+                              </div>
+                            </DropdownMenuItem>
+                          )
+                        })
+                      ) : (
+                        <DropdownMenuItem disabled>
+                          No grades available
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  {selectedCurriculum && availableGrades && availableGrades.length === 0 && (
                     <p className="text-xs text-muted-foreground">
-                      Occupied positions: {occupiedOrders.join(", ")}
+                      No grades available for this curriculum
                     </p>
                   )}
                 </div>
-                <div className="grid gap-3">
-                  <Label htmlFor="expectedDurationMinutes">Duration (min)</Label>
-                  <Input
-                    id="expectedDurationMinutes"
-                    name="expectedDurationMinutes"
-                    type="number"
-                    min={5}
-                    step={5}
-                    defaultValue={lesson?.expectedDurationMinutes || ""}
-                    placeholder={isEditing ? "" : "e.g., 45"}
+
+                {/* Selected Grades Display */}
+                {selectedGrades.length > 0 && (
+                  <div className="space-y-4">
+                    <Label className="text-sm font-medium">Selected Grades ({selectedGrades.length})</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedGrades.map((grade) => (
+                        <Badge
+                          key={grade.code}
+                          variant="outline"
+                          className="flex items-center gap-2 px-3 py-1.5 text-sm"
+                        >
+                          <GraduationCap className="h-3 w-3" />
+                          <span>{grade.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveGrade(grade.code)}
+                            className="ml-1 rounded-full hover:bg-muted p-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* General Description */}
+                <div className="grid gap-2">
+                  <Label htmlFor="description">
+                    Description
+                  </Label>
+                  <Textarea
+                    id="description"
+                    name="description"
+                    defaultValue={lesson?.description || ""}
+                    placeholder="Enter lesson description..."
+                    rows={4}
+                    className="resize-none"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    This description will apply to all selected grades.
+                  </p>
                 </div>
               </div>
 

@@ -96,13 +96,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           isActive: false,
           items: [],
         },
-        {
-          title: "Lessons",
-          url: "/admin/lessons",
-          icon: BookOpen,
-          isActive: false,
-          items: [],
-        }
+        // {
+        //   title: "Lessons",
+        //   url: "/admin/lessons",
+        //   icon: BookOpen,
+        //   isActive: false,
+        //   items: [],
+        // }
       ]
     }
 
