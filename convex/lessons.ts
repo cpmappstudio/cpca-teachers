@@ -363,7 +363,7 @@ export const deleteLesson = mutation({
     const allProgressRecords = await ctx.db
       .query("lesson_progress")
       .collect();
-    
+
     const progressRecords = allProgressRecords.filter(
       (progress) => progress.lessonId === args.lessonId
     );
@@ -722,5 +722,182 @@ export const reorderLessons = mutation({
     }
 
     return { success: true };
+  },
+});
+
+/**
+ * Bulk create lessons from text input
+ * Parses text like "Lesson 1- Classwork – Letter recognition I i"
+ * and creates multiple lessons at once
+ * 
+ * Format: Each line should be "Title – Description"
+ * The part before "–" becomes the title
+ * The part after "–" becomes the description
+ * 
+ * Use "---" (three dashes) on a line by itself to separate quarters
+ * Example:
+ * Lesson 1 – Description (Quarter 1)
+ * Lesson 2 – Description (Quarter 1)
+ * ---
+ * Lesson 3 – Description (Quarter 2)
+ * Lesson 4 – Description (Quarter 2)
+ */
+export const bulkCreateLessons = mutation({
+  args: {
+    curriculumId: v.id("curriculums"),
+    gradeCode: v.string(), // The grade these lessons belong to
+    lessonsText: v.string(), // Multi-line text with lesson titles
+    createdBy: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Validate curriculum exists and get its numberOfQuarters
+    const curriculum = await ctx.db.get(args.curriculumId);
+    if (!curriculum) {
+      throw new Error("Curriculum not found");
+    }
+
+    // Split text into quarters using "---" delimiter
+    const quarterSections = args.lessonsText.split(/^---$/m).map(section => section.trim());
+
+    // Validate we don't exceed the curriculum's number of quarters
+    if (quarterSections.length > curriculum.numberOfQuarters) {
+      throw new Error(
+        `Too many quarters detected. This curriculum has ${curriculum.numberOfQuarters} quarter(s), but you provided ${quarterSections.length} sections.`
+      );
+    }
+
+    const createdLessonIds: string[] = [];
+    const errors: string[] = [];
+    let totalProcessedLines = 0;
+
+    // Process each quarter section
+    for (let quarterIndex = 0; quarterIndex < quarterSections.length; quarterIndex++) {
+      const section = quarterSections[quarterIndex];
+      const currentQuarter = quarterIndex + 1; // Quarters are 1-indexed
+
+      // Split section into lines and filter empty lines
+      const lines = section
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+
+      if (lines.length === 0) {
+        continue; // Skip empty sections
+      }
+
+      // Get current max order for this curriculum and quarter
+      const existingLessons = await ctx.db
+        .query("curriculum_lessons")
+        .withIndex("by_curriculum_quarter", (q) =>
+          q.eq("curriculumId", args.curriculumId).eq("quarter", currentQuarter)
+        )
+        .collect();
+
+      let currentMaxOrder = existingLessons.reduce(
+        (max, lesson) => Math.max(max, lesson.orderInQuarter),
+        0
+      );
+
+      // Process each line in this quarter
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        totalProcessedLines++;
+
+        try {
+          // Parse the line: split by "–" or "-" (try both em dash and hyphen)
+          let title = line;
+          let description: string | undefined = undefined;
+
+          // Try to split by em dash (–) first, then by double dash (--)
+          if (line.includes('–')) {
+            const parts = line.split('–');
+            title = parts[0].trim();
+            description = parts.slice(1).join('–').trim();
+          } else if (line.includes(' - ')) {
+            // Also support regular dash with spaces
+            const parts = line.split(' - ');
+            title = parts[0].trim();
+            description = parts.slice(1).join(' - ').trim();
+          }
+
+          // Increment order
+          currentMaxOrder += 1;
+
+          // Create the lesson
+          const lessonId = await ctx.db.insert("curriculum_lessons", {
+            curriculumId: args.curriculumId,
+            title,
+            description: description || undefined,
+            quarter: currentQuarter,
+            orderInQuarter: currentMaxOrder,
+            gradeCode: args.gradeCode,
+            gradeCodes: [args.gradeCode], // Also set the new array format
+            isActive: true,
+            isMandatory: true,
+            createdAt: Date.now(),
+            createdBy: args.createdBy,
+          });
+
+          createdLessonIds.push(lessonId);
+
+          // Create lesson_progress records for all existing teacher_assignments
+          const teacherAssignments = await ctx.db
+            .query("teacher_assignments")
+            .withIndex("by_curriculum", (q) =>
+              q.eq("curriculumId", args.curriculumId).eq("isActive", true)
+            )
+            .collect();
+
+          const now = Date.now();
+
+          for (const assignment of teacherAssignments) {
+            // Check if this teacher teaches this grade
+            const assignedGrades = assignment.assignedGrades || [];
+
+            if (assignedGrades.includes(args.gradeCode) || assignedGrades.length === 0) {
+              // Create progress record for this grade
+              await ctx.db.insert("lesson_progress", {
+                teacherId: assignment.teacherId,
+                lessonId,
+                assignmentId: assignment._id,
+                curriculumId: args.curriculumId,
+                campusId: assignment.campusId,
+                quarter: currentQuarter,
+                gradeCode: args.gradeCode,
+                status: "not_started",
+                isVerified: false,
+                createdAt: now,
+              });
+            }
+
+            // Update the assignment's progressSummary
+            await ctx.db.patch(assignment._id, {
+              progressSummary: {
+                totalLessons: (assignment.progressSummary?.totalLessons || 0) + 1,
+                completedLessons: assignment.progressSummary?.completedLessons || 0,
+                progressPercentage: assignment.progressSummary?.progressPercentage || 0,
+                lastUpdated: now,
+              },
+            });
+          }
+
+        } catch (error) {
+          errors.push(`Quarter ${currentQuarter}, Line ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+    }
+
+    if (createdLessonIds.length === 0 && totalProcessedLines > 0) {
+      throw new Error("No lessons were created successfully");
+    }
+
+    return {
+      success: createdLessonIds.length > 0,
+      created: createdLessonIds.length,
+      quarters: quarterSections.length,
+      errors: errors.length > 0 ? errors : undefined,
+      lessonIds: createdLessonIds,
+      message: `Successfully created ${createdLessonIds.length} lesson(s) across ${quarterSections.length} quarter(s)${errors.length > 0 ? ` with ${errors.length} error(s)` : ''}`,
+    };
   },
 });

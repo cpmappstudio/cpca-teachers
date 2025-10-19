@@ -16,13 +16,24 @@ import {
     GraduationCap,
     ListChecks,
     GripVertical,
-    X
+    X,
+    Sparkles
 } from "lucide-react"
 import { useState, useMemo } from "react"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
 import { LessonsDialog } from "@/components/admin/lessons/lessons-dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { useCurrentUser } from "@/hooks/use-current-user"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog"
 import {
     DndContext,
     closestCenter,
@@ -116,6 +127,13 @@ function SortableLesson({ lesson, index, onRemove }: SortableLessonProps) {
 export function AddLessonsDialog({ curriculumId }: AddLessonsDialogProps) {
     const [isOpen, setIsOpen] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false)
+    const [bulkLessonsText, setBulkLessonsText] = useState("")
+    const [isBulkSubmitting, setIsBulkSubmitting] = useState(false)
+    const [currentGradeForBulk, setCurrentGradeForBulk] = useState<string | null>(null)
+
+    // Get current user
+    const { user } = useCurrentUser()
 
     // Query para obtener el curriculum y sus grades
     const curriculum = useQuery(api.curriculums.getCurriculum, { curriculumId })
@@ -135,6 +153,7 @@ export function AddLessonsDialog({ curriculumId }: AddLessonsDialogProps) {
     // Mutations
     const deleteLesson = useMutation(api.lessons.deleteLesson)
     const reorderLessons = useMutation(api.lessons.reorderLessons)
+    const bulkCreateLessons = useMutation(api.lessons.bulkCreateLessons)
 
     // Setup drag and drop sensors
     const sensors = useSensors(
@@ -308,6 +327,69 @@ export function AddLessonsDialog({ curriculumId }: AddLessonsDialogProps) {
         }
     }
 
+    const handleBulkCreate = async () => {
+        if (!currentGradeForBulk || !bulkLessonsText.trim()) {
+            toast.error("Missing information", {
+                description: "Please select a grade and enter lesson titles."
+            })
+            return
+        }
+
+        if (!user?._id) {
+            toast.error("Authentication required", {
+                description: "You must be logged in to create lessons."
+            })
+            return
+        }
+
+        // Validate number of quarters before submitting
+        const quarterSections = bulkLessonsText.split(/^---$/m).filter(s => s.trim().length > 0)
+        const numberOfQuarters = curriculum?.numberOfQuarters || 1
+
+        if (quarterSections.length > numberOfQuarters) {
+            toast.error("Too many quarters", {
+                description: `This curriculum has ${numberOfQuarters} quarter${numberOfQuarters > 1 ? 's' : ''}, but you provided ${quarterSections.length} sections separated by "---". Please adjust your input.`,
+                duration: 5000,
+            })
+            return
+        }
+
+        setIsBulkSubmitting(true)
+
+        try {
+            const result = await bulkCreateLessons({
+                curriculumId,
+                gradeCode: currentGradeForBulk,
+                lessonsText: bulkLessonsText,
+                createdBy: user._id,
+            })
+
+            if (result.success) {
+                toast.success("Lessons created", {
+                    description: result.message
+                })
+                setBulkLessonsText("")
+                setIsBulkDialogOpen(false)
+            } else {
+                toast.error("Error creating lessons", {
+                    description: result.message
+                })
+            }
+
+            if (result.errors && result.errors.length > 0) {
+                toast.error("Some lessons had errors", {
+                    description: result.errors.join('\n')
+                })
+            }
+        } catch (error) {
+            toast.error("Error creating lessons", {
+                description: error instanceof Error ? error.message : "Failed to create lessons."
+            })
+        } finally {
+            setIsBulkSubmitting(false)
+        }
+    }
+
     const trigger = (
         <Button className="bg-sidebar-accent h-9 dark:text-white gap-2">
             <ListChecks className="h-4 w-4" />
@@ -341,7 +423,7 @@ export function AddLessonsDialog({ curriculumId }: AddLessonsDialogProps) {
                 {/* Tabs - Always show even if no lessons */}
                 {allGrades.length > 0 ? (
                     <Tabs defaultValue={allGrades[0]} className="w-full">
-                        <TabsList className="grid " style={{ gridTemplateColumns: `repeat(${allGrades.length || 1}, minmax(0, 1fr))` }}>
+                        <TabsList className="w-full justify-start overflow-x-auto">
                             {allGrades.map((gradeCode) => {
                                 const gradeLessons = lessons?.filter(l => l.gradeCode === gradeCode) || []
                                 return (
@@ -472,19 +554,121 @@ export function AddLessonsDialog({ curriculumId }: AddLessonsDialogProps) {
                     <p className="text-sm text-muted-foreground">
                         Create a new lesson for this curriculum. The lesson will be added to the end of the selected quarter.
                     </p>
-                    <LessonsDialog
-                        defaultCurriculumId={curriculumId}
-                        trigger={
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className="gap-2 self-start"
-                            >
-                                <Plus className="h-4 w-4" />
-                                Add Lesson
-                            </Button>
-                        }
-                    />
+                    <div className="flex gap-2">
+                        <LessonsDialog
+                            defaultCurriculumId={curriculumId}
+                            trigger={
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="gap-2 self-start"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    Add Lesson
+                                </Button>
+                            }
+                        />
+
+                        <Dialog open={isBulkDialogOpen} onOpenChange={setIsBulkDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="gap-2 self-start"
+                                    onClick={() => {
+                                        // Set the current grade from the active tab
+                                        if (allGrades.length > 0) {
+                                            setCurrentGradeForBulk(allGrades[0])
+                                        }
+                                    }}
+                                >
+                                    <Sparkles className="h-4 w-4" />
+                                    Bulk Create
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-2xl overflow-hidden">
+                                <DialogHeader>
+                                    <DialogTitle className="flex items-center gap-2">
+                                        Bulk Create Lessons
+                                        <Badge variant="outline" className="text-xs font-normal">
+                                            {curriculum?.numberOfQuarters || 1} Quarter{curriculum?.numberOfQuarters !== 1 ? 's' : ''} Available
+                                        </Badge>
+                                    </DialogTitle>
+                                    <DialogDescription>
+                                        Paste multiple lesson titles (one per line) to create them all at once.
+                                        Use "---" on its own line to separate quarters.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 overflow-hidden">
+                                    <div className="space-y-2">
+                                        <Label>Grade</Label>
+                                        <select
+                                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                            value={currentGradeForBulk || ""}
+                                            onChange={(e) => setCurrentGradeForBulk(e.target.value)}
+                                        >
+                                            <option value="">Select a grade...</option>
+                                            {allGrades.map((gradeCode) => (
+                                                <option key={gradeCode} value={gradeCode}>
+                                                    {gradeCode}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <p className="text-xs text-muted-foreground">
+                                            All lessons will be created for this grade
+                                        </p>
+                                    </div>
+
+                                    <div className="space-y-2 overflow-hidden">
+                                        <Label>Lesson Titles</Label>
+                                        <Textarea
+                                            placeholder="Lesson 39 – Beginning consonant letter&#10;Lesson 42 – Beginning blending sound&#10;---&#10;Lesson 44 – Beginning letter sound (Quarter 2)&#10;Lesson 47 – Oral Phonics Evaluation"
+                                            value={bulkLessonsText}
+                                            onChange={(e) => setBulkLessonsText(e.target.value)}
+                                            className="w-full font-mono text-sm min-h-[240px] max-h-[400px] resize-y overflow-auto"
+                                        />
+                                        <div className="flex items-start gap-2 text-xs text-muted-foreground overflow-hidden">
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-semibold mb-1">Format:</p>
+                                                <ul className="list-disc list-inside space-y-0.5 ml-1">
+                                                    <li className="break-words">"Title – Description" (text after "–" becomes description)</li>
+                                                    <li className="break-words">Use "---" on its own line to separate quarters</li>
+                                                    <li className="break-words">Lessons before first "---" go to Quarter 1, after go to Quarter 2, etc.</li>
+                                                </ul>
+                                            </div>
+                                            <Badge
+                                                variant="secondary"
+                                                className="flex-shrink-0 text-xs whitespace-nowrap"
+                                            >
+                                                Max: {curriculum?.numberOfQuarters || 1}Q
+                                            </Badge>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => {
+                                                setIsBulkDialogOpen(false)
+                                                setBulkLessonsText("")
+                                            }}
+                                            disabled={isBulkSubmitting}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            onClick={handleBulkCreate}
+                                            disabled={isBulkSubmitting || !currentGradeForBulk || !bulkLessonsText.trim()}
+                                        >
+                                            {isBulkSubmitting ? "Creating..." : "Create Lessons"}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
                 </div>
             </div>
         </EntityDialog>

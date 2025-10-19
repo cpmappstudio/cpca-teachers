@@ -46,8 +46,8 @@ import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { EntityDialog } from "@/components/ui/entity-dialog";
-import { usStates, campusStatusOptions } from "@/lib/location-data";
-import { getCitiesByState } from "@/lib/cities-data";
+import { campusStatusOptions } from "@/lib/location-data";
+import { countries, getStatesByCountry, getCitiesByCountryAndState } from "@/lib/countries-data";
 import { Badge } from "@/components/ui/badge";
 import {
   DndContext,
@@ -176,6 +176,9 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
   const [selectedDirectorId, setSelectedDirectorId] = useState<
     Id<"users"> | undefined
   >(campus?.directorId || undefined);
+  const [selectedCountry, setSelectedCountry] = useState<string>(
+    campus?.address?.country || "US",
+  );
   const [selectedState, setSelectedState] = useState<string>(
     campus?.address?.state || "",
   );
@@ -250,8 +253,11 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
     campus?.campusImageStorageId ? { storageId: campus.campusImageStorageId } : "skip"
   );
 
-  // Get available cities based on selected state
-  const availableCities = getCitiesByState(selectedState);
+  // Get available states based on selected country
+  const availableStates = getStatesByCountry(selectedCountry);
+
+  // Get available cities based on selected country and state
+  const availableCities = getCitiesByCountryAndState(selectedCountry, selectedState);
 
   // Sync grades state when campus prop changes (only on initial load or campus change)
   // Don't sync during editing to preserve local changes
@@ -569,7 +575,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
         if (addressChanged) {
           updates.address = {
             ...newAddress,
-            country: "United States",
+            country: selectedCountry || "US",
           };
         }
 
@@ -679,7 +685,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
             city: selectedCity || undefined,
             state: selectedState || undefined,
             zipCode: zipCode?.trim() || undefined,
-            country: "United States",
+            country: selectedCountry || "US",
           };
         }
 
@@ -809,7 +815,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
             name="directorId"
             value={selectedDirectorId || ""}
           />
-          <input type="hidden" name="country" value="United States" />
+          <input type="hidden" name="country" value={selectedCountry} />
           <input type="hidden" name="state" value={selectedState} />
           <input type="hidden" name="city" value={selectedCity} />
           <input type="hidden" name="status" value={selectedStatus} />
@@ -1165,12 +1171,17 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
               {/* Country - First */}
               <div className="grid gap-3">
                 <Label htmlFor="country">Country</Label>
-                <Input
-                  id="country"
-                  name="country"
-                  value="United States"
-                  disabled
-                  className="bg-muted"
+                <SelectDropdown
+                  options={countries}
+                  value={selectedCountry}
+                  onValueChange={(value) => {
+                    setSelectedCountry(value);
+                    // Reset state and city when country changes
+                    setSelectedState("");
+                    setSelectedCity("");
+                  }}
+                  placeholder="Select country..."
+                  label="Countries"
                 />
               </div>
 
@@ -1178,18 +1189,19 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-3">
                   <Label htmlFor="state">
-                    State
+                    {selectedCountry === "HN" ? "Department" : selectedCountry === "PR" ? "Municipality" : "State"}
                   </Label>
                   <SelectDropdown
-                    options={usStates}
+                    options={availableStates}
                     value={selectedState}
                     onValueChange={(value) => {
                       setSelectedState(value);
                       // Reset city when state changes
                       setSelectedCity("");
                     }}
-                    placeholder="Select state..."
-                    label="US States"
+                    placeholder={`Select ${selectedCountry === "HN" ? "department" : selectedCountry === "PR" ? "municipality" : "state"}...`}
+                    label={selectedCountry === "HN" ? "Departments" : selectedCountry === "PR" ? "Municipalities" : "States"}
+                    disabled={availableStates.length === 0}
                   />
                 </div>
                 <div className="grid gap-3">

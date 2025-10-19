@@ -20,6 +20,7 @@ import type * as curriculums from "../curriculums.js";
 import type * as http from "../http.js";
 import type * as lessons from "../lessons.js";
 import type * as progress from "../progress.js";
+import type * as seedCampuses from "../seedCampuses.js";
 import type * as types from "../types.js";
 import type * as users from "../users.js";
 
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   lessons: typeof lessons;
   progress: typeof progress;
+  seedCampuses: typeof seedCampuses;
   types: typeof types;
   users: typeof users;
 }>;
