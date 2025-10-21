@@ -61,11 +61,10 @@ interface AddLessonsDialogProps {
 // Sortable Lesson Component
 interface SortableLessonProps {
     lesson: Doc<"curriculum_lessons">
-    index: number
     onRemove: (lessonId: Id<"curriculum_lessons">) => void
 }
 
-function SortableLesson({ lesson, index, onRemove }: SortableLessonProps) {
+function SortableLesson({ lesson, onRemove }: SortableLessonProps) {
     const {
         attributes,
         listeners,
@@ -296,7 +295,7 @@ export function AddLessonsDialog({ curriculumId }: AddLessonsDialogProps) {
 
         try {
             // Guardar el nuevo orden para cada grade y quarter que fue modificado
-            for (const [gradeCode, gradeQuarters] of Object.entries(localLessonsOrder)) {
+            for (const [, gradeQuarters] of Object.entries(localLessonsOrder)) {
                 for (const [quarter, reorderedLessons] of Object.entries(gradeQuarters)) {
                     const lessonOrders = reorderedLessons.map((lesson, index) => ({
                         lessonId: lesson._id,
@@ -424,12 +423,12 @@ export function AddLessonsDialog({ curriculumId }: AddLessonsDialogProps) {
                 {allGrades.length > 0 ? (
                     <Tabs defaultValue={allGrades[0]} className="w-full">
                         <TabsList className="w-full justify-start overflow-x-auto">
-                            {allGrades.map((gradeCode) => {
-                                const gradeLessons = lessons?.filter(l => l.gradeCode === gradeCode) || []
+                            {allGrades.map((grade) => {
+                                const gradeLessons = lessons?.filter(l => l.gradeCode === grade) || []
                                 return (
-                                    <TabsTrigger key={gradeCode} value={gradeCode} className="gap-2">
+                                    <TabsTrigger key={grade} value={grade} className="gap-2">
                                         <GraduationCap className="h-3 w-3" />
-                                        {gradeCode}
+                                        {grade}
                                         <Badge variant="secondary" className="ml-1 text-xs">
                                             {gradeLessons.length}
                                         </Badge>
@@ -473,11 +472,10 @@ export function AddLessonsDialog({ curriculumId }: AddLessonsDialogProps) {
                                                         strategy={verticalListSortingStrategy}
                                                     >
                                                         <div className="flex flex-col gap-2 w-full overflow-hidden">
-                                                            {quarterLessons.map((lesson, index) => (
+                                                            {quarterLessons.map((lesson) => (
                                                                 <SortableLesson
                                                                     key={lesson._id}
                                                                     lesson={lesson}
-                                                                    index={index}
                                                                     onRemove={handleRemoveLesson}
                                                                 />
                                                             ))}
@@ -523,11 +521,10 @@ export function AddLessonsDialog({ curriculumId }: AddLessonsDialogProps) {
                                                         strategy={verticalListSortingStrategy}
                                                     >
                                                         <div className="flex flex-col gap-2 w-full overflow-hidden">
-                                                            {quarterLessons.map((lesson, index) => (
+                                                            {quarterLessons.map((lesson) => (
                                                                 <SortableLesson
                                                                     key={lesson._id}
                                                                     lesson={lesson}
-                                                                    index={index}
                                                                     onRemove={handleRemoveLesson}
                                                                 />
                                                             ))}
@@ -596,7 +593,7 @@ export function AddLessonsDialog({ curriculumId }: AddLessonsDialogProps) {
                                     </DialogTitle>
                                     <DialogDescription>
                                         Paste multiple lesson titles (one per line) to create them all at once.
-                                        Use "---" on its own line to separate quarters.
+                                        Use &quot;---&quot; on its own line to separate quarters.
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-4 overflow-hidden">
@@ -631,9 +628,9 @@ export function AddLessonsDialog({ curriculumId }: AddLessonsDialogProps) {
                                             <div className="flex-1 min-w-0">
                                                 <p className="font-semibold mb-1">Format:</p>
                                                 <ul className="list-disc list-inside space-y-0.5 ml-1">
-                                                    <li className="break-words">"Title – Description" (text after "–" becomes description)</li>
-                                                    <li className="break-words">Use "---" on its own line to separate quarters</li>
-                                                    <li className="break-words">Lessons before first "---" go to Quarter 1, after go to Quarter 2, etc.</li>
+                                                    <li className="break-words">&quot;Title – Description&quot; (text after &quot;–&quot; becomes description)</li>
+                                                    <li className="break-words">Use &quot;---&quot; on its own line to separate quarters</li>
+                                                    <li className="break-words">Lessons before first &quot;---&quot; go to Quarter 1, after go to Quarter 2, etc.</li>
                                                 </ul>
                                             </div>
                                             <Badge

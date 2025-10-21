@@ -38,7 +38,6 @@ import {
     DialogContent,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
 
 // Type for progress by grade
 type ProgressByGrade = {
@@ -149,13 +148,17 @@ export function CurriculumAssignmentItem({
         { assignmentId: assignment._id }
     );
 
-    const progressByQuarter = assignment.progressByQuarter || {};
-    const lessons = assignmentLessonProgress
-        ? assignmentLessonProgress.lessons
-        : [];
+    const lessons = React.useMemo(() => {
+        return assignmentLessonProgress
+            ? assignmentLessonProgress.lessons
+            : [];
+    }, [assignmentLessonProgress]);
 
     // Get assigned grades and groups
-    const assignedGrades = assignmentLessonProgress?.grades || [];
+    const assignedGrades = React.useMemo(() => {
+        return assignmentLessonProgress?.grades || [];
+    }, [assignmentLessonProgress]);
+
     const assignedGroupCodes = assignmentLessonProgress?.assignedGroupCodes || [];
     const hasMultipleGrades = assignedGrades.length > 1;
 
@@ -164,8 +167,8 @@ export function CurriculumAssignmentItem({
         if (lessons.length === 0) return 0;
 
         let totalCompletionScore = 0;
-        lessons.forEach((lesson: any) => {
-            totalCompletionScore += (lesson.completionPercentage || 0);
+        lessons.forEach((lesson: Record<string, unknown>) => {
+            totalCompletionScore += (typeof lesson.completionPercentage === 'number' ? lesson.completionPercentage : 0);
         });
 
         return Math.round(totalCompletionScore / lessons.length);
@@ -267,13 +270,13 @@ export function CurriculumAssignmentItem({
                         <TabsList className="inline-flex w-auto min-w-full">
                             {[1, 2, 3, 4].slice(0, assignment.numberOfQuarters).map((quarterNum) => {
                                 // Filter lessons by quarter and selected grade
-                                const quarterLessons = lessons.filter((l: any) => {
+                                const quarterLessons = lessons.filter((l: Record<string, unknown>) => {
                                     if (l.quarter !== quarterNum) return false;
 
                                     // If teacher has multiple grades, filter by selected grade
                                     if (hasMultipleGrades && selectedGrade) {
-                                        if (l.gradeCodes && l.gradeCodes.length > 0) {
-                                            return l.gradeCodes.includes(selectedGrade);
+                                        if (l.gradeCodes && Array.isArray(l.gradeCodes) && l.gradeCodes.length > 0) {
+                                            return (l.gradeCodes as string[]).includes(selectedGrade);
                                         }
                                         if (l.gradeCode) {
                                             return l.gradeCode === selectedGrade;
@@ -281,13 +284,11 @@ export function CurriculumAssignmentItem({
                                     }
 
                                     return true;
-                                });
-
-                                // Calculate quarter progress with incremental completion
+                                });                                // Calculate quarter progress with incremental completion
                                 const total = quarterLessons.length;
                                 let totalCompletionScore = 0;
 
-                                quarterLessons.forEach((l: any) => {
+                                quarterLessons.forEach((l: Record<string, unknown>) => {
                                     if (hasMultipleGrades && selectedGrade) {
                                         // Filter groups for selected grade
                                         const groupsForSelectedGrade = assignedGroupCodes.filter(
@@ -295,10 +296,12 @@ export function CurriculumAssignmentItem({
                                         );
 
                                         // Count completed groups for this grade
-                                        const completedGroupsForGrade = l.progressByGrade?.filter((p: any) =>
-                                            groupsForSelectedGrade.includes(p.groupCode || '') &&
-                                            (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
-                                        ).length || 0;
+                                        const completedGroupsForGrade = Array.isArray(l.progressByGrade)
+                                            ? l.progressByGrade.filter((p: Record<string, unknown>) =>
+                                                groupsForSelectedGrade.includes(p.groupCode as string || '') &&
+                                                (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                            ).length
+                                            : 0;
 
                                         // Calculate percentage for this lesson
                                         const lessonCompletionPercentage = groupsForSelectedGrade.length > 0
@@ -308,7 +311,7 @@ export function CurriculumAssignmentItem({
                                         totalCompletionScore += lessonCompletionPercentage;
                                     } else {
                                         // Use overall completion percentage from backend
-                                        totalCompletionScore += (l.completionPercentage || 0);
+                                        totalCompletionScore += (typeof l.completionPercentage === 'number' ? l.completionPercentage : 0);
                                     }
                                 });
 
@@ -402,8 +405,8 @@ export function CurriculumAssignmentItem({
                                                     (groupCode: string) => groupCode.startsWith(selectedGrade + "-")
                                                 );
 
-                                                const completedGroupsForGrade = progressByGrade.filter((p: any) =>
-                                                    groupsForSelectedGrade.includes(p.groupCode || '') &&
+                                                const completedGroupsForGrade = progressByGrade.filter((p: Record<string, unknown>) =>
+                                                    groupsForSelectedGrade.includes(p.groupCode as string || '') &&
                                                     (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
                                                 ).length;
 
@@ -500,9 +503,9 @@ export function CurriculumAssignmentItem({
                                                                                 {assignedGroupCodes
                                                                                     .filter((groupCode: string) => groupCode.startsWith(selectedGrade + "-"))
                                                                                     .map((groupCode: string) => {
-                                                                                        const [gradeCode, groupNumber] = groupCode.split('-');
+                                                                                        const groupNumber = groupCode.split('-')[1];
                                                                                         const hasEvidence = progressByGrade.find(
-                                                                                            (p: any) => p.groupCode === groupCode &&
+                                                                                            (p: Record<string, unknown>) => p.groupCode === groupCode &&
                                                                                                 (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
                                                                                         );
                                                                                         return (
@@ -594,9 +597,9 @@ export function CurriculumAssignmentItem({
                                                                         {assignedGroupCodes
                                                                             .filter((groupCode: string) => groupCode.startsWith(selectedGrade + "-"))
                                                                             .map((groupCode: string) => {
-                                                                                const [gradeCode, groupNumber] = groupCode.split('-');
+                                                                                const groupNumber = groupCode.split('-')[1];
                                                                                 const hasEvidence = progressByGrade.find(
-                                                                                    (p: any) => p.groupCode === groupCode &&
+                                                                                    (p: Record<string, unknown>) => p.groupCode === groupCode &&
                                                                                         (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
                                                                                 );
                                                                                 return (
@@ -663,7 +666,7 @@ export function CurriculumAssignmentItem({
                                         (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
                                     )
                                     .map((groupProgress: ProgressByGrade) => {
-                                        const [gradeCode, groupNumber] = (groupProgress.groupCode || '').split('-');
+                                        const groupNumber = (groupProgress.groupCode || '').split('-')[1];
                                         return (
                                             <TabsTrigger
                                                 key={groupProgress.groupCode}
@@ -684,9 +687,7 @@ export function CurriculumAssignmentItem({
                                 .map((groupProgress: ProgressByGrade) => {
                                     const evidenceId = groupProgress.evidenceDocumentStorageId || groupProgress.evidencePhotoStorageId;
                                     const evidenceType = groupProgress.evidencePhotoStorageId ? "image" : "pdf";
-                                    const [gradeCode, groupNumber] = (groupProgress.groupCode || '').split('-');
-
-                                    if (!evidenceId || !groupProgress.groupCode) return null;
+                                    const groupNumber = (groupProgress.groupCode || '').split('-')[1]; if (!evidenceId || !groupProgress.groupCode) return null;
 
                                     return (
                                         <TabsContent key={groupProgress.groupCode} value={groupProgress.groupCode} className="m-0 p-4">
@@ -745,12 +746,14 @@ function EvidenceViewer({
                         <span className="font-medium">Uploadedaa:</span> {uploadDateText}
                     </div>
                 )}
-                <div className="flex justify-center">
-                    <img
+                <div className="flex justify-center relative" style={{ width: '400px', height: '300px' }}>
+                    <Image
                         src={url}
                         alt={title}
-                        className="rounded-lg"
-                        style={{ maxWidth: '400px', maxHeight: '300px', objectFit: 'contain' }}
+                        fill
+                        className="rounded-lg object-contain"
+                        sizes="400px"
+                        unoptimized
                     />
                 </div>
             </div>

@@ -138,7 +138,7 @@ export default defineSchema({
         v.literal("middle"),
         v.literal("high")
       )),
-      numberOfGroups: v.number(), // How many sections/groups this grade has (e.g., 3 means: 01-1, 01-2, 01-3)
+      numberOfGroups: v.optional(v.number()), // How many sections/groups this grade has (e.g., 3 means: 01-1, 01-2, 01-3)
       isActive: v.boolean(),
     }))),
 

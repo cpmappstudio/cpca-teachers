@@ -5,7 +5,6 @@ import {
   Building,
   Users,
   Book,
-  BookOpen,
 } from "lucide-react"
 import { useUser } from "@clerk/nextjs"
 import { usePathname } from "next/navigation"

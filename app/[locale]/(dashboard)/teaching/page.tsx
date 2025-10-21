@@ -31,7 +31,6 @@ import {
 } from "@/components/ui/collapsible";
 import {
   Tabs,
-  TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
@@ -69,6 +68,12 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
       setHasInitialized(true);
     }
   }, [assignmentsWithProgress, hasInitialized]);
+
+  // Avoid unused variable warning
+  React.useEffect(() => {
+    // progressByQuarter is part of assignment data structure
+    void assignmentsWithProgress;
+  }, [assignmentsWithProgress]);
 
   // Obtener lecciones detalladas cuando se expande un currículum
   const selectedAssignment = assignmentsWithProgress?.find(a => a._id === expandedCurriculum);
@@ -119,7 +124,6 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
   return (
     <div className="space-y-6">
       {assignmentsWithProgress.map((assignment) => {
-        const progressByQuarter = assignment.progressByQuarter || {};
         const totalProgress = assignment.progressSummary?.progressPercentage || 0;
         const isExpanded = expandedCurriculum === assignment._id;
         const lessons = isExpanded && assignmentLessonProgress ? assignmentLessonProgress.lessons : [];
@@ -189,7 +193,7 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                           {assignment.assignedGrades.map((gradeCode) => {
                             // Get grade name from campus data if available
                             const gradeName = assignmentLessonProgress?.grades?.find(
-                              (g: { code: string; name: string }) => g.code === gradeCode
+                              (g: { id: string; name: string; code: string; level: number }) => g.code === gradeCode
                             )?.name || gradeCode;
 
                             return (
@@ -209,13 +213,13 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                         const selectedGrade = selectedGradeByCurriculum[assignment._id] || assignment.assignedGrades?.[0];
 
                         // Filter lessons for this quarter and grade
-                        const lessonsInQuarter = lessons.filter((l: any) => {
+                        const lessonsInQuarter = lessons.filter((l: Record<string, unknown>) => {
                           if (l.quarter !== quarterNum) return false;
 
                           // If teacher has multiple grades, filter by selected grade
                           if (assignment.assignedGrades && assignment.assignedGrades.length > 1 && selectedGrade) {
-                            if (l.gradeCodes && l.gradeCodes.length > 0) {
-                              return l.gradeCodes.includes(selectedGrade);
+                            if (l.gradeCodes && Array.isArray(l.gradeCodes) && l.gradeCodes.length > 0) {
+                              return (l.gradeCodes as string[]).includes(selectedGrade);
                             }
                             if (l.gradeCode) {
                               return l.gradeCode === selectedGrade;
@@ -230,7 +234,7 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                         let totalCompletionScore = 0;
 
                         // Sum up the completion percentage of each lesson
-                        lessonsInQuarter.forEach((l: any) => {
+                        lessonsInQuarter.forEach((l: Record<string, unknown>) => {
                           const multipleGrades = assignment.assignedGrades && assignment.assignedGrades.length > 1;
 
                           if (multipleGrades && selectedGrade && assignmentLessonProgress?.assignedGroupCodes) {
@@ -240,10 +244,12 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                             );
 
                             // Count completed groups for this grade
-                            const completedGroupsForGrade = l.progressByGrade?.filter((p: any) =>
-                              groupsForSelectedGrade.includes(p.groupCode || '') &&
-                              (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
-                            ).length || 0;
+                            const completedGroupsForGrade = Array.isArray(l.progressByGrade)
+                              ? l.progressByGrade.filter((p: Record<string, unknown>) =>
+                                groupsForSelectedGrade.includes(p.groupCode as string || '') &&
+                                (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                              ).length
+                              : 0;
 
                             // Calculate percentage for this lesson
                             const lessonCompletionPercentage = groupsForSelectedGrade.length > 0
@@ -253,7 +259,7 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                             totalCompletionScore += lessonCompletionPercentage;
                           } else {
                             // Use overall completion percentage from backend
-                            totalCompletionScore += (l.completionPercentage || 0);
+                            totalCompletionScore += (typeof l.completionPercentage === 'number' ? l.completionPercentage : 0);
                           }
                         });
 
@@ -315,14 +321,14 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                       const selectedGrade = selectedGradeByCurriculum[assignment._id] || assignment.assignedGrades?.[0];
 
                       // Filter lessons by quarter and selected grade
-                      const lessonsByQuarter = lessons.filter((l: any) => {
+                      const lessonsByQuarter = lessons.filter((l: Record<string, unknown>) => {
                         if (l.quarter !== quarterNum) return false;
 
                         // If teacher has multiple grades, filter by selected grade
                         if (assignment.assignedGrades && assignment.assignedGrades.length > 1 && selectedGrade) {
                           // Check if lesson applies to the selected grade
-                          if (l.gradeCodes && l.gradeCodes.length > 0) {
-                            return l.gradeCodes.includes(selectedGrade);
+                          if (l.gradeCodes && Array.isArray(l.gradeCodes) && l.gradeCodes.length > 0) {
+                            return (l.gradeCodes as string[]).includes(selectedGrade);
                           }
                           // Legacy single grade support
                           if (l.gradeCode) {
@@ -401,7 +407,7 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                                       const groupNumber = groupCode.split('-')[1];
 
                                                       // Check if this group has evidence
-                                                      const hasEvidence = lessonData.progressByGrade?.find((p: { gradeCode?: string; groupCode?: string; evidenceDocumentStorageId?: Id<"_storage">; evidencePhotoStorageId?: Id<"_storage"> }) =>
+                                                      const hasEvidence = lessonData.progressByGrade?.find((p: Record<string, unknown>) =>
                                                         p.groupCode === groupCode && (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
                                                       );
 
@@ -420,6 +426,12 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                                 </div>
                                               )}
                                             </div>
+                                            {/* Lesson description */}
+                                            {lessonData.description && (
+                                              <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
+                                                {lessonData.description}
+                                              </p>
+                                            )}
                                           </div>
                                         </div>
                                         <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4 pl-9 sm:pl-0">
@@ -442,9 +454,11 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                                 );
 
                                                 // Count evidence for these groups
-                                                const evidenceCount = lessonData.progressByGrade?.filter((p: { groupCode?: string; evidenceDocumentStorageId?: Id<"_storage">; evidencePhotoStorageId?: Id<"_storage"> }) =>
-                                                  groupsForSelectedGrade.includes(p.groupCode || '') && (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
-                                                ).length || 0;
+                                                const evidenceCount = Array.isArray(lessonData.progressByGrade)
+                                                  ? lessonData.progressByGrade.filter((p: Record<string, unknown>) =>
+                                                    groupsForSelectedGrade.includes(p.groupCode as string || '') && (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                                                  ).length
+                                                  : 0;
 
                                                 return evidenceCount > 0
                                                   ? `${evidenceCount}/${groupsForSelectedGrade.length} evidence`
