@@ -126,11 +126,13 @@ export function groupCodesByGrade(codes: string[]): Map<string, string[]> {
  * ])
  * // ["01-1", "01-2", "01-3", "02-1", "02-2"]
  */
-export function getAllGroupCodes(grades: Array<{ code: string; numberOfGroups: number }>): string[] {
+export function getAllGroupCodes(grades: Array<{ code: string; numberOfGroups?: number }>): string[] {
     const allGroupCodes: string[] = [];
 
     grades.forEach(grade => {
-        const groupCodes = generateGroupCodes(grade.code, grade.numberOfGroups);
+        // Default to 1 group if numberOfGroups is not defined
+        const numberOfGroups = grade.numberOfGroups ?? 1;
+        const groupCodes = generateGroupCodes(grade.code, numberOfGroups);
         allGroupCodes.push(...groupCodes);
     });
 
@@ -175,7 +177,7 @@ export function formatGradeCode(code: string): string {
  * // ]
  */
 export function getAvailableGroupsForGrade(
-    campus: { grades?: Array<{ code: string; name: string; numberOfGroups: number }> },
+    campus: { grades?: Array<{ code: string; name: string; numberOfGroups?: number }> },
     gradeCode: string
 ): Array<{ code: string; displayName: string }> {
     if (!campus.grades) return [];
@@ -183,7 +185,9 @@ export function getAvailableGroupsForGrade(
     const grade = campus.grades.find(g => g.code === gradeCode);
     if (!grade) return [];
 
-    const groupCodes = generateGroupCodes(gradeCode, grade.numberOfGroups);
+    // Default to 1 group if numberOfGroups is not defined
+    const numberOfGroups = grade.numberOfGroups ?? 1;
+    const groupCodes = generateGroupCodes(gradeCode, numberOfGroups);
 
     return groupCodes.map((code, index) => ({
         code,

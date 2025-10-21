@@ -73,7 +73,7 @@ type Grade = {
   code: string;
   level: number;
   category?: "prekinder" | "kinder" | "elementary" | "middle" | "high";
-  numberOfGroups: number; // Number of sections/groups for this grade
+  numberOfGroups?: number; // Number of sections/groups for this grade
   isActive: boolean;
 };
 
@@ -582,7 +582,11 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
         // Check if grades changed
         if (JSON.stringify(grades) !== JSON.stringify(campus.grades || [])) {
           // Always send the grades array, even if empty
-          updates.grades = grades;
+          // Ensure numberOfGroups has a default value of 1 if undefined
+          updates.grades = grades.map(grade => ({
+            ...grade,
+            numberOfGroups: grade.numberOfGroups ?? 1
+          }));
         }
 
         // Solo hacer la actualización si hay cambios o si se eliminó la imagen
@@ -691,7 +695,11 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
 
         // Grades (solo si hay al menos un grado)
         if (grades.length > 0) {
-          campusData.grades = grades;
+          // Ensure numberOfGroups has a default value of 1 if undefined
+          campusData.grades = grades.map(grade => ({
+            ...grade,
+            numberOfGroups: grade.numberOfGroups ?? 1
+          }));
         }
 
         await createCampusMutation(campusData);
