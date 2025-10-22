@@ -126,11 +126,11 @@ export const columns: ColumnDef<Teacher>[] = [
 
     filterFn: (row, id, value) => {
       const fullName = row.getValue("fullName") as string;
-      const campus = row.getValue("campus") as string;
+      const campus = row.getValue("campus") as string | null;
       const searchValue = value.toLowerCase();
       return (
         fullName.toLowerCase().includes(searchValue) ||
-        campus.toLowerCase().includes(searchValue)
+        (campus?.toLowerCase().includes(searchValue) ?? false)
       );
     },
   },
