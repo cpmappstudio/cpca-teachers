@@ -139,15 +139,15 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
               }
             >
               <CollapsibleTrigger asChild>
-                <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors py-5 px-2 sm:px-6">
+                <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors py-3 px-2 sm:py-5 sm:px-6">
                   <div className="flex items-center justify-between gap-2 sm:gap-4">
                     <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
-                      <div className="bg-blue-100 p-2 sm:p-3 rounded-lg flex-shrink-0">
+                      <div className="bg-blue-100 p-1.5 sm:p-3 rounded-lg flex-shrink-0">
                         <BookOpen className="w-4 h-4 sm:w-6 sm:h-6 text-blue-900" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mb-2">
-                          <CardTitle className="text-base sm:text-lg font-semibold text-foreground truncate">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-3 mb-1.5 sm:mb-2">
+                          <CardTitle className="text-sm sm:text-lg font-semibold text-foreground truncate">
                             {assignment.curriculumName}
                           </CardTitle>
                           {assignment.curriculumCode && (
@@ -175,8 +175,8 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
               </CollapsibleTrigger>
 
               <CollapsibleContent>
-                <CardContent className="py-5 px-2 spx-6m:">
-                  <div className="border-t border-border/60 pt-4 sm:pt-6">
+                <CardContent className="py-3 px-2 sm:py-5 sm:px-6">
+                  <div className="border-t border-border/60 pt-2 sm:pt-6">
                     {/* Grade Tabs - Only show if teacher has multiple grades assigned */}
                     {assignment.assignedGrades && assignment.assignedGrades.length > 1 && (
                       <Tabs
@@ -187,7 +187,7 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                             [assignment._id]: value
                           }));
                         }}
-                        className="mb-6"
+                        className="mb-3 sm:mb-6"
                       >
                         <TabsList>
                           {assignment.assignedGrades.map((gradeCode) => {
@@ -207,7 +207,7 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                     )}
 
                     {/* Quarters Timeline */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6 mb-4 sm:mb-6">
+                    <div className="grid grid-cols-4 gap-2 sm:gap-6 mb-3 sm:mb-6">
                       {[1, 2, 3, 4].slice(0, assignment.numberOfQuarters).map((quarterNum) => {
                         // Get selected grade
                         const selectedGrade = selectedGradeByCurriculum[assignment._id] || assignment.assignedGrades?.[0];
@@ -283,22 +283,22 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                               )
                             }
                           >
-                            <CardHeader className="py-3 px-2 sm:p-4">
-                              <div className="text-center mb-1 sm:mb-2">
-                                <CardTitle className="text-sm sm:text-base font-semibold">
+                            <CardHeader className="py-2 px-2 sm:p-4">
+                              <div className="text-center mb-1">
+                                <CardTitle className="text-xs sm:text-base font-semibold">
                                   Q{quarterNum}
                                 </CardTitle>
                               </div>
                               <Progress
                                 value={quarterProgress}
-                                className={`mb-1 sm:mb-2 ${isQuarterExpanded
+                                className={`mb-1 h-1 sm:h-2 ${isQuarterExpanded
                                   ? "bg-white/20 [&>div]:bg-white"
                                   : quarterProgress === 100
                                     ? "bg-gray-200 [&>div]:bg-green-700"
                                     : "bg-gray-200 [&>div]:bg-deep-koamaru"
                                   }`}
                               />
-                              <CardDescription className={`text-center text-[10px] sm:text-xs ${isQuarterExpanded ? "text-white/90" : "text-muted-foreground"
+                              <CardDescription className={`text-center text-[9px] sm:text-xs ${isQuarterExpanded ? "text-white/90" : "text-muted-foreground"
                                 }`}>
                                 {total} lesson{total !== 1 ? 's' : ''}
                               </CardDescription>
@@ -341,53 +341,53 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
 
                       return (
                         <Card key={quarterNum} className="bg-accent/20  py-0 shadow-sm ">
-                          <CardHeader className="py-4 px-3 ">
-                            <CardTitle className="text-base sm:text-lg font-semibold flex items-center flex-wrap gap-2">
-                              <Badge className="bg-deep-koamaru">Q{quarterNum}</Badge>
-                              <span className="text-sm sm:text-base">Lessons</span>
+                          {/* <CardHeader className="py-3 px-2 sm:py-4 sm:px-3">
+                            <CardTitle className="text-sm sm:text-lg font-semibold flex items-center flex-wrap gap-2">
+                              <Badge className="bg-deep-koamaru text-xs sm:text-sm">Q{quarterNum}</Badge>
+                              <span className="text-xs sm:text-base">Lessons</span>
                             </CardTitle>
-                          </CardHeader>
-                          <CardContent className="py-0 rounded-none pb-4 px-0 sm:pb-6">
+                          </CardHeader> */}
+                          <CardContent className="py-0 rounded-none pb-3 px-0 sm:pb-6">
                             {lessonsByQuarter.length === 0 ? (
-                              <p className="text-center text-muted-foreground py-8">
+                              <p className="text-center text-muted-foreground py-6 sm:py-8 text-xs sm:text-sm">
                                 No lessons in this quarter
                               </p>
                             ) : (
-                              <div className="space-y-3">
+                              <div className="space-y-2 sm:space-y-3">
                                 {lessonsByQuarter.map((lessonData) => (
                                   <Card
                                     key={lessonData.lessonId}
                                     className="border-border/60 bg-card mx-0 rounded-none shadow-sm py-0"
                                   >
-                                    <CardContent className="py-4 sm:px-4">
-                                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                    <CardContent className="py-3 px-2 sm:py-4 sm:px-4">
+                                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
                                         <div
                                           className="flex items-start sm:items-center gap-2 sm:gap-4 flex-1 min-w-0"
                                         >
                                           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                                             <Badge
                                               variant="secondary"
-                                              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm"
+                                              className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-sm"
                                             >
                                               {lessonData.orderInQuarter}
                                             </Badge>
                                           </div>
                                           <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">
-                                              <h4 className="font-medium text-sm sm:text-base text-foreground truncate">
+                                              <h4 className="font-medium text-xs sm:text-base text-foreground truncate">
                                                 {lessonData.title}
                                               </h4>
                                               {lessonData.totalGrades > 1 && (
                                                 <Badge
                                                   variant={lessonData.completionPercentage === 100 ? "default" : lessonData.completionPercentage > 0 ? "secondary" : "outline"}
-                                                  className="text-xs"
+                                                  className="text-[9px] sm:text-xs"
                                                 >
                                                   {lessonData.completionPercentage}%
                                                 </Badge>
                                               )}
                                             </div>
-                                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                              <p className="text-xs sm:text-sm text-muted-foreground">
+                                            <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 sm:mt-1 flex-wrap">
+                                              <p className="text-[10px] sm:text-sm text-muted-foreground">
                                                 {getStatusText(lessonData.overallStatus || lessonData.progress?.status || "not_started")}
                                               </p>
                                               {/* Show groups for the selected grade */}
@@ -415,7 +415,7 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                                         <Badge
                                                           key={groupCode}
                                                           variant={hasEvidence ? "default" : "outline"}
-                                                          className="text-xs h-5 px-1.5"
+                                                          className="text-[9px] sm:text-xs h-4 sm:h-5 px-1 sm:px-1.5"
                                                         >
                                                           Group {groupNumber}
                                                           {hasEvidence && " ✓"}
@@ -428,16 +428,16 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                             </div>
                                             {/* Lesson description */}
                                             {lessonData.description && (
-                                              <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
+                                              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 sm:mt-2 line-clamp-2">
                                                 {lessonData.description}
                                               </p>
                                             )}
                                           </div>
                                         </div>
-                                        <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4 pl-9 sm:pl-0">
-                                          <div className="flex items-center gap-1.5 sm:gap-2 text-muted-foreground">
-                                            <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-                                            <span className="text-xs sm:text-sm font-medium whitespace-nowrap">
+                                        <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4 pl-8 sm:pl-0">
+                                          <div className="flex items-center gap-1 sm:gap-2 text-muted-foreground">
+                                            <FileText className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                                            <span className="text-[10px] sm:text-sm font-medium whitespace-nowrap">
                                               {(() => {
                                                 if (!assignmentLessonProgress?.assignedGroupCodes) {
                                                   return lessonData.progress?.evidencePhotoStorageId || lessonData.progress?.evidenceDocumentStorageId
@@ -474,8 +474,8 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                             assignmentId={assignment._id}
                                             selectedGrade={selectedGrade}
                                             trigger={
-                                              <Button size="sm" className="h-8 sm:h-9 text-xs sm:text-sm">
-                                                <Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1" />
+                                              <Button size="sm" className="h-7 sm:h-9 text-[10px] sm:text-sm px-2 sm:px-3">
+                                                <Upload className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
                                                 <span className="hidden sm:inline">Attach</span>
                                               </Button>
                                             }
