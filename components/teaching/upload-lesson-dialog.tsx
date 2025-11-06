@@ -318,7 +318,12 @@ export function TeacherDialog({ lesson, assignmentId, selectedGrade, trigger }: 
                               </div>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
-                              <Badge variant={hasGroupEvidence ? "default" : "outline"} className="text-xs">
+                              <Badge 
+                                variant={hasGroupEvidence ? "default" : "outline"} 
+                                className={`text-xs ${hasGroupEvidence 
+                                  ? "bg-green-700 hover:bg-green-700 text-white" 
+                                  : "bg-red-200 hover:bg-red-200 text-red-900 border-red-300"}`}
+                              >
                                 {hasGroupEvidence ? "Uploaded" : "Pending"}
                               </Badge>
                               {hasGroupEvidence && (
