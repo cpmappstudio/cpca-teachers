@@ -41,7 +41,7 @@ function CampusListItem({ campus }: CampusListItemProps) {
                     <div className="flex-1">
                         <div className="flex items-start justify-between">
                             <div className="space-y-1">
-                                <CardTitle className="text-lg font-serif font-semibold text-foreground">
+                                <CardTitle className="text-lg font-semibold text-foreground">
                                     {campus.name}
                                 </CardTitle>
                                 {campus.description ? (

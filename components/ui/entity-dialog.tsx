@@ -90,6 +90,7 @@ export function EntityDialog({
                             type="submit"
                             className="min-w-[120px]"
                             disabled={isSubmitting}
+                            variant="default"
                         >
                             <Save className="h-4 w-4" />
                             {isSubmitting ? "Saving..." : submitLabel}
