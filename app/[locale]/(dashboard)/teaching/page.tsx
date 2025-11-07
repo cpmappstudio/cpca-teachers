@@ -387,7 +387,7 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                               )}
                                             </div>
                                             <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 sm:mt-1 flex-wrap">
-                                              <p className="text-[10px] sm:text-sm text-muted-foreground">
+                                              <p className="text-[10px] sm:text-sm text-bold">
                                                 {getStatusText(lessonData.overallStatus || lessonData.progress?.status || "not_started")}
                                               </p>
                                               {/* Show groups for the selected grade */}
@@ -415,7 +415,9 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                                         <Badge
                                                           key={groupCode}
                                                           variant={hasEvidence ? "default" : "outline"}
-                                                          className="text-[9px] sm:text-xs h-4 sm:h-5 px-1 sm:px-1.5"
+                                                          className={`text-[9px] sm:text-xs h-4 sm:h-5 px-1 sm:px-1.5 ${hasEvidence 
+                                                            ? "bg-green-700 hover:bg-green-700 text-white border-green-700" 
+                                                            : "bg-red-200 hover:bg-red-200 text-red-900 border-red-300"}`}
                                                         >
                                                           Group {groupNumber}
                                                           {hasEvidence && " ✓"}
@@ -474,7 +476,7 @@ function LessonsTable({ teacherId }: { teacherId: string }) {
                                             assignmentId={assignment._id}
                                             selectedGrade={selectedGrade}
                                             trigger={
-                                              <Button size="sm" className="h-7 sm:h-9 text-[10px] sm:text-sm px-2 sm:px-3">
+                                              <Button size="sm" className="bg-deep-koamaru hover:bg-deep-koamaru/90 h-7 sm:h-9 text-[10px] sm:text-sm px-2 sm:px-3">
                                                 <Upload className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
                                                 <span className="hidden sm:inline">Attach</span>
                                               </Button>
