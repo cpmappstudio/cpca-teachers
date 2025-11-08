@@ -490,8 +490,18 @@ export function CurriculumAssignmentItem({
                                                                             </span>
                                                                             {assignedGroupCodes.length > 0 && (
                                                                                 <Badge
-                                                                                    variant={displayCompletionPercentage === 100 ? "default" : displayCompletionPercentage > 0 ? "secondary" : "outline"}
-                                                                                    className="text-xs h-5"
+                                                                                    variant="outline"
+                                                                                    className={`text-xs h-5 ${
+                                                                                        displayCompletionPercentage === 100
+                                                                                            ? "bg-green-700 text-white border-green-700"
+                                                                                            : displayCompletionPercentage >= 75
+                                                                                                ? "bg-green-500 text-white border-green-500"
+                                                                                                : displayCompletionPercentage >= 50
+                                                                                                    ? "bg-yellow-500 text-white border-yellow-500"
+                                                                                                    : displayCompletionPercentage > 0
+                                                                                                        ? "bg-orange-500 text-white border-orange-500"
+                                                                                                        : "bg-red-200 text-red-900 border-red-300"
+                                                                                    }`}
                                                                                 >
                                                                                     {displayCompletionPercentage}%
                                                                                 </Badge>
@@ -512,7 +522,9 @@ export function CurriculumAssignmentItem({
                                                                                             <Badge
                                                                                                 key={groupCode}
                                                                                                 variant={hasEvidence ? "default" : "outline"}
-                                                                                                className="text-[10px] h-4 px-1"
+                                                                                                className={`text-[10px] h-4 px-1 ${hasEvidence 
+                                                                                                    ? "bg-green-700 hover:bg-green-700 text-white border-green-700" 
+                                                                                                    : "bg-red-200 hover:bg-red-200 text-red-900 border-red-300"}`}
                                                                                             >
                                                                                                 Group {groupNumber}
                                                                                                 {hasEvidence && " ✓"}
@@ -583,8 +595,18 @@ export function CurriculumAssignmentItem({
                                                                     </span>
                                                                     {assignedGroupCodes.length > 0 && (
                                                                         <Badge
-                                                                            variant={displayCompletionPercentage === 100 ? "default" : displayCompletionPercentage > 0 ? "secondary" : "outline"}
-                                                                            className="text-xs"
+                                                                            variant="outline"
+                                                                            className={`text-xs ${
+                                                                                displayCompletionPercentage === 100
+                                                                                    ? "bg-green-700 text-white border-green-700"
+                                                                                    : displayCompletionPercentage >= 75
+                                                                                        ? "bg-green-500 text-white border-green-500"
+                                                                                        : displayCompletionPercentage >= 50
+                                                                                            ? "bg-yellow-500 text-white border-yellow-500"
+                                                                                            : displayCompletionPercentage > 0
+                                                                                                ? "bg-orange-500 text-white border-orange-500"
+                                                                                                : "bg-red-200 text-red-900 border-red-300"
+                                                                            }`}
                                                                         >
                                                                             {displayCompletionPercentage}%
                                                                         </Badge>
@@ -606,7 +628,9 @@ export function CurriculumAssignmentItem({
                                                                                     <Badge
                                                                                         key={groupCode}
                                                                                         variant={hasEvidence ? "default" : "outline"}
-                                                                                        className="text-xs h-5 px-2"
+                                                                                        className={`text-xs h-5 px-2 ${hasEvidence 
+                                                                                            ? "bg-green-700 hover:bg-green-700 text-white border-green-700" 
+                                                                                            : "bg-red-200 hover:bg-red-200 text-red-900 border-red-300"}`}
                                                                                     >
                                                                                         Group {groupNumber}
                                                                                         {hasEvidence && " ✓"}
