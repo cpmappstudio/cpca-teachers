@@ -60,7 +60,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
       if (userRole === 'teacher') {
         targetPath = `/${locale}/teaching`
       } else if (userRole === 'admin' || userRole === 'superadmin') {
-        targetPath = `/${locale}/admin`
+        targetPath = `/${locale}/admin/campuses`
       }
 
       if (targetPath) {
