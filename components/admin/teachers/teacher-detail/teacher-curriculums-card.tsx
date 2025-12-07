@@ -109,13 +109,6 @@ export function TeacherCurriculumsCard({
     null,
   );
   const hasInitialized = React.useRef(false);
-  const handleViewEvidence = (
-    _storageId: Id<"_storage">,
-    _title: string,
-    _type: "image" | "pdf",
-  ) => {
-    // Evidence viewing is now handled by CurriculumAssignmentItem
-  };
 
   // Query teacher assignments with real progress from database
   const assignments = useQuery(api.progress.getTeacherAssignmentsWithProgress, {
@@ -317,7 +310,6 @@ export function TeacherCurriculumsCard({
               <CurriculumAssignmentItem
                 key={assignment._id}
                 assignment={assignment}
-                onViewEvidence={handleViewEvidence}
               />
             ))}
           </Accordion>

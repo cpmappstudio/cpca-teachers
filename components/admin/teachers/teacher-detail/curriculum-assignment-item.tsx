@@ -58,11 +58,6 @@ interface TeacherAssignmentWithProgress {
 
 interface CurriculumAssignmentItemProps {
   assignment: TeacherAssignmentWithProgress;
-  onViewEvidence: (
-    storageId: Id<"_storage">,
-    title: string,
-    type: "image" | "pdf",
-  ) => void;
 }
 
 // ============================================================================
