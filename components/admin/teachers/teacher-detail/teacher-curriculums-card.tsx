@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Filter, Search, FileText, Image as ImageIcon } from "lucide-react";
+import { Filter, Search } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -29,14 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Accordion } from "@/components/ui/accordion";
-import Image from "next/image";
 import { AddCurriculumDialog } from "./add-curriculum-dialog";
 import { CurriculumAssignmentItem } from "./curriculum-assignment-item";
 
@@ -116,30 +109,12 @@ export function TeacherCurriculumsCard({
     null,
   );
   const hasInitialized = React.useRef(false);
-  const [evidenceModal, setEvidenceModal] = React.useState<{
-    open: boolean;
-    url: string | null;
-    type: "image" | "pdf" | null;
-    title: string;
-  }>({
-    open: false,
-    url: null,
-    type: null,
-    title: "",
-  });
-
   const handleViewEvidence = (
-    storageId: Id<"_storage">,
-    title: string,
-    type: "image" | "pdf",
+    _storageId: Id<"_storage">,
+    _title: string,
+    _type: "image" | "pdf",
   ) => {
-    // Set the modal to open with storageId, URL will be loaded by query
-    setEvidenceModal({
-      open: true,
-      url: storageId as unknown as string, // Store storageId temporarily
-      type,
-      title,
-    });
+    // Evidence viewing is now handled by CurriculumAssignmentItem
   };
 
   // Query teacher assignments with real progress from database

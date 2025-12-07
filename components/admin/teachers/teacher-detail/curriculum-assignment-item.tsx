@@ -72,8 +72,6 @@ interface CurriculumAssignmentItemProps {
 function getEvidenceInfo(
   lesson: LessonWithProgress,
   progressByGrade: ProgressByGrade[],
-  selectedGrade: string | null,
-  assignedGroupCodes: string[],
 ) {
   const gradesWithEvidence = new Set(
     progressByGrade
@@ -341,8 +339,6 @@ function LessonCard({
   const { hasEvidence, evidenceStorageId, evidenceType } = getEvidenceInfo(
     lesson,
     progressByGrade,
-    selectedGrade,
-    assignedGroupCodes,
   );
 
   const isFullyComplete = displayCompletion === 100;
@@ -557,8 +553,14 @@ export function CurriculumAssignmentItem({
     },
   );
 
-  const lessons = assignmentLessonProgress?.lessons || [];
-  const assignedGrades = assignmentLessonProgress?.grades || [];
+  const lessons = React.useMemo(
+    () => assignmentLessonProgress?.lessons || [],
+    [assignmentLessonProgress?.lessons],
+  );
+  const assignedGrades = React.useMemo(
+    () => assignmentLessonProgress?.grades || [],
+    [assignmentLessonProgress?.grades],
+  );
   const assignedGroupCodes = assignmentLessonProgress?.assignedGroupCodes || [];
   const hasMultipleGrades = assignedGrades.length > 1;
 
