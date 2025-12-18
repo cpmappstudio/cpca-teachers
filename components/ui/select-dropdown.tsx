@@ -1,10 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronDown } from "lucide-react"
+import { Check, ChevronDown, Search } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -22,6 +23,8 @@ interface SelectDropdownProps {
     label?: string
     className?: string
     disabled?: boolean
+    searchable?: boolean
+    searchPlaceholder?: string
 }
 
 export function SelectDropdown({
@@ -32,9 +35,26 @@ export function SelectDropdown({
     label,
     className,
     disabled = false,
+    searchable = false,
+    searchPlaceholder = "Search...",
 }: SelectDropdownProps) {
     const [open, setOpen] = React.useState(false)
+    const [searchQuery, setSearchQuery] = React.useState("")
     const selectedOption = options.find((option) => option.value === value)
+
+    const filteredOptions = React.useMemo(() => {
+        if (!searchable || !searchQuery.trim()) return options
+        return options.filter((option) =>
+            option.label.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+    }, [options, searchQuery, searchable])
+
+    // Reset search when dropdown closes
+    React.useEffect(() => {
+        if (!open) {
+            setSearchQuery("")
+        }
+    }, [open])
 
     return (
         <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -63,6 +83,26 @@ export function SelectDropdown({
                     </>
                 )}
 
+                {/* Search input */}
+                {searchable && (
+                    <>
+                        <div className="p-2">
+                            <div className="relative">
+                                <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                    placeholder={searchPlaceholder}
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="pl-8 h-8"
+                                    onClick={(e) => e.stopPropagation()}
+                                    onKeyDown={(e) => e.stopPropagation()}
+                                />
+                            </div>
+                        </div>
+                        <DropdownMenuSeparator />
+                    </>
+                )}
+
                 {/* Clear option */}
                 {value && (
                     <>
@@ -80,7 +120,7 @@ export function SelectDropdown({
                 )}
 
                 {/* Options */}
-                {options.map((option) => (
+                {filteredOptions.map((option) => (
                     <DropdownMenuItem
                         key={option.value}
                         onClick={() => {
@@ -99,9 +139,9 @@ export function SelectDropdown({
                     </DropdownMenuItem>
                 ))}
 
-                {options.length === 0 && (
+                {filteredOptions.length === 0 && (
                     <DropdownMenuItem disabled>
-                        No options available
+                        {searchable && searchQuery ? "No matching options" : "No options available"}
                     </DropdownMenuItem>
                 )}
             </DropdownMenuContent>

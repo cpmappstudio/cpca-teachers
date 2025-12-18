@@ -1,16 +1,12 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import {
-  Building,
-  Users,
-  Book,
-} from "lucide-react"
-import { useUser } from "@clerk/nextjs"
-import { usePathname } from "next/navigation"
+import * as React from "react";
+import { Building, Users, Book, CalendarDays } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
+import { usePathname } from "next/navigation";
 
-import { NavMain } from "@/components/nav-main"
-import { UniversityLogo } from "@/components/university-logo"
+import { NavMain } from "@/components/nav-main";
+import { UniversityLogo } from "@/components/university-logo";
 import {
   Sidebar,
   SidebarContent,
@@ -18,48 +14,57 @@ import {
   SidebarHeader,
   SidebarRail,
   useSidebar,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
 // import { ModeToggle } from "./mode-toggle"
 // import { LangToggle } from "./lang-toggle"
-import { UserButtonWrapper } from "./user-button-wrapper"
-import type { UserRole } from "@/convex/types"
+import { UserButtonWrapper } from "./user-button-wrapper";
+import type { UserRole } from "@/convex/types";
 
 // Helper function to extract role from user object (client-safe)
-function getUserRole(user: { publicMetadata?: Record<string, unknown>; privateMetadata?: Record<string, unknown>; unsafeMetadata?: Record<string, unknown> } | null | undefined): UserRole | null {
-  if (!user) return null
+function getUserRole(
+  user:
+    | {
+        publicMetadata?: Record<string, unknown>;
+        privateMetadata?: Record<string, unknown>;
+        unsafeMetadata?: Record<string, unknown>;
+      }
+    | null
+    | undefined,
+): UserRole | null {
+  if (!user) return null;
 
-  const publicMeta = user.publicMetadata
-  const privateMeta = user.privateMetadata
-  const unsafeMeta = user.unsafeMetadata
+  const publicMeta = user.publicMetadata;
+  const privateMeta = user.privateMetadata;
+  const unsafeMeta = user.unsafeMetadata;
 
-  const role = publicMeta?.role ?? privateMeta?.role ?? unsafeMeta?.role
+  const role = publicMeta?.role ?? privateMeta?.role ?? unsafeMeta?.role;
 
-  return (role as UserRole) ?? null
+  return (role as UserRole) ?? null;
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { state, isMobile, setOpenMobile } = useSidebar()
-  const pathname = usePathname()
-  const { user } = useUser()
+  const { state, isMobile, setOpenMobile } = useSidebar();
+  const pathname = usePathname();
+  const { user } = useUser();
 
   // Cerrar sidebar automáticamente en móviles cuando cambia la ruta
   React.useEffect(() => {
     if (isMobile) {
-      setOpenMobile(false)
+      setOpenMobile(false);
     }
-  }, [pathname, isMobile, setOpenMobile])
+  }, [pathname, isMobile, setOpenMobile]);
 
   // Obtener rol del usuario
   const userRole = React.useMemo(() => {
-    return getUserRole(user)
-  }, [user])
+    return getUserRole(user);
+  }, [user]);
 
   // Definir items de navegación según el rol
   const getNavItems = React.useCallback((role: UserRole | null) => {
-    if (!role) return []
+    if (!role) return [];
 
     // Items para teachers
-    if (role === 'teacher') {
+    if (role === "teacher") {
       return [
         {
           title: "My Courses",
@@ -67,12 +72,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           icon: Book,
           isActive: false,
           items: [],
-        }
-      ]
+        },
+        {
+          title: "My Schedule",
+          url: "/schedule",
+          icon: CalendarDays,
+          isActive: false,
+          items: [],
+        },
+      ];
     }
 
     // Items para admin y superadmin
-    if (role === 'admin' || role === 'superadmin') {
+    if (role === "admin" || role === "superadmin") {
       return [
         {
           title: "Campuses",
@@ -102,16 +114,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         //   isActive: false,
         //   items: [],
         // }
-      ]
+      ];
     }
 
-    return []
-  }, [])
+    return [];
+  }, []);
 
   // Obtener navegación según rol del usuario
   const navItems = React.useMemo(() => {
-    return getNavItems(userRole)
-  }, [userRole, getNavItems])
+    return getNavItems(userRole);
+  }, [userRole, getNavItems]);
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -122,10 +134,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         />
       </SidebarHeader>
       <SidebarContent>
-        <NavMain
-          items={navItems}
-          navigationLabel="Navigation"
-        />
+        <NavMain items={navItems} navigationLabel="Navigation" />
       </SidebarContent>
       <SidebarFooter>
         {/* <LangToggle showText={state !== "collapsed"} />
@@ -134,5 +143,5 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
-  )
+  );
 }
