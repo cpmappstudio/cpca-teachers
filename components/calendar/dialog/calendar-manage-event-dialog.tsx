@@ -1,7 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import {
   Dialog,
   DialogContent,
@@ -34,15 +37,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { SelectDropdown } from "@/components/ui/select-dropdown";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Save, Trash2, X } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, Save, Trash2, X, Loader2, FileCheck } from "lucide-react";
+import { toast } from "sonner";
 
 const formSchema = z
   .object({
-    course: z.string().min(1, "Course is required"),
-    lesson: z.string().min(1, "Lesson is required"),
     start: z.string().refine((val) => !isNaN(Date.parse(val)), {
       message: "Invalid start date",
     }),
@@ -50,7 +50,6 @@ const formSchema = z
       message: "Invalid end date",
     }),
     color: z.string(),
-    grades: z.array(z.string()).min(1, "At least one grade is required"),
     standards: z.array(z.string()).min(1, "At least one standard is required"),
     objectives: z.string().optional(),
     additionalInfo: z.string().optional(),
@@ -71,60 +70,7 @@ const formSchema = z
     },
   );
 
-// Mock data for courses (curriculums)
-const mockCourses = [
-  {
-    id: "course1",
-    name: "English Language Arts",
-    code: "ELA-101",
-    grades: [
-      { code: "9", name: "9th Grade", groups: ["9-A", "9-B", "9-C"] },
-      { code: "10", name: "10th Grade", groups: ["10-A", "10-B"] },
-      { code: "11", name: "11th Grade", groups: ["11-A", "11-B", "11-C"] },
-    ],
-    lessons: [
-      { id: "lesson1-1", name: "Introduction to Literature" },
-      { id: "lesson1-2", name: "Essay Writing Fundamentals" },
-      { id: "lesson1-3", name: "Poetry Analysis" },
-    ],
-  },
-  {
-    id: "course2",
-    name: "Mathematics",
-    code: "MATH-201",
-    grades: [
-      { code: "9", name: "9th Grade", groups: ["9-A", "9-B"] },
-      { code: "10", name: "10th Grade", groups: ["10-A", "10-B", "10-C"] },
-    ],
-    lessons: [
-      { id: "lesson2-1", name: "Algebraic Expressions" },
-      { id: "lesson2-2", name: "Quadratic Equations" },
-      { id: "lesson2-3", name: "Trigonometry Basics" },
-      { id: "lesson2-4", name: "Calculus Introduction" },
-    ],
-  },
-  {
-    id: "course3",
-    name: "Science",
-    code: "SCI-301",
-    grades: [
-      { code: "10", name: "10th Grade", groups: ["10-A", "10-B"] },
-      { code: "11", name: "11th Grade", groups: ["11-A", "11-B"] },
-      { code: "12", name: "12th Grade", groups: ["12-A"] },
-    ],
-    lessons: [
-      { id: "lesson3-1", name: "Cell Biology" },
-      { id: "lesson3-2", name: "Chemical Reactions" },
-      { id: "lesson3-3", name: "Physics of Motion" },
-    ],
-  },
-];
-
-// Convert to dropdown options
-const courseOptions = mockCourses.map((course) => ({
-  value: course.id,
-  label: `${course.name} (${course.code})`,
-}));
+type FormValues = z.infer<typeof formSchema>;
 
 export default function CalendarManageEventDialog() {
   const {
@@ -132,116 +78,105 @@ export default function CalendarManageEventDialog() {
     setManageEventDialogOpen,
     selectedEvent,
     setSelectedEvent,
-    events,
-    setEvents,
   } = useCalendarContext();
 
   // State for standards management
   const [standards, setStandards] = useState<string[]>([]);
   const [standardInput, setStandardInput] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // State for selected grades (multiple selection)
-  const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
+  // Convex mutations
+  const updateScheduledLesson = useMutation(api.lessons.updateScheduledLesson);
+  const deleteScheduledLesson = useMutation(api.lessons.deleteScheduledLesson);
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      course: "",
-      lesson: "",
       start: "",
       end: "",
       color: "blue",
-      grades: [],
       standards: [],
       objectives: "",
       additionalInfo: "",
     },
   });
 
-  // Watch the selected course to update dependent fields
-  const selectedCourseId = form.watch("course");
-
-  // Get the selected course data
-  const selectedCourse = useMemo(() => {
-    return mockCourses.find((c) => c.id === selectedCourseId);
-  }, [selectedCourseId]);
-
-  // Get lesson options based on selected course
-  const lessonOptions = useMemo(() => {
-    if (!selectedCourse) return [];
-    return selectedCourse.lessons.map((lesson) => ({
-      value: lesson.id,
-      label: lesson.name,
-    }));
-  }, [selectedCourse]);
-
   useEffect(() => {
     if (selectedEvent) {
       const eventStandards = selectedEvent.standards || [];
-      const eventGrades = selectedEvent.grades || [];
       form.reset({
-        course: selectedEvent.course || "",
-        lesson: selectedEvent.lesson || "",
         start: selectedEvent.start.toISOString(),
         end: selectedEvent.end.toISOString(),
         color: selectedEvent.color,
-        grades: eventGrades,
         standards: eventStandards,
         objectives: selectedEvent.objectives || "",
         additionalInfo: selectedEvent.additionalInfo || "",
       });
       setStandards(eventStandards);
-      setSelectedGrades(eventGrades);
     }
   }, [selectedEvent, form]);
 
-  // Handle course change - reset dependent fields
-  const handleCourseChange = (courseId: string) => {
-    form.setValue("course", courseId);
-    form.setValue("lesson", ""); // Reset lesson when course changes
-    form.setValue("grades", []); // Reset grades in form when course changes
-    setSelectedGrades([]); // Reset grades state when course changes
-  };
+  async function onSubmit(values: FormValues) {
+    if (!selectedEvent?._id) {
+      toast.error("Event not found");
+      return;
+    }
 
-  // Handle grade toggle
-  const handleGradeToggle = (gradeCode: string) => {
-    setSelectedGrades((prev) => {
-      const newGrades = prev.includes(gradeCode)
-        ? prev.filter((g) => g !== gradeCode)
-        : [...prev, gradeCode];
-      form.setValue("grades", newGrades);
-      return newGrades;
-    });
-  };
+    setIsSubmitting(true);
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!selectedEvent) return;
+    try {
+      await updateScheduledLesson({
+        progressId: selectedEvent._id as Id<"lesson_progress">,
+        scheduledStart: new Date(values.start).getTime(),
+        scheduledEnd: new Date(values.end).getTime(),
+        standards: values.standards,
+        lessonPlan: values.objectives,
+        notes: values.additionalInfo,
+        displayColor: values.color,
+      });
 
-    const updatedEvent = {
-      ...selectedEvent,
-      course: values.course,
-      grades: values.grades,
-      start: new Date(values.start),
-      end: new Date(values.end),
-      color: values.color,
-      standards: values.standards,
-      objectives: values.objectives,
-      additionalInfo: values.additionalInfo,
-      lesson: values.lesson,
-    };
-
-    setEvents(
-      events.map((event) =>
-        event.id === selectedEvent.id ? updatedEvent : event,
-      ),
-    );
-    handleClose();
+      toast.success("Event updated successfully!");
+      handleClose();
+    } catch (error) {
+      console.error("Failed to update event:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update event"
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
-  function handleDelete() {
-    if (!selectedEvent) return;
-    setEvents(events.filter((event) => event.id !== selectedEvent.id));
-    handleClose();
+  async function handleDelete() {
+    if (!selectedEvent?._id) {
+      toast.error("Event not found");
+      return;
+    }
+
+    setIsDeleting(true);
+
+    try {
+      const result = await deleteScheduledLesson({
+        progressId: selectedEvent._id as Id<"lesson_progress">,
+      });
+
+      if (result.deleted) {
+        toast.success("Event deleted successfully!");
+      } else {
+        // Event had evidence, only scheduling was removed
+        toast.success("Event removed from calendar. Evidence preserved.");
+      }
+
+      handleClose();
+    } catch (error) {
+      console.error("Failed to delete event:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete event"
+      );
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
   function handleClose() {
@@ -250,7 +185,6 @@ export default function CalendarManageEventDialog() {
     form.reset();
     setStandards([]);
     setStandardInput("");
-    setSelectedGrades([]);
   }
 
   const handleAddStandard = () => {
@@ -276,118 +210,80 @@ export default function CalendarManageEventDialog() {
     }
   };
 
+  const hasEvidence = selectedEvent?.hasEvidence;
+
   return (
     <Dialog open={manageEventDialogOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Manage event</DialogTitle>
+          <DialogTitle>Manage Scheduled Lesson</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* Course & Lesson Selection */}
-            <div className="space-y-4">
-              <h4 className="text-sm font-medium border-b pb-2">
-                Basic information
-              </h4>
-              <div className="grid gap-4">
-                {/* Course Selection */}
-                <FormField
-                  control={form.control}
-                  name="course"
-                  render={({ field }) => (
-                    <FormItem className="grid gap-3">
-                      <Label>
-                        Course <span className="text-red-500">*</span>
-                      </Label>
-                      <FormControl>
-                        <SelectDropdown
-                          options={courseOptions}
-                          value={field.value || ""}
-                          onValueChange={handleCourseChange}
-                          placeholder="Select a course..."
-                          label="Available Courses"
-                          searchable
-                          searchPlaceholder="Search courses..."
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Lesson Selection - Only show when course is selected */}
-                {selectedCourse && (
-                  <FormField
-                    control={form.control}
-                    name="lesson"
-                    render={({ field }) => (
-                      <FormItem className="grid gap-3">
-                        <Label>
-                          Lesson <span className="text-red-500">*</span>
-                        </Label>
-                        <FormControl>
-                          <SelectDropdown
-                            options={lessonOptions}
-                            value={field.value || ""}
-                            onValueChange={field.onChange}
-                            placeholder="Select a lesson..."
-                            label="Available Lessons"
-                            searchable
-                            searchPlaceholder="Search lessons..."
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
-
-                {/* Grades Selection - Only show when course is selected */}
-                {selectedCourse && (
-                  <div className="grid gap-3">
-                    <Label>
-                      Grades <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="flex flex-wrap gap-3">
-                      {selectedCourse.grades.map((grade) => (
-                        <div
-                          key={grade.code}
-                          className="flex items-center space-x-2"
-                        >
-                          <Checkbox
-                            id={`manage-grade-${grade.code}`}
-                            checked={selectedGrades.includes(grade.code)}
-                            onCheckedChange={() =>
-                              handleGradeToggle(grade.code)
-                            }
-                          />
-                          <label
-                            htmlFor={`manage-grade-${grade.code}`}
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                          >
-                            {grade.name}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                    {selectedGrades.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {selectedGrades.map((gradeCode) => {
-                          const grade = selectedCourse.grades.find(
-                            (g) => g.code === gradeCode,
-                          );
-                          return (
-                            <Badge key={gradeCode} variant="secondary">
-                              {grade?.name || gradeCode}
-                            </Badge>
-                          );
-                        })}
-                      </div>
-                    )}
+            {/* Lesson Info (Read-only) */}
+            {selectedEvent && (
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium border-b pb-2">
+                  Lesson Information
+                </h4>
+                <div className="grid gap-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Course:</span>
+                    <span className="font-medium">
+                      {selectedEvent.curriculumName || "N/A"}
+                      {selectedEvent.curriculumCode && (
+                        <Badge variant="outline" className="ml-2">
+                          {selectedEvent.curriculumCode}
+                        </Badge>
+                      )}
+                    </span>
                   </div>
-                )}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Lesson:</span>
+                    <span className="font-medium">
+                      {selectedEvent.lessonTitle || "N/A"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Grade:</span>
+                    <span className="font-medium">
+                      {selectedEvent.gradeName || selectedEvent.gradeCode || "N/A"}
+                    </span>
+                  </div>
+                  {selectedEvent.groupCode && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Group:</span>
+                      <span className="font-medium">{selectedEvent.groupCode}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Status:</span>
+                    <Badge
+                      variant={
+                        selectedEvent.status === "completed"
+                          ? "default"
+                          : "secondary"
+                      }
+                      className={
+                        selectedEvent.status === "completed"
+                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
+                          : ""
+                      }
+                    >
+                      {selectedEvent.status === "completed" && (
+                        <FileCheck className="h-3 w-3 mr-1" />
+                      )}
+                      {selectedEvent.status?.replace("_", " ") || "not started"}
+                    </Badge>
+                  </div>
+                  {hasEvidence && (
+                    <div className="bg-green-50 dark:bg-green-950/20 text-green-700 dark:text-green-300 p-2 rounded-md text-xs">
+                      ✓ This lesson has evidence uploaded. Deleting will only remove it from the calendar.
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Objectives */}
             <div className="space-y-4">
@@ -414,21 +310,21 @@ export default function CalendarManageEventDialog() {
 
             {/* Standards Section */}
             <div className="space-y-4">
-              <h4 className="text-sm font-medium border-b pb-2">Standards <span className="text-red-500">*</span> </h4>
+              <h4 className="text-sm font-medium border-b pb-2">
+                Standards <span className="text-red-500">*</span>
+              </h4>
               <div className="grid gap-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
-                  <div className="grid gap-3">
-                    <Label htmlFor="standardCode">
-                      Code <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="standardCode"
-                      placeholder="e.g., ELA.12.R.3.2"
-                      value={standardInput}
-                      onChange={(e) => setStandardInput(e.target.value)}
-                      onKeyDown={handleStandardKeyDown}
-                    />
-                  </div>
+                <div className="grid gap-3">
+                  <Label htmlFor="standardCode">
+                    Code <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="standardCode"
+                    placeholder="e.g., ELA.12.R.3.2"
+                    value={standardInput}
+                    onChange={(e) => setStandardInput(e.target.value)}
+                    onKeyDown={handleStandardKeyDown}
+                  />
                 </div>
                 <Button
                   type="button"
@@ -493,7 +389,9 @@ export default function CalendarManageEventDialog() {
 
             {/* Schedule */}
             <div className="space-y-4">
-              <h4 className="text-sm font-medium border-b pb-2">Schedule <span className="text-red-500">*</span> </h4>
+              <h4 className="text-sm font-medium border-b pb-2">
+                Schedule <span className="text-red-500">*</span>
+              </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -529,11 +427,11 @@ export default function CalendarManageEventDialog() {
               </div>
             </div>
 
+            {/* Color */}
             <div className="space-y-4">
               <h4 className="text-sm font-medium border-b pb-2">
                 Customization
               </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-1 gap-4"></div>
               <FormField
                 control={form.control}
                 name="color"
@@ -552,29 +450,41 @@ export default function CalendarManageEventDialog() {
             <DialogFooter className="flex justify-between gap-2">
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive" type="button">
-                    <Trash2 className="h-4 w-4" />
-                    Delete
+                  <Button variant="destructive" type="button" disabled={isDeleting}>
+                    {isDeleting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                    {hasEvidence ? "Remove from calendar" : "Delete"}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete event</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      {hasEvidence ? "Remove from calendar" : "Delete event"}
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
-                      Are you sure you want to delete this event? This action
-                      cannot be undone.
+                      {hasEvidence
+                        ? "This lesson has evidence uploaded. The event will be removed from the calendar, but the evidence will be preserved in the teaching section."
+                        : "Are you sure you want to delete this event? This action cannot be undone."}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete}>
-                      Delete
-                    </AlertDialogAction>
+                    <Button variant="destructive" onClick={handleDelete}>
+                      {hasEvidence ? "Remove" : "Delete"}
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-              <Button type="submit">
-                <Save className="h-4 w-4" />
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
                 Update event
               </Button>
             </DialogFooter>

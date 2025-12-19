@@ -15,6 +15,8 @@ export default function Calendar({
   date,
   setDate,
   calendarIconIsToday = true,
+  isLoading = false,
+  teacherId,
 }: CalendarProps) {
   return (
     <CalendarProvider
@@ -25,6 +27,8 @@ export default function Calendar({
       date={date}
       setDate={setDate}
       calendarIconIsToday={calendarIconIsToday}
+      isLoading={isLoading}
+      teacherId={teacherId}
     >
       <CalendarHeader>
         <CalendarHeaderDate />

@@ -383,6 +383,12 @@ export default defineSchema({
     scheduledDate: v.optional(v.number()),
     actualDurationMinutes: v.optional(v.number()),
 
+    // Calendar scheduling (for planned lessons)
+    scheduledStart: v.optional(v.number()), // Timestamp for scheduled start time
+    scheduledEnd: v.optional(v.number()), // Timestamp for scheduled end time
+    standards: v.optional(v.array(v.string())), // Educational standards (e.g., ["ELA.12.R.3.2", "MATH.9.A.1"])
+    displayColor: v.optional(v.string()), // Color for calendar display (e.g., "blue", "green", "red")
+
     // Student metrics (optional)
     studentAttendance: v.optional(v.object({
       present: v.number(),
@@ -408,7 +414,8 @@ export default defineSchema({
     .index("by_curriculum_teacher", ["curriculumId", "teacherId", "quarter"])
     .index("by_campus_date", ["campusId", "completedAt"])
     .index("by_teacher_quarter_status", ["teacherId", "quarter", "status"])
-    .index("by_verification_status", ["isVerified", "completedAt"]),
+    .index("by_verification_status", ["isVerified", "completedAt"])
+    .index("by_teacher_scheduled", ["teacherId", "scheduledStart"]), // For calendar queries
 
   /**
    * Activity logs table (optional but recommended for audit trail)

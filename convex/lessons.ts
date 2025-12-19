@@ -901,3 +901,387 @@ export const bulkCreateLessons = mutation({
     };
   },
 });
+
+// ============================================================================
+// CALENDAR SCHEDULING FUNCTIONS
+// These functions handle lesson scheduling for the calendar view.
+// They work alongside the existing evidence upload functionality.
+// Calendar events are lesson_progress records with scheduledStart/scheduledEnd.
+// ============================================================================
+
+/**
+ * Get teacher's calendar events (scheduled lessons)
+ * Only returns lesson_progress records that have scheduledStart and scheduledEnd
+ * This does NOT affect the existing evidence queries
+ */
+export const getTeacherCalendarEvents = query({
+  args: {
+    teacherId: v.id("users"),
+    startDate: v.optional(v.number()), // Filter events starting from this date
+    endDate: v.optional(v.number()), // Filter events ending before this date
+  },
+  handler: async (ctx, args) => {
+    // Get all scheduled events for this teacher
+    let eventsQuery = ctx.db
+      .query("lesson_progress")
+      .withIndex("by_teacher_scheduled", (q) =>
+        q.eq("teacherId", args.teacherId)
+      );
+
+    const allEvents = await eventsQuery.collect();
+
+    // Filter only events with scheduling info (calendar events)
+    let events = allEvents.filter(
+      (e) => e.scheduledStart !== undefined && e.scheduledEnd !== undefined
+    );
+
+    // Apply date range filters if provided
+    if (args.startDate !== undefined) {
+      events = events.filter((e) => e.scheduledStart! >= args.startDate!);
+    }
+    if (args.endDate !== undefined) {
+      events = events.filter((e) => e.scheduledEnd! <= args.endDate!);
+    }
+
+    // Enrich events with lesson and curriculum info
+    const enrichedEvents = await Promise.all(
+      events.map(async (event) => {
+        const lesson = await ctx.db.get(event.lessonId);
+        const curriculum = await ctx.db.get(event.curriculumId);
+        const campus = await ctx.db.get(event.campusId);
+
+        // Get grade name from campus
+        const grade = campus?.grades?.find((g) => g.code === event.gradeCode);
+
+        return {
+          ...event,
+          lessonTitle: lesson?.title || "Unknown Lesson",
+          lessonDescription: lesson?.description,
+          curriculumName: curriculum?.name || "Unknown Curriculum",
+          curriculumCode: curriculum?.code,
+          gradeName: grade?.name || event.gradeCode,
+          campusName: campus?.name,
+        };
+      })
+    );
+
+    return enrichedEvents;
+  },
+});
+
+/**
+ * Create a scheduled lesson (calendar event)
+ * Creates a new lesson_progress record with scheduling info
+ * 
+ * IMPORTANT: This creates a NEW record. If the teacher later uploads evidence
+ * from the /teaching page, the existing saveLessonEvidence mutation will:
+ * - Find this record by teacherId + lessonId + gradeCode/groupCode
+ * - PATCH it to add evidenceDocumentStorageId and set status to "completed"
+ * - The scheduling info (scheduledStart, scheduledEnd, etc.) is preserved
+ */
+export const createScheduledLesson = mutation({
+  args: {
+    teacherId: v.id("users"),
+    lessonId: v.id("curriculum_lessons"),
+    assignmentId: v.id("teacher_assignments"),
+    gradeCode: v.optional(v.string()),
+    groupCode: v.optional(v.string()),
+    // Scheduling fields
+    scheduledStart: v.number(),
+    scheduledEnd: v.number(),
+    // Calendar-specific fields
+    standards: v.optional(v.array(v.string())),
+    lessonPlan: v.optional(v.string()), // Maps to "objectives" in form
+    notes: v.optional(v.string()), // Maps to "additionalInfo" in form
+    displayColor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Validate assignment exists
+    const assignment = await ctx.db.get(args.assignmentId);
+    if (!assignment) {
+      throw new Error("Assignment not found");
+    }
+
+    // Validate lesson exists
+    const lesson = await ctx.db.get(args.lessonId);
+    if (!lesson) {
+      throw new Error("Lesson not found");
+    }
+
+    // Validate dates
+    if (args.scheduledEnd < args.scheduledStart) {
+      throw new Error("End time must be after start time");
+    }
+
+    // Check if a progress record already exists for this combination
+    let existingProgress;
+    if (args.groupCode) {
+      existingProgress = await ctx.db
+        .query("lesson_progress")
+        .withIndex("by_teacher_lesson_group", (q) =>
+          q
+            .eq("teacherId", args.teacherId)
+            .eq("lessonId", args.lessonId)
+            .eq("groupCode", args.groupCode)
+        )
+        .first();
+    } else if (args.gradeCode) {
+      existingProgress = await ctx.db
+        .query("lesson_progress")
+        .withIndex("by_teacher_lesson_grade", (q) =>
+          q
+            .eq("teacherId", args.teacherId)
+            .eq("lessonId", args.lessonId)
+            .eq("gradeCode", args.gradeCode)
+        )
+        .first();
+    } else {
+      existingProgress = await ctx.db
+        .query("lesson_progress")
+        .withIndex("by_teacher_lesson", (q) =>
+          q.eq("teacherId", args.teacherId).eq("lessonId", args.lessonId)
+        )
+        .filter((q) => q.eq(q.field("gradeCode"), undefined))
+        .first();
+    }
+
+    if (existingProgress) {
+      // If record exists but doesn't have scheduling, add it
+      if (existingProgress.scheduledStart === undefined) {
+        await ctx.db.patch(existingProgress._id, {
+          scheduledStart: args.scheduledStart,
+          scheduledEnd: args.scheduledEnd,
+          standards: args.standards,
+          lessonPlan: args.lessonPlan,
+          notes: args.notes,
+          displayColor: args.displayColor,
+          updatedAt: Date.now(),
+        });
+        return existingProgress._id;
+      } else {
+        // Already has scheduling - this is a duplicate
+        throw new Error(
+          "This lesson is already scheduled for this grade/group. Use update instead."
+        );
+      }
+    }
+
+    // Extract gradeCode from groupCode if not provided
+    const gradeCode =
+      args.gradeCode || (args.groupCode ? args.groupCode.split("-")[0] : undefined);
+
+    // Create new progress record with scheduling
+    const progressId = await ctx.db.insert("lesson_progress", {
+      teacherId: args.teacherId,
+      lessonId: args.lessonId,
+      assignmentId: args.assignmentId,
+      curriculumId: assignment.curriculumId,
+      campusId: assignment.campusId,
+      quarter: lesson.quarter,
+      gradeCode: gradeCode,
+      groupCode: args.groupCode,
+      status: "not_started",
+      // Scheduling fields
+      scheduledStart: args.scheduledStart,
+      scheduledEnd: args.scheduledEnd,
+      standards: args.standards,
+      lessonPlan: args.lessonPlan,
+      notes: args.notes,
+      displayColor: args.displayColor,
+      // Required fields
+      isVerified: false,
+      createdAt: Date.now(),
+    });
+
+    return progressId;
+  },
+});
+
+/**
+ * Update a scheduled lesson (calendar event)
+ * Only updates scheduling-related fields, preserves evidence data
+ */
+export const updateScheduledLesson = mutation({
+  args: {
+    progressId: v.id("lesson_progress"),
+    // Scheduling fields (all optional for partial updates)
+    scheduledStart: v.optional(v.number()),
+    scheduledEnd: v.optional(v.number()),
+    standards: v.optional(v.array(v.string())),
+    lessonPlan: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    displayColor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const progress = await ctx.db.get(args.progressId);
+    if (!progress) {
+      throw new Error("Scheduled lesson not found");
+    }
+
+    // Validate dates if both are provided
+    const newStart = args.scheduledStart ?? progress.scheduledStart;
+    const newEnd = args.scheduledEnd ?? progress.scheduledEnd;
+    if (newStart && newEnd && newEnd < newStart) {
+      throw new Error("End time must be after start time");
+    }
+
+    // Build update object (only include provided fields)
+    const updates: Record<string, unknown> = {
+      updatedAt: Date.now(),
+    };
+
+    if (args.scheduledStart !== undefined) updates.scheduledStart = args.scheduledStart;
+    if (args.scheduledEnd !== undefined) updates.scheduledEnd = args.scheduledEnd;
+    if (args.standards !== undefined) updates.standards = args.standards;
+    if (args.lessonPlan !== undefined) updates.lessonPlan = args.lessonPlan;
+    if (args.notes !== undefined) updates.notes = args.notes;
+    if (args.displayColor !== undefined) updates.displayColor = args.displayColor;
+
+    await ctx.db.patch(args.progressId, updates);
+
+    return args.progressId;
+  },
+});
+
+/**
+ * Delete a scheduled lesson (calendar event)
+ * 
+ * IMPORTANT DECISION: 
+ * - If the record has evidence (evidenceDocumentStorageId or evidencePhotoStorageId),
+ *   we DON'T delete it - only remove the scheduling info
+ * - If the record has no evidence, we can safely delete it
+ * 
+ * This ensures evidence uploaded from /teaching is never lost when
+ * a calendar event is "deleted"
+ */
+export const deleteScheduledLesson = mutation({
+  args: {
+    progressId: v.id("lesson_progress"),
+  },
+  handler: async (ctx, args) => {
+    const progress = await ctx.db.get(args.progressId);
+    if (!progress) {
+      throw new Error("Scheduled lesson not found");
+    }
+
+    const hasEvidence =
+      progress.evidenceDocumentStorageId || progress.evidencePhotoStorageId;
+
+    if (hasEvidence) {
+      // Has evidence: only remove scheduling info, keep the record
+      await ctx.db.patch(args.progressId, {
+        scheduledStart: undefined,
+        scheduledEnd: undefined,
+        standards: undefined,
+        displayColor: undefined,
+        // Keep lessonPlan and notes as they might have been used for evidence
+        updatedAt: Date.now(),
+      });
+
+      return { deleted: false, message: "Scheduling removed but evidence preserved" };
+    } else {
+      // No evidence: safe to delete the entire record
+      await ctx.db.delete(args.progressId);
+
+      return { deleted: true, message: "Scheduled lesson deleted" };
+    }
+  },
+});
+
+/**
+ * Get available lessons for scheduling
+ * Returns lessons from teacher's assignments that can be scheduled
+ * Includes info about which are already scheduled
+ */
+export const getSchedulableLessons = query({
+  args: {
+    teacherId: v.id("users"),
+    assignmentId: v.optional(v.id("teacher_assignments")),
+  },
+  handler: async (ctx, args) => {
+    // Get teacher's active assignments
+    let assignments;
+    if (args.assignmentId) {
+      const assignment = await ctx.db.get(args.assignmentId);
+      assignments = assignment ? [assignment] : [];
+    } else {
+      assignments = await ctx.db
+        .query("teacher_assignments")
+        .withIndex("by_teacher_active", (q) =>
+          q.eq("teacherId", args.teacherId).eq("isActive", true)
+        )
+        .collect();
+    }
+
+    const result = [];
+
+    for (const assignment of assignments) {
+      // Get curriculum
+      const curriculum = await ctx.db.get(assignment.curriculumId);
+      if (!curriculum) continue;
+
+      // Get campus for grade names
+      const campus = await ctx.db.get(assignment.campusId);
+
+      // Get lessons for this curriculum
+      const lessons = await ctx.db
+        .query("curriculum_lessons")
+        .withIndex("by_curriculum_active", (q) =>
+          q.eq("curriculumId", curriculum._id).eq("isActive", true)
+        )
+        .collect();
+
+      // Get existing progress records for this assignment
+      const progressRecords = await ctx.db
+        .query("lesson_progress")
+        .withIndex("by_assignment_status", (q) => q.eq("assignmentId", assignment._id))
+        .collect();
+
+      // Build lesson info with scheduling status
+      const lessonsWithStatus = lessons.map((lesson) => {
+        const lessonProgress = progressRecords.filter((p) => p.lessonId === lesson._id);
+        const scheduledGrades = lessonProgress
+          .filter((p) => p.scheduledStart !== undefined)
+          .map((p) => p.gradeCode || p.groupCode);
+
+        return {
+          _id: lesson._id,
+          title: lesson.title,
+          description: lesson.description,
+          quarter: lesson.quarter,
+          orderInQuarter: lesson.orderInQuarter,
+          gradeCodes: lesson.gradeCodes || (lesson.gradeCode ? [lesson.gradeCode] : []),
+          scheduledGrades,
+          isFullyScheduled:
+            scheduledGrades.length > 0 &&
+            scheduledGrades.length >= (assignment.assignedGrades?.length || 1),
+        };
+      });
+
+      // Get grade info
+      const assignedGrades = assignment.assignedGrades || [];
+      const grades = campus?.grades
+        ?.filter((g) => assignedGrades.includes(g.code))
+        .map((g) => ({
+          code: g.code,
+          name: g.name,
+          groups: assignment.assignedGroupCodes?.filter((gc: string) =>
+            gc.startsWith(g.code + "-")
+          ) || [],
+        })) || [];
+
+      result.push({
+        assignmentId: assignment._id,
+        curriculumId: curriculum._id,
+        curriculumName: curriculum.name,
+        curriculumCode: curriculum.code,
+        numberOfQuarters: curriculum.numberOfQuarters,
+        campusName: campus?.name,
+        grades,
+        lessons: lessonsWithStatus,
+      });
+    }
+
+    return result;
+  },
+});
