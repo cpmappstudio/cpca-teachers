@@ -71,7 +71,7 @@
                 ]
             },
             "professor": {
-                "title": "Mis Clases",
+                "title": "Mis Cursos",
                 "url": "/teaching",
                 "items": [
                     {

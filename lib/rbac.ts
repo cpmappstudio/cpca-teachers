@@ -5,7 +5,12 @@ import type { UserRole } from "@/convex/types";
 
 // Rutas específicas por rol
 const roleMatchers = {
-    teacher: createRouteMatcher(['/:locale/teaching(.*)', '/teaching(.*)']),
+    teacher: createRouteMatcher([
+        '/:locale/teaching(.*)',
+        '/teaching(.*)',
+        '/:locale/schedule(.*)',
+        '/schedule(.*)'
+    ]),
     admin: createRouteMatcher(['/:locale/admin(.*)', '/admin(.*)']),
     shared: createRouteMatcher([
         '/:locale/lessons(.*)',

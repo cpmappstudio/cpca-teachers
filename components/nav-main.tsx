@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useLocale } from "next-intl"
 import { useMemo, memo } from "react"
 import { type LucideIcon } from "lucide-react"
 import { clsx } from "clsx"
@@ -31,6 +32,7 @@ export const NavMain = memo(function NavMain({
   navigationLabel: string
 }) {
   const pathname = usePathname()
+  const locale = useLocale()
 
   // Memoize the path processing to avoid regex on every render
   const pathWithoutLocale = useMemo(() => {
@@ -49,7 +51,7 @@ export const NavMain = memo(function NavMain({
                 'bg-sidebar-accent text-sidebar-accent-foreground': pathWithoutLocale === item.url,
               })}
             >
-              <Link href={item.url}>
+              <Link href={`/${locale}${item.url}`}>
                 {item.icon && <item.icon />}
                 <span>{item.title}</span>
               </Link>
