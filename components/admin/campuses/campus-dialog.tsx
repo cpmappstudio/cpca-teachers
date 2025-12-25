@@ -872,7 +872,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                 />
               </div>
               <div className="grid gap-3">
-                <Label>Director</Label>
+                <Label>Principal</Label>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="w-full justify-between">
@@ -885,18 +885,18 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                         </div>
                       ) : (
                         <span className="text-muted-foreground">
-                          Select a director
+                          Select a Principal
                         </span>
                       )}
                       <ChevronDown className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-80" align="start">
-                    <DropdownMenuLabel>Available Directors</DropdownMenuLabel>
+                    <DropdownMenuLabel>Available Principals</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     {potentialDirectors?.length === 0 ? (
                       <DropdownMenuItem disabled>
-                        No directors available
+                        No Principals available
                       </DropdownMenuItem>
                     ) : (
                       <>
@@ -906,7 +906,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                         >
                           <div className="flex items-center gap-2">
                             <User className="h-4 w-4" />
-                            <span>No director assigned</span>
+                            <span>No Principal assigned</span>
                           </div>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
@@ -942,7 +942,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                 </DropdownMenu>
                 {potentialDirectors === undefined && (
                   <div className="text-sm text-muted-foreground">
-                    Loading available directors...
+                    Loading available Principals...
                   </div>
                 )}
               </div>
