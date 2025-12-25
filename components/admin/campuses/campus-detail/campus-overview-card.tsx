@@ -18,7 +18,7 @@ export function CampusOverviewCard({ campus, addressLabel }: CampusOverviewCardP
         },
         {
             icon: <Users className="h-4 w-4 text-primary" />,
-            label: "Director",
+            label: "Principal",
             value: directorDisplay,
             extra: campus.directorEmail ? (
                 <div className="mt-1 space-y-1">
