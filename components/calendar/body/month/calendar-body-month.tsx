@@ -86,7 +86,7 @@ export default function CalendarBodyMonth() {
                 onClick={(e) => {
                   e.stopPropagation()
                   setDate(day)
-                  setMode('day')
+                  setMode('week')
                 }}
               >
                 <div
@@ -120,7 +120,7 @@ export default function CalendarBodyMonth() {
                         onClick={(e) => {
                           e.stopPropagation()
                           setDate(day)
-                          setMode('day')
+                          setMode('week')
                         }}
                       >
                         +{dayEvents.length - 3} more

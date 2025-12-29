@@ -84,5 +84,5 @@ export type SchedulableCurriculum = {
   }[]
 }
 
-export const calendarModes = ['day', 'week', 'month'] as const
+export const calendarModes = ['week', 'month'] as const
 export type Mode = (typeof calendarModes)[number]
