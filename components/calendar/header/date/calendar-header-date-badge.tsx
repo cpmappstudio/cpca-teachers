@@ -3,7 +3,7 @@ import { isSameMonth } from 'date-fns'
 
 export default function CalendarHeaderDateBadge() {
   const { events, date } = useCalendarContext()
-  const monthEvents = events.filter((event) => isSameMonth(event.start, date))
+  const monthEvents = events.filter((event) => isSameMonth(event.date, date))
 
   if (!monthEvents.length) return null
   return (

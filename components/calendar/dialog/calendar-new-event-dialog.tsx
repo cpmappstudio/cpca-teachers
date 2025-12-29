@@ -18,7 +18,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useCalendarContext } from "../calendar-context";
 import { DateTimePicker } from "@/components/calendar/form/date-time-picker";
-import { ColorPicker } from "@/components/calendar/form/color-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { SelectDropdown } from "@/components/ui/select-dropdown";
@@ -32,25 +31,12 @@ const formSchema = z
   .object({
     assignmentId: z.string().min(1, "Course is required"),
     lessonId: z.string().min(1, "Lesson is required"),
-    start: z.string().min(1, "Start date is required"),
-    end: z.string().min(1, "End date is required"),
-    color: z.string(),
+    date: z.string().min(1, "Date is required"),
     groupCode: z.string().min(1, "Grade/Group is required"),
     standards: z.array(z.string()).min(1, "At least one standard is required"),
     objectives: z.string().optional(),
     additionalInfo: z.string().optional(),
-  })
-  .refine(
-    (data) => {
-      const start = new Date(data.start);
-      const end = new Date(data.end);
-      return end >= start;
-    },
-    {
-      message: "End time must be after start time",
-      path: ["end"],
-    },
-  );
+  });
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -76,9 +62,7 @@ export default function CalendarNewEventDialog() {
     defaultValues: {
       assignmentId: "",
       lessonId: "",
-      start: date.toISOString(),
-      end: new Date(date.getTime() + 60 * 60 * 1000).toISOString(),
-      color: "blue",
+      date: date.toISOString(),
       groupCode: "",
       standards: [],
       objectives: "",
@@ -92,9 +76,7 @@ export default function CalendarNewEventDialog() {
       form.reset({
         assignmentId: "",
         lessonId: "",
-        start: date.toISOString(),
-        end: new Date(date.getTime() + 60 * 60 * 1000).toISOString(),
-        color: "blue",
+        date: date.toISOString(),
         groupCode: "",
         standards: [],
         objectives: "",
@@ -207,12 +189,10 @@ export default function CalendarNewEventDialog() {
         assignmentId: values.assignmentId as Id<"teacher_assignments">,
         gradeCode: extractedGradeCode,
         groupCode: finalGroupCode,
-        scheduledStart: new Date(values.start).getTime(),
-        scheduledEnd: new Date(values.end).getTime(),
+        scheduledDate: new Date(values.date).getTime(),
         standards: values.standards,
         lessonPlan: values.objectives,
         notes: values.additionalInfo,
-        displayColor: values.color,
       });
 
       toast.success("Lesson scheduled successfully!");
@@ -474,30 +454,14 @@ export default function CalendarNewEventDialog() {
                 <h4 className="text-sm font-medium border-b pb-2">
                   Schedule <span className="text-red-500">*</span>
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid gap-4">
                   <FormField
                     control={form.control}
-                    name="start"
+                    name="date"
                     render={({ field }) => (
                       <FormItem className="grid gap-3">
                         <Label>
-                          Start <span className="text-red-500">*</span>
-                        </Label>
-                        <FormControl>
-                          <DateTimePicker field={field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="end"
-                    render={({ field }) => (
-                      <FormItem className="grid gap-3">
-                        <Label>
-                          End <span className="text-red-500">*</span>
+                          Date <span className="text-red-500">*</span>
                         </Label>
                         <FormControl>
                           <DateTimePicker field={field} />
@@ -507,24 +471,6 @@ export default function CalendarNewEventDialog() {
                     )}
                   />
                 </div>
-              </div>
-
-              {/* Color */}
-              <div className="space-y-4">
-                <h4 className="text-sm font-medium border-b pb-2">Customization</h4>
-                <FormField
-                  control={form.control}
-                  name="color"
-                  render={({ field }) => (
-                    <FormItem className="grid gap-3">
-                      <Label>Color</Label>
-                      <FormControl>
-                        <ColorPicker field={field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
             </>
           )}

@@ -4,7 +4,7 @@ import { isSameDay } from 'date-fns'
 export default function CalendarBodyDayEvents() {
   const { events, date, setManageEventDialogOpen, setSelectedEvent } =
     useCalendarContext()
-  const dayEvents = events.filter((event) => isSameDay(event.start, date))
+  const dayEvents = events.filter((event) => isSameDay(event.date, date))
 
   return !!dayEvents.length ? (
     <div className="flex flex-col gap-2">

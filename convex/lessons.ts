@@ -911,7 +911,7 @@ export const bulkCreateLessons = mutation({
 
 /**
  * Get teacher's calendar events (scheduled lessons)
- * Only returns lesson_progress records that have scheduledStart and scheduledEnd
+ * Only returns lesson_progress records that have scheduledDate
  * This does NOT affect the existing evidence queries
  */
 export const getTeacherCalendarEvents = query({
@@ -932,15 +932,15 @@ export const getTeacherCalendarEvents = query({
 
     // Filter only events with scheduling info (calendar events)
     let events = allEvents.filter(
-      (e) => e.scheduledStart !== undefined && e.scheduledEnd !== undefined
+      (e) => e.scheduledDate !== undefined
     );
 
     // Apply date range filters if provided
     if (args.startDate !== undefined) {
-      events = events.filter((e) => e.scheduledStart! >= args.startDate!);
+      events = events.filter((e) => e.scheduledDate! >= args.startDate!);
     }
     if (args.endDate !== undefined) {
-      events = events.filter((e) => e.scheduledEnd! <= args.endDate!);
+      events = events.filter((e) => e.scheduledDate! <= args.endDate!);
     }
 
     // Enrich events with lesson and curriculum info
@@ -977,7 +977,7 @@ export const getTeacherCalendarEvents = query({
  * from the /teaching page, the existing saveLessonEvidence mutation will:
  * - Find this record by teacherId + lessonId + gradeCode/groupCode
  * - PATCH it to add evidenceDocumentStorageId and set status to "completed"
- * - The scheduling info (scheduledStart, scheduledEnd, etc.) is preserved
+ * - The scheduling info (scheduledDate, etc.) is preserved
  */
 export const createScheduledLesson = mutation({
   args: {
@@ -987,8 +987,7 @@ export const createScheduledLesson = mutation({
     gradeCode: v.optional(v.string()),
     groupCode: v.optional(v.string()),
     // Scheduling fields
-    scheduledStart: v.number(),
-    scheduledEnd: v.number(),
+    scheduledDate: v.number(),
     // Calendar-specific fields
     standards: v.optional(v.array(v.string())),
     lessonPlan: v.optional(v.string()), // Maps to "objectives" in form
@@ -1006,11 +1005,6 @@ export const createScheduledLesson = mutation({
     const lesson = await ctx.db.get(args.lessonId);
     if (!lesson) {
       throw new Error("Lesson not found");
-    }
-
-    // Validate dates
-    if (args.scheduledEnd < args.scheduledStart) {
-      throw new Error("End time must be after start time");
     }
 
     // Check if a progress record already exists for this combination
@@ -1047,10 +1041,9 @@ export const createScheduledLesson = mutation({
 
     if (existingProgress) {
       // If record exists but doesn't have scheduling, add it
-      if (existingProgress.scheduledStart === undefined) {
+      if (existingProgress.scheduledDate === undefined) {
         await ctx.db.patch(existingProgress._id, {
-          scheduledStart: args.scheduledStart,
-          scheduledEnd: args.scheduledEnd,
+          scheduledDate: args.scheduledDate,
           standards: args.standards,
           lessonPlan: args.lessonPlan,
           notes: args.notes,
@@ -1082,8 +1075,7 @@ export const createScheduledLesson = mutation({
       groupCode: args.groupCode,
       status: "not_started",
       // Scheduling fields
-      scheduledStart: args.scheduledStart,
-      scheduledEnd: args.scheduledEnd,
+      scheduledDate: args.scheduledDate,
       standards: args.standards,
       lessonPlan: args.lessonPlan,
       notes: args.notes,
@@ -1105,8 +1097,7 @@ export const updateScheduledLesson = mutation({
   args: {
     progressId: v.id("lesson_progress"),
     // Scheduling fields (all optional for partial updates)
-    scheduledStart: v.optional(v.number()),
-    scheduledEnd: v.optional(v.number()),
+    scheduledDate: v.optional(v.number()),
     standards: v.optional(v.array(v.string())),
     lessonPlan: v.optional(v.string()),
     notes: v.optional(v.string()),
@@ -1118,20 +1109,12 @@ export const updateScheduledLesson = mutation({
       throw new Error("Scheduled lesson not found");
     }
 
-    // Validate dates if both are provided
-    const newStart = args.scheduledStart ?? progress.scheduledStart;
-    const newEnd = args.scheduledEnd ?? progress.scheduledEnd;
-    if (newStart && newEnd && newEnd < newStart) {
-      throw new Error("End time must be after start time");
-    }
-
     // Build update object (only include provided fields)
     const updates: Record<string, unknown> = {
       updatedAt: Date.now(),
     };
 
-    if (args.scheduledStart !== undefined) updates.scheduledStart = args.scheduledStart;
-    if (args.scheduledEnd !== undefined) updates.scheduledEnd = args.scheduledEnd;
+    if (args.scheduledDate !== undefined) updates.scheduledDate = args.scheduledDate;
     if (args.standards !== undefined) updates.standards = args.standards;
     if (args.lessonPlan !== undefined) updates.lessonPlan = args.lessonPlan;
     if (args.notes !== undefined) updates.notes = args.notes;
@@ -1170,8 +1153,7 @@ export const deleteScheduledLesson = mutation({
     if (hasEvidence) {
       // Has evidence: only remove scheduling info, keep the record
       await ctx.db.patch(args.progressId, {
-        scheduledStart: undefined,
-        scheduledEnd: undefined,
+        scheduledDate: undefined,
         standards: undefined,
         displayColor: undefined,
         // Keep lessonPlan and notes as they might have been used for evidence
