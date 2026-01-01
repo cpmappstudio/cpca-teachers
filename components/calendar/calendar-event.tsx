@@ -74,8 +74,8 @@ export default function CalendarEvent({
       <AnimatePresence mode="wait">
         <motion.div
           className={cn(
-            `px-3 py-1.5 rounded-md truncate cursor-pointer transition-all duration-300 bg-${event.color}-500/10 hover:bg-${event.color}-500/20 border border-${event.color}-500`,
-            !month && "absolute",
+            `rounded-md cursor-pointer transition-all duration-300 bg-${event.color}-500/10 hover:bg-${event.color}-500/20 border border-${event.color}-500`,
+            month ? "px-2 py-1" : "px-3 py-1.5 absolute",
             className,
           )}
           style={style}
@@ -116,51 +116,28 @@ export default function CalendarEvent({
           }}
           layoutId={`event-${animationKey}-${month ? "month" : "day"}`}
         >
-          <motion.div
+          <div
             className={cn(
-              `flex flex-col w-full text-${event.color}-500`,
-              month && "flex-row items-center justify-between",
+              `flex w-full text-${event.color}-500`,
+              month ? "flex-row items-center gap-1.5" : "flex-col gap-0.5",
             )}
-            layout="position"
           >
-            <div
-              className={cn(
-                "flex flex-col",
-                month && "flex-row items-center gap-1",
-              )}
-            >
-              {event.course && (
-                <p className={cn("font-bold truncate", month && "text-xs")}>
-                  {event.course}
-                </p>
-              )}
-              {event.lesson && (
-                <p
-                  className={cn(
-                    "text-sm truncate",
-                    month && "hidden",
-                    !month && "font-medium",
-                  )}
-                >
-                  {event.lesson}
-                </p>
-              )}
-              {event.gradeCode && (
-                <p
-                  className={cn(
-                    "text-sm truncate",
-                    month && "hidden",
-                    !month && "font-medium",
-                  )}
-                >
-                  {event.gradeCode}
-                </p>
-              )}
-            </div>
-            <p className={cn("text-sm", month && "text-xs")}>
-              <span>{format(event.date, "MMM d")}</span>
-            </p>
-          </motion.div>
+            {event.course && (
+              <p className={cn("font-bold truncate", month ? "text-xs" : "text-xs")}>
+                {event.course}
+              </p>
+            )}
+            {event.lesson && !month && (
+              <p className="truncate text-sm font-medium">
+                {event.lesson.match(/^(Q\d+\s*-\s*)?(Lesson\s*\d+|L\d+)/i)?.[0] || event.lesson.split('.')[0]}
+              </p>
+            )}
+            {event.groupCode && (
+              <p className={cn("truncate", month ? "text-xs opacity-70" : "text-sm font-medium")}>
+                {month ? `(${event.groupCode})` : event.groupCode}
+              </p>
+            )}
+          </div>
         </motion.div>
       </AnimatePresence>
     </MotionConfig>

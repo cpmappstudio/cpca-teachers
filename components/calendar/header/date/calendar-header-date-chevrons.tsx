@@ -3,12 +3,14 @@ import { useCalendarContext } from "../../calendar-context";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   format,
-  addDays,
   addMonths,
   addWeeks,
-  subDays,
   subMonths,
   subWeeks,
+  startOfWeek,
+  endOfWeek,
+  isSameMonth,
+  isSameYear,
 } from "date-fns";
 import CalendarHeaderDateBadge from "./calendar-header-date-badge";
 
@@ -23,9 +25,6 @@ export default function CalendarHeaderDateChevrons() {
       case "week":
         setDate(subWeeks(date, 1));
         break;
-      case "day":
-        setDate(subDays(date, 1));
-        break;
     }
   }
 
@@ -37,10 +36,27 @@ export default function CalendarHeaderDateChevrons() {
       case "week":
         setDate(addWeeks(date, 1));
         break;
-      case "day":
-        setDate(addDays(date, 1));
-        break;
     }
+  }
+
+  // Get the date label based on mode
+  function getDateLabel() {
+    if (mode === "week") {
+      const weekStart = startOfWeek(date, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(date, { weekStartsOn: 1 });
+
+      // Check if week spans two different months
+      if (!isSameMonth(weekStart, weekEnd)) {
+        // Check if it also spans two different years
+        if (!isSameYear(weekStart, weekEnd)) {
+          return `${format(weekStart, "MMM yyyy")} - ${format(weekEnd, "MMM yyyy")}`;
+        }
+        // Same year, different months
+        return `${format(weekStart, "MMM")} - ${format(weekEnd, "MMM yyyy")}`;
+      }
+    }
+    // Default: single month display
+    return format(date, "MMMM yyyy");
   }
 
   return (
@@ -53,7 +69,7 @@ export default function CalendarHeaderDateChevrons() {
         <ChevronLeft className="min-w-5 min-h-5" />
       </Button>
       <div className="flex items-center gap-1">
-        <p className="text-lg font-semibold">{format(date, "MMMM yyyy")}</p>
+        <p className="text-lg font-semibold">{getDateLabel()}</p>
         <CalendarHeaderDateBadge />
       </div>
 

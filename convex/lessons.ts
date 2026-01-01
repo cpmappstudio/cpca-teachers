@@ -1154,6 +1154,8 @@ export const deleteScheduledLesson = mutation({
       // Has evidence: only remove scheduling info, keep the record
       await ctx.db.patch(args.progressId, {
         scheduledDate: undefined,
+        scheduledStart: undefined,
+        scheduledEnd: undefined,
         standards: undefined,
         displayColor: undefined,
         // Keep lessonPlan and notes as they might have been used for evidence
