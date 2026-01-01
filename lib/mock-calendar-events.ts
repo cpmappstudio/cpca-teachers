@@ -74,8 +74,6 @@ export function generateMockEvents(): CalendarEvent[] {
     const eventDate = addDays(startDate, daysToAdd)
 
     const startTime = getRandomTime(eventDate)
-    const durationMinutes = generateEventDuration()
-    const endTime = new Date(startTime.getTime() + durationMinutes * 60000)
 
     // Select random course and corresponding lesson
     const course = COURSES[Math.floor(Math.random() * COURSES.length)]
@@ -85,8 +83,7 @@ export function generateMockEvents(): CalendarEvent[] {
     events.push({
       id: `event-${i + 1}`,
       color: EVENT_COLORS[Math.floor(Math.random() * EVENT_COLORS.length)],
-      start: startTime,
-      end: endTime,
+      date: startTime,
       course: course.id,
       grades: getRandomGrades(),
       standards: getRandomStandards(),
@@ -96,6 +93,6 @@ export function generateMockEvents(): CalendarEvent[] {
     })
   }
 
-  // Sort events by start date
-  return events.sort((a, b) => a.start.getTime() - b.start.getTime())
+  // Sort events by date
+  return events.sort((a, b) => a.date.getTime() - b.date.getTime())
 }
