@@ -23,7 +23,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useCalendarContext } from "../calendar-context";
 import { DateTimePicker } from "@/components/calendar/form/date-time-picker";
-import { ColorPicker } from "@/components/calendar/form/color-picker";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,32 +42,13 @@ import { toast } from "sonner";
 
 const formSchema = z
   .object({
-    start: z.string().refine((val) => !isNaN(Date.parse(val)), {
-      message: "Invalid start date",
+    date: z.string().refine((val) => !isNaN(Date.parse(val)), {
+      message: "Invalid date",
     }),
-    end: z.string().refine((val) => !isNaN(Date.parse(val)), {
-      message: "Invalid end date",
-    }),
-    color: z.string(),
     standards: z.array(z.string()).min(1, "At least one standard is required"),
     objectives: z.string().optional(),
     additionalInfo: z.string().optional(),
-  })
-  .refine(
-    (data) => {
-      try {
-        const start = new Date(data.start);
-        const end = new Date(data.end);
-        return end >= start;
-      } catch {
-        return false;
-      }
-    },
-    {
-      message: "End time must be after start time",
-      path: ["end"],
-    },
-  );
+  });
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -93,9 +73,7 @@ export default function CalendarManageEventDialog() {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      start: "",
-      end: "",
-      color: "blue",
+      date: "",
       standards: [],
       objectives: "",
       additionalInfo: "",
@@ -106,9 +84,7 @@ export default function CalendarManageEventDialog() {
     if (selectedEvent) {
       const eventStandards = selectedEvent.standards || [];
       form.reset({
-        start: selectedEvent.start.toISOString(),
-        end: selectedEvent.end.toISOString(),
-        color: selectedEvent.color,
+        date: selectedEvent.date.toISOString(),
         standards: eventStandards,
         objectives: selectedEvent.objectives || "",
         additionalInfo: selectedEvent.additionalInfo || "",
@@ -128,12 +104,10 @@ export default function CalendarManageEventDialog() {
     try {
       await updateScheduledLesson({
         progressId: selectedEvent._id as Id<"lesson_progress">,
-        scheduledStart: new Date(values.start).getTime(),
-        scheduledEnd: new Date(values.end).getTime(),
+        scheduledDate: new Date(values.date).getTime(),
         standards: values.standards,
         lessonPlan: values.objectives,
         notes: values.additionalInfo,
-        displayColor: values.color,
       });
 
       toast.success("Event updated successfully!");
@@ -392,30 +366,14 @@ export default function CalendarManageEventDialog() {
               <h4 className="text-sm font-medium border-b pb-2">
                 Schedule <span className="text-red-500">*</span>
               </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid gap-4">
                 <FormField
                   control={form.control}
-                  name="start"
+                  name="date"
                   render={({ field }) => (
                     <FormItem className="grid gap-3">
                       <Label>
-                        Start <span className="text-red-500">*</span>
-                      </Label>
-                      <FormControl>
-                        <DateTimePicker field={field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="end"
-                  render={({ field }) => (
-                    <FormItem className="grid gap-3">
-                      <Label>
-                        End <span className="text-red-500">*</span>
+                        Date <span className="text-red-500">*</span>
                       </Label>
                       <FormControl>
                         <DateTimePicker field={field} />
@@ -425,26 +383,6 @@ export default function CalendarManageEventDialog() {
                   )}
                 />
               </div>
-            </div>
-
-            {/* Color */}
-            <div className="space-y-4">
-              <h4 className="text-sm font-medium border-b pb-2">
-                Customization
-              </h4>
-              <FormField
-                control={form.control}
-                name="color"
-                render={({ field }) => (
-                  <FormItem className="grid gap-3">
-                    <Label>Color</Label>
-                    <FormControl>
-                      <ColorPicker field={field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
 
             <DialogFooter className="flex justify-between gap-2">

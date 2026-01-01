@@ -34,8 +34,7 @@ export type CalendarEvent = {
   curriculumId?: Id<"curriculums">
   // Display fields
   color: string
-  start: Date
-  end: Date
+  date: Date // Single date for the event (no start/end times)
   // Course/Curriculum info
   course?: string
   curriculumName?: string
@@ -85,5 +84,5 @@ export type SchedulableCurriculum = {
   }[]
 }
 
-export const calendarModes = ['day', 'week', 'month'] as const
+export const calendarModes = ['week', 'month'] as const
 export type Mode = (typeof calendarModes)[number]

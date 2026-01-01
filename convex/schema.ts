@@ -415,7 +415,7 @@ export default defineSchema({
     .index("by_campus_date", ["campusId", "completedAt"])
     .index("by_teacher_quarter_status", ["teacherId", "quarter", "status"])
     .index("by_verification_status", ["isVerified", "completedAt"])
-    .index("by_teacher_scheduled", ["teacherId", "scheduledStart"]), // For calendar queries
+    .index("by_teacher_scheduled", ["teacherId", "scheduledDate"]), // For calendar queries
 
   /**
    * Activity logs table (optional but recommended for audit trail)

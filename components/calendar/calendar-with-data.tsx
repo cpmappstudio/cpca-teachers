@@ -15,7 +15,7 @@ import { Loader2 } from "lucide-react";
  * 
  * This component:
  * - Fetches scheduled lessons from lesson_progress table
- * - Only shows events with scheduledStart/scheduledEnd (calendar events)
+ * - Only shows events with scheduledDate (calendar events)
  * - Does NOT interfere with evidence upload functionality
  * - Evidence records without scheduling won't appear here
  */
@@ -26,7 +26,7 @@ export default function CalendarWithData() {
   const [date, setDate] = useState<Date>(new Date());
 
   // Fetch calendar events from Convex
-  // Only returns lesson_progress records with scheduledStart/scheduledEnd
+  // Only returns lesson_progress records with scheduledDate
   const calendarEvents = useQuery(
     api.lessons.getTeacherCalendarEvents,
     user?._id ? { teacherId: user._id as Id<"users"> } : "skip"
@@ -42,9 +42,8 @@ export default function CalendarWithData() {
         assignmentId: event.assignmentId,
         curriculumId: event.curriculumId,
         // Display
-        color: event.displayColor || getStatusColor(event.status),
-        start: new Date(event.scheduledStart!),
-        end: new Date(event.scheduledEnd!),
+        color: getStatusColor(event.status),
+        date: new Date(event.scheduledDate!),
         // Course info - use name for display, keep curriculumId for reference
         course: event.curriculumName || "Unknown Course",
         curriculumName: event.curriculumName,
@@ -119,19 +118,9 @@ export default function CalendarWithData() {
 /**
  * Get color based on lesson status
  * This provides visual feedback for lesson completion state
+ * - completed: emerald (green)
+ * - not completed: amber (yellow)
  */
 function getStatusColor(status: string | undefined): string {
-  switch (status) {
-    case "completed":
-      return "green";
-    case "in_progress":
-      return "yellow";
-    case "skipped":
-      return "gray";
-    case "rescheduled":
-      return "orange";
-    case "not_started":
-    default:
-      return "blue";
-  }
+  return status === "completed" ? "emerald" : "amber";
 }
