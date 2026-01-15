@@ -3,8 +3,11 @@ import {
   TeacherHeader,
   TeacherOverviewCard,
   TeacherCurriculumsCard,
+  TeacherCalendarCard,
 } from "@/components/admin/teachers/teacher-detail";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BookOpen, CalendarDays } from "lucide-react";
 
 interface TeacherPageProps {
   params: Promise<{
@@ -40,12 +43,29 @@ export default async function TeacherPage({ params }: TeacherPageProps) {
                 </div> */}
       </div>
 
-      {/* Curriculums Section */}
-      <div className="space-y-6">
-        <Suspense fallback={<Skeleton className="h-96 w-full" />}>
-          <TeacherCurriculumsCard teacherId={teacherId} />
-        </Suspense>
-      </div>
+      {/* Curriculums & Schedule Section */}
+      <Tabs defaultValue="curriculums" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="curriculums" className="gap-2">
+            <BookOpen className="h-4 w-4" />
+            Curriculums
+          </TabsTrigger>
+          <TabsTrigger value="schedule" className="gap-2">
+            <CalendarDays className="h-4 w-4" />
+            Schedule
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="curriculums" className="mt-0">
+          <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+            <TeacherCurriculumsCard teacherId={teacherId} />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="schedule" className="mt-0">
+          <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+            <TeacherCalendarCard teacherId={teacherId} />
+          </Suspense>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
