@@ -1225,8 +1225,8 @@ export const getSchedulableLessons = query({
       const lessonsWithStatus = lessons.map((lesson) => {
         const lessonProgress = progressRecords.filter((p) => p.lessonId === lesson._id);
         const scheduledGrades = lessonProgress
-          .filter((p) => p.scheduledStart !== undefined)
-          .map((p) => p.gradeCode || p.groupCode);
+          .filter((p) => p.scheduledDate !== undefined)
+          .map((p) => p.groupCode || p.gradeCode);
 
         return {
           _id: lesson._id,

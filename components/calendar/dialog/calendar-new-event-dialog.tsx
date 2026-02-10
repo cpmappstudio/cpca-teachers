@@ -21,22 +21,27 @@ import { DateTimePicker } from "@/components/calendar/form/date-time-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { SelectDropdown } from "@/components/ui/select-dropdown";
-import { Plus, X, Loader2 } from "lucide-react";
+import { Plus, X, Loader2, Info } from "lucide-react";
 import { EntityDialog } from "@/components/ui/entity-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import type { SchedulableCurriculum } from "../calendar-types";
 
-const formSchema = z
-  .object({
-    assignmentId: z.string().min(1, "Course is required"),
-    lessonId: z.string().min(1, "Lesson is required"),
-    date: z.string().min(1, "Date is required"),
-    groupCode: z.string().min(1, "Grade/Group is required"),
-    standards: z.array(z.string()).min(1, "At least one standard is required"),
-    objectives: z.string().optional(),
-    additionalInfo: z.string().optional(),
-  });
+const formSchema = z.object({
+  assignmentId: z.string().min(1, "Course is required"),
+  lessonId: z.string().min(1, "Lesson is required"),
+  date: z.string().min(1, "Date is required"),
+  groupCode: z.string().min(1, "Grade/Group is required"),
+  standards: z.array(z.string()).min(1, "At least one standard is required"),
+  objectives: z.string().optional(),
+  additionalInfo: z.string().optional(),
+});
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -48,11 +53,12 @@ export default function CalendarNewEventDialog() {
   const [standards, setStandards] = useState<string[]>([]);
   const [standardInput, setStandardInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [tooltipOpen, setTooltipOpen] = useState(false);
 
   // Convex queries and mutations
   const schedulableLessons = useQuery(
     api.lessons.getSchedulableLessons,
-    teacherId ? { teacherId } : "skip"
+    teacherId ? { teacherId } : "skip",
   );
 
   const createScheduledLesson = useMutation(api.lessons.createScheduledLesson);
@@ -83,6 +89,7 @@ export default function CalendarNewEventDialog() {
         additionalInfo: "",
       });
       setStandards([]);
+      setTooltipOpen(false);
     }
   }, [newEventDialogOpen, date, form]);
 
@@ -94,7 +101,7 @@ export default function CalendarNewEventDialog() {
   const selectedCurriculum = useMemo(() => {
     if (!schedulableLessons || !selectedAssignmentId) return null;
     return schedulableLessons.find(
-      (c: SchedulableCurriculum) => c.assignmentId === selectedAssignmentId
+      (c: SchedulableCurriculum) => c.assignmentId === selectedAssignmentId,
     );
   }, [schedulableLessons, selectedAssignmentId]);
 
@@ -112,46 +119,47 @@ export default function CalendarNewEventDialog() {
     if (!selectedCurriculum) return [];
     return selectedCurriculum.lessons.map((lesson) => ({
       value: lesson._id,
-      label: `Q${lesson.quarter} - ${lesson.title}${lesson.isFullyScheduled ? " ✓" : ""}`,
-      disabled: lesson.isFullyScheduled,
+      label: `Q${lesson.quarter} - ${lesson.title}`,
     }));
   }, [selectedCurriculum]);
 
   // Get combined grade+group options based on selected lesson
   const groupOptions = useMemo(() => {
     if (!selectedCurriculum || !selectedLessonId) return [];
-    
+
     const lesson = selectedCurriculum.lessons.find(
-      (l) => l._id === selectedLessonId
+      (l) => l._id === selectedLessonId,
     );
-    
+
     const options: { value: string; label: string }[] = [];
-    
-    selectedCurriculum.grades
-      .filter((grade) => {
-        // Filter out grades that are fully scheduled
-        const isScheduled = lesson?.scheduledGrades.includes(grade.code);
-        return !isScheduled;
-      })
-      .forEach((grade) => {
-        if (grade.groups.length > 0) {
-          // If grade has groups, create an option for each group
-          grade.groups.forEach((groupCode) => {
+
+    selectedCurriculum.grades.forEach((grade) => {
+      if (grade.groups.length > 0) {
+        // Grade has groups - filter each group individually
+        grade.groups.forEach((groupCode) => {
+          const isGroupScheduled = lesson?.scheduledGrades.includes(groupCode);
+
+          if (!isGroupScheduled) {
             const groupNumber = groupCode.split("-")[1] || groupCode;
             options.push({
               value: groupCode,
               label: `${grade.name} - Group ${groupNumber}`,
             });
-          });
-        } else {
-          // If no groups, use grade code as value
+          }
+        });
+      } else {
+        // No groups - check if the entire grade is scheduled
+        const isGradeScheduled = lesson?.scheduledGrades.includes(grade.code);
+
+        if (!isGradeScheduled) {
           options.push({
             value: grade.code,
             label: grade.name,
           });
         }
-      });
-    
+      }
+    });
+
     return options;
   }, [selectedCurriculum, selectedLessonId]);
 
@@ -202,7 +210,7 @@ export default function CalendarNewEventDialog() {
     } catch (error) {
       console.error("Failed to create scheduled lesson:", error);
       toast.error(
-        error instanceof Error ? error.message : "Failed to schedule lesson"
+        error instanceof Error ? error.message : "Failed to schedule lesson",
       );
     } finally {
       setIsSubmitting(false);
@@ -249,7 +257,9 @@ export default function CalendarNewEventDialog() {
           {isLoadingData ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-muted-foreground">Loading courses...</span>
+              <span className="ml-2 text-muted-foreground">
+                Loading courses...
+              </span>
             </div>
           ) : (
             <>
@@ -312,44 +322,86 @@ export default function CalendarNewEventDialog() {
                   )}
 
                   {/* Grade/Group Selection - Only show when lesson is selected */}
-                  {selectedCurriculum && selectedLessonId && groupOptions.length > 0 && (
-                    <FormField
-                      control={form.control}
-                      name="groupCode"
-                      render={({ field }) => (
-                        <FormItem className="grid gap-3">
-                          <Label>
-                            Grade / Group <span className="text-red-500">*</span>
-                          </Label>
-                          <FormControl>
-                            <SelectDropdown
-                              options={groupOptions}
-                              value={field.value || ""}
-                              onValueChange={field.onChange}
-                              placeholder="Select a grade/group..."
-                              label="Available Grades & Groups"
-                              searchable
-                              searchPlaceholder="Search grades..."
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
+                  {selectedCurriculum &&
+                    selectedLessonId &&
+                    groupOptions.length > 0 && (
+                      <FormField
+                        control={form.control}
+                        name="groupCode"
+                        render={({ field }) => (
+                          <FormItem className="grid gap-3">
+                            <div className="flex items-center gap-2">
+                              <Label>
+                                Grade / Group{" "}
+                                <span className="text-red-500">*</span>
+                              </Label>
+                              <TooltipProvider delayDuration={0}>
+                                <Tooltip
+                                  open={tooltipOpen}
+                                  onOpenChange={setTooltipOpen}
+                                >
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="inline-flex items-center justify-center rounded-full p-0.5 hover:bg-blue-50 dark:hover:bg-blue-950/20 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setTooltipOpen(!tooltipOpen);
+                                      }}
+                                    >
+                                      <Info className="h-4 w-4 text-blue-500" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent
+                                    side="right"
+                                    className="max-w-[200px] sm:max-w-xs"
+                                    onPointerDownOutside={() =>
+                                      setTooltipOpen(false)
+                                    }
+                                  >
+                                    <p className="text-xs leading-relaxed">
+                                      Only unscheduled groups are shown. If a
+                                      group is missing, the lesson is already
+                                      scheduled for it.
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </div>
+                            <FormControl>
+                              <SelectDropdown
+                                options={groupOptions}
+                                value={field.value || ""}
+                                onValueChange={field.onChange}
+                                placeholder="Select a grade/group..."
+                                label="Available Grades & Groups"
+                                searchable
+                                searchPlaceholder="Search grades..."
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
 
                   {/* Show message when all grades are scheduled */}
-                  {selectedCurriculum && selectedLessonId && groupOptions.length === 0 && (
-                    <div className="text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/20 p-3 rounded-md">
-                      All grades for this lesson are already scheduled. Please select a different lesson.
-                    </div>
-                  )}
+                  {selectedCurriculum &&
+                    selectedLessonId &&
+                    groupOptions.length === 0 && (
+                      <div className="text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/20 p-3 rounded-md">
+                        All grades for this lesson are already scheduled. Please
+                        select a different lesson.
+                      </div>
+                    )}
                 </div>
               </div>
 
               {/* Objectives */}
               <div className="space-y-4">
-                <h4 className="text-sm font-medium border-b pb-2">Objectives</h4>
+                <h4 className="text-sm font-medium border-b pb-2">
+                  Objectives
+                </h4>
                 <div className="grid gap-4">
                   <FormField
                     control={form.control}
