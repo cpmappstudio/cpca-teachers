@@ -48,6 +48,7 @@ export type CalendarEvent = {
   gradeCode?: string
   groupCode?: string
   gradeName?: string
+  campusName?: string
   // Calendar-specific fields
   standards: string[]
   objectives?: string // Maps to lessonPlan
