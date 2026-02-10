@@ -110,15 +110,27 @@ export function TeacherCalendarCard({ teacherId }: TeacherCalendarCardProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarDays className="h-5 w-5" />
+          <CardTitle className="text-lg font-semibold tracking-tight">
             Teacher Schedule
           </CardTitle>
+          <CardDescription className="text-sm">
+            View and manage the scheduled lessons for this teacher.
+          </CardDescription>
         </CardHeader>
         <CardContent className="py-12">
           <p className="text-center text-muted-foreground">
             This teacher has no scheduled events yet.
           </p>
+          <Calendar
+            events={events}
+            setEvents={handleSetEvents}
+            mode={mode}
+            setMode={setMode}
+            date={date}
+            setDate={setDate}
+            isLoading={false}
+            teacherId={teacherId as Id<"users">}
+          />
         </CardContent>
       </Card>
     );
