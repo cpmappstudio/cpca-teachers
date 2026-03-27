@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Building, Users, Book, CalendarDays } from "lucide-react";
+import { Building, Users, User, Book, CalendarDays } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
 
@@ -83,6 +83,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ];
     }
 
+    if (role === "principal") {
+      return [];
+    }
+
     // Items para admin y superadmin
     if (role === "admin" || role === "superadmin") {
       return [
@@ -97,6 +101,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: "Teachers",
           url: "/admin/teachers",
           icon: Users,
+          isActive: false,
+          items: [],
+        },
+        {
+          title: "Principals",
+          url: "/admin/principals",
+          icon: User,
           isActive: false,
           items: [],
         },

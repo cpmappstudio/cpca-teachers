@@ -1,17 +1,159 @@
 import { v, Validator } from "convex/values";
-import { mutation, query, internalMutation, QueryCtx, action } from "./_generated/server";
-import { Doc } from "./_generated/dataModel";
+import {
+  mutation,
+  query,
+  internalMutation,
+  ActionCtx,
+  QueryCtx,
+  action,
+} from "./_generated/server";
+import { Doc, Id } from "./_generated/dataModel";
 import { api } from "./_generated/api";
+
+const userRoleValidator = v.union(
+  v.literal("teacher"),
+  v.literal("principal"),
+  v.literal("admin"),
+  v.literal("superadmin"),
+);
+
+const managedUserRoleValidator = v.union(
+  v.literal("teacher"),
+  v.literal("principal"),
+);
+
+type ManagedUserRole = "teacher" | "principal";
+
+type ManagedUserCreateArgs = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: ManagedUserRole;
+  phone?: string;
+  avatarStorageId?: Id<"_storage">;
+  campusId?: Id<"campuses">;
+  status?: Doc<"users">["status"];
+};
+
+type UserUpdates = {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  fullName?: string;
+  phone?: string;
+  avatarStorageId?: Id<"_storage"> | null;
+  campusId?: Id<"campuses"> | null;
+  role?: Doc<"users">["role"];
+  status?: Doc<"users">["status"];
+};
+
+const USER_ROLES = ["teacher", "principal", "admin", "superadmin"] as const;
+const USER_STATUSES = ["active", "inactive", "on_leave", "terminated"] as const;
+
+type ClerkUserPatchPayload = {
+  first_name?: string;
+  last_name?: string;
+  public_metadata?: Record<string, unknown>;
+};
 
 // Tipo para los datos de usuario de Clerk
 type UserJSON = {
   id: string;
   email_addresses?: Array<{ email_address: string }>;
+  primary_email_address_id?: string;
   first_name?: string;
   last_name?: string;
   image_url?: string;
-  [key: string]: any;
+  public_metadata?: Record<string, unknown>;
+  [key: string]: unknown;
 };
+
+function isUserRole(value: unknown): value is Doc<"users">["role"] {
+  return (
+    typeof value === "string" &&
+    USER_ROLES.includes(value as (typeof USER_ROLES)[number])
+  );
+}
+
+function isUserStatus(value: unknown): value is Doc<"users">["status"] {
+  return (
+    typeof value === "string" &&
+    USER_STATUSES.includes(value as (typeof USER_STATUSES)[number])
+  );
+}
+
+function getClerkSecretKeyOrThrow() {
+  const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+
+  if (!clerkSecretKey) {
+    throw new Error("CLERK_SECRET_KEY not configured in environment variables");
+  }
+
+  return clerkSecretKey;
+}
+
+async function fetchClerkUser(
+  clerkId: string,
+  clerkSecretKey: string,
+): Promise<{ public_metadata?: Record<string, unknown> }> {
+  const response = await fetch(`https://api.clerk.com/v1/users/${clerkId}`, {
+    headers: {
+      Authorization: `Bearer ${clerkSecretKey}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(
+      `Failed to load user from Clerk: ${errorData.errors?.[0]?.message || "Unknown error"}`,
+    );
+  }
+
+  return await response.json();
+}
+
+export async function mergeClerkPublicMetadata(
+  clerkId: string,
+  publicMetadataUpdates: Record<string, unknown>,
+) {
+  const clerkSecretKey = getClerkSecretKeyOrThrow();
+
+  try {
+    const currentUser = await fetchClerkUser(clerkId, clerkSecretKey);
+    return {
+      ...currentUser.public_metadata,
+      ...publicMetadataUpdates,
+    };
+  } catch {
+    return publicMetadataUpdates;
+  }
+}
+
+export async function patchClerkUser(
+  clerkId: string,
+  updates: ClerkUserPatchPayload,
+) {
+  const clerkSecretKey = getClerkSecretKeyOrThrow();
+  const clerkResponse = await fetch(
+    `https://api.clerk.com/v1/users/${clerkId}`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${clerkSecretKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(updates),
+    },
+  );
+
+  if (!clerkResponse.ok) {
+    const errorData = await clerkResponse.json();
+    console.error("Failed to update user in Clerk:", errorData);
+    throw new Error(
+      `Failed to update user in Clerk: ${errorData.errors?.[0]?.message || "Unknown error"}`,
+    );
+  }
+}
 
 /**
  * Get current user by Clerk ID
@@ -85,11 +227,7 @@ export const upsertUser = mutation({
     email: v.string(),
     firstName: v.string(),
     lastName: v.string(),
-    role: v.optional(v.union(
-      v.literal("teacher"),
-      v.literal("admin"),
-      v.literal("superadmin")
-    )),
+    role: v.optional(userRoleValidator),
   },
   handler: async (ctx, args) => {
     const existingUser = await ctx.db
@@ -103,7 +241,7 @@ export const upsertUser = mutation({
       firstName: args.firstName,
       lastName: args.lastName,
       fullName: `${args.firstName} ${args.lastName}`,
-      role: args.role || "teacher" as const,
+      role: args.role || ("teacher" as const),
       isActive: true,
       status: "active" as const,
       updatedAt: Date.now(),
@@ -127,11 +265,7 @@ export const upsertUser = mutation({
  */
 export const getUsers = query({
   args: {
-    role: v.optional(v.union(
-      v.literal("teacher"),
-      v.literal("admin"),
-      v.literal("superadmin")
-    )),
+    role: v.optional(userRoleValidator),
     campusId: v.optional(v.id("campuses")),
     isActive: v.optional(v.boolean()),
   },
@@ -142,14 +276,16 @@ export const getUsers = query({
       users = await ctx.db
         .query("users")
         .withIndex("by_role_active", (q) =>
-          q.eq("role", args.role!).eq("isActive", args.isActive ?? true)
+          q.eq("role", args.role!).eq("isActive", args.isActive ?? true),
         )
         .collect();
     } else if (args.campusId) {
       users = await ctx.db
         .query("users")
         .withIndex("by_campus_active", (q) =>
-          q.eq("campusId", args.campusId!).eq("isActive", args.isActive ?? true)
+          q
+            .eq("campusId", args.campusId!)
+            .eq("isActive", args.isActive ?? true),
         )
         .collect();
     } else {
@@ -165,7 +301,7 @@ export const getUsers = query({
           const assignments = await ctx.db
             .query("teacher_assignments")
             .withIndex("by_teacher_active", (q) =>
-              q.eq("teacherId", user._id).eq("isActive", true)
+              q.eq("teacherId", user._id).eq("isActive", true),
             )
             .collect();
 
@@ -196,7 +332,7 @@ export const getUsers = query({
 
             // Get grade codes from curriculum campus assignments
             const campusAssignment = curriculum.campusAssignments?.find(
-              ca => ca.campusId === assignment.campusId
+              (ca) => ca.campusId === assignment.campusId,
             );
             const gradeCodes = campusAssignment?.gradeCodes || [];
 
@@ -204,27 +340,30 @@ export const getUsers = query({
             const assignedGrades = assignment.assignedGrades || gradeCodes;
 
             // Get grades from campus.grades - ONLY the ones assigned to this teacher
-            const grades = campus?.grades
-              ?.filter(g => assignedGrades.includes(g.code))
-              .map(g => ({
-                id: g.code,
-                name: g.name,
-                code: g.code,
-                level: g.level,
-              })) || [];
+            const grades =
+              campus?.grades
+                ?.filter((g) => assignedGrades.includes(g.code))
+                .map((g) => ({
+                  id: g.code,
+                  name: g.name,
+                  code: g.code,
+                  level: g.level,
+                })) || [];
 
             // Get all lessons for this curriculum
             const allLessons = await ctx.db
               .query("curriculum_lessons")
               .withIndex("by_curriculum_active", (q) =>
-                q.eq("curriculumId", curriculum._id).eq("isActive", true)
+                q.eq("curriculumId", curriculum._id).eq("isActive", true),
               )
               .collect();
 
             // Filter lessons by assigned grades (same logic as getAssignmentLessonProgress)
-            const lessons = allLessons.filter(lesson => {
+            const lessons = allLessons.filter((lesson) => {
               if (lesson.gradeCodes && lesson.gradeCodes.length > 0) {
-                return lesson.gradeCodes.some(gradeCode => assignedGrades.includes(gradeCode));
+                return lesson.gradeCodes.some((gradeCode) =>
+                  assignedGrades.includes(gradeCode),
+                );
               }
               if (lesson.gradeCode) {
                 return assignedGrades.includes(lesson.gradeCode);
@@ -238,7 +377,7 @@ export const getUsers = query({
             const progressRecords = await ctx.db
               .query("lesson_progress")
               .withIndex("by_assignment_status", (q) =>
-                q.eq("assignmentId", assignment._id)
+                q.eq("assignmentId", assignment._id),
               )
               .collect();
 
@@ -251,64 +390,67 @@ export const getUsers = query({
 
             for (const lesson of lessons) {
               const lessonProgressRecords = progressRecords.filter(
-                p => p.lessonId === lesson._id
+                (p) => p.lessonId === lesson._id,
               );
 
               let lessonCompletionPercentage = 0;
 
               if (hasGroups) {
                 // Group-based: calculate percentage completion (same as getAssignmentLessonProgress)
-                const completedGroups = lessonProgressRecords.filter(p =>
-                  p.groupCode &&
-                  assignedGroupCodes.includes(p.groupCode) &&
-                  p.status === "completed" &&
-                  (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                const completedGroups = lessonProgressRecords.filter(
+                  (p) =>
+                    p.groupCode &&
+                    assignedGroupCodes.includes(p.groupCode) &&
+                    p.status === "completed" &&
+                    (p.evidenceDocumentStorageId || p.evidencePhotoStorageId),
                 ).length;
 
                 const totalGroups = assignedGroupCodes.length;
-                lessonCompletionPercentage = totalGroups > 0
-                  ? (completedGroups / totalGroups) * 100
-                  : 0;
+                lessonCompletionPercentage =
+                  totalGroups > 0 ? (completedGroups / totalGroups) * 100 : 0;
               } else {
                 // Legacy multi-grade: calculate percentage completion
-                const completedGrades = lessonProgressRecords.filter(p =>
-                  p.status === "completed" &&
-                  (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                const completedGrades = lessonProgressRecords.filter(
+                  (p) =>
+                    p.status === "completed" &&
+                    (p.evidenceDocumentStorageId || p.evidencePhotoStorageId),
                 ).length;
 
                 const totalGrades = grades.length || 1;
-                lessonCompletionPercentage = totalGrades > 0
-                  ? (completedGrades / totalGrades) * 100
-                  : 0;
+                lessonCompletionPercentage =
+                  totalGrades > 0 ? (completedGrades / totalGrades) * 100 : 0;
               }
 
               totalCompletionScore += lessonCompletionPercentage;
             }
 
             // Calculate average percentage for this assignment (same as overallProgress)
-            const assignmentPercentage = assignmentTotalLessons > 0
-              ? Math.round(totalCompletionScore / assignmentTotalLessons)
-              : 0;
+            const assignmentPercentage =
+              assignmentTotalLessons > 0
+                ? Math.round(totalCompletionScore / assignmentTotalLessons)
+                : 0;
 
             assignmentProgressPercentages.push(assignmentPercentage);
             totalLessonsSum += assignmentTotalLessons;
             // For completedLessonsSum, count lessons that are 100% complete
             completedLessonsSum += lessons.filter((lesson) => {
               const lessonProgressRecords = progressRecords.filter(
-                p => p.lessonId === lesson._id
+                (p) => p.lessonId === lesson._id,
               );
               if (hasGroups) {
-                const completedGroups = lessonProgressRecords.filter(p =>
-                  p.groupCode &&
-                  assignedGroupCodes.includes(p.groupCode) &&
-                  p.status === "completed" &&
-                  (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                const completedGroups = lessonProgressRecords.filter(
+                  (p) =>
+                    p.groupCode &&
+                    assignedGroupCodes.includes(p.groupCode) &&
+                    p.status === "completed" &&
+                    (p.evidenceDocumentStorageId || p.evidencePhotoStorageId),
                 ).length;
                 return completedGroups === assignedGroupCodes.length;
               } else {
-                const completedGrades = lessonProgressRecords.filter(p =>
-                  p.status === "completed" &&
-                  (p.evidenceDocumentStorageId || p.evidencePhotoStorageId)
+                const completedGrades = lessonProgressRecords.filter(
+                  (p) =>
+                    p.status === "completed" &&
+                    (p.evidenceDocumentStorageId || p.evidencePhotoStorageId),
                 ).length;
                 return completedGrades === (grades.length || 1);
               }
@@ -316,9 +458,13 @@ export const getUsers = query({
           }
 
           // Calculate average progress percentage across all assignments
-          const progressPercentage = assignmentProgressPercentages.length > 0
-            ? Math.round(assignmentProgressPercentages.reduce((a, b) => a + b, 0) / assignmentProgressPercentages.length)
-            : 0;
+          const progressPercentage =
+            assignmentProgressPercentages.length > 0
+              ? Math.round(
+                  assignmentProgressPercentages.reduce((a, b) => a + b, 0) /
+                    assignmentProgressPercentages.length,
+                )
+              : 0;
 
           // Update progressMetrics on the user object
           return {
@@ -330,7 +476,7 @@ export const getUsers = query({
               lastUpdated: Date.now(),
             },
           };
-        })
+        }),
       );
 
       return usersWithProgress;
@@ -354,17 +500,15 @@ export const updateUser = mutation({
       phone: v.optional(v.string()),
       avatarStorageId: v.optional(v.union(v.id("_storage"), v.null())), // Allow null to delete image
       campusId: v.optional(v.union(v.id("campuses"), v.null())), // Allow null to unassign campus
-      role: v.optional(v.union(
-        v.literal("teacher"),
-        v.literal("admin"),
-        v.literal("superadmin")
-      )),
-      status: v.optional(v.union(
-        v.literal("active"),
-        v.literal("inactive"),
-        v.literal("on_leave"),
-        v.literal("terminated")
-      )),
+      role: v.optional(userRoleValidator),
+      status: v.optional(
+        v.union(
+          v.literal("active"),
+          v.literal("inactive"),
+          v.literal("on_leave"),
+          v.literal("terminated"),
+        ),
+      ),
     }),
   },
   handler: async (ctx, args) => {
@@ -373,7 +517,10 @@ export const updateUser = mutation({
       throw new Error("User not found");
     }
 
-    const updates: any = { ...args.updates, updatedAt: Date.now() };
+    const updates: UserUpdates & { updatedAt: number } = {
+      ...args.updates,
+      updatedAt: Date.now(),
+    };
 
     // Track if campus changed to update metrics
     const oldCampusId = user.campusId;
@@ -394,7 +541,7 @@ export const updateUser = mutation({
       }
     }
 
-    await ctx.db.patch(args.userId, updates);
+    await ctx.db.patch(args.userId, updates as Partial<Doc<"users">>);
 
     // Update campus metrics if campus assignment changed
     if (campusChanged && user.role === "teacher") {
@@ -405,13 +552,15 @@ export const updateUser = mutation({
           const teachers = await ctx.db
             .query("users")
             .withIndex("by_campus_active", (q) =>
-              q.eq("campusId", oldCampusId).eq("isActive", true)
+              q.eq("campusId", oldCampusId).eq("isActive", true),
             )
             .filter((q) => q.eq(q.field("role"), "teacher"))
             .collect();
 
           const totalTeachers = teachers.length;
-          const activeTeachers = teachers.filter((t) => t.status === "active").length;
+          const activeTeachers = teachers.filter(
+            (t) => t.status === "active",
+          ).length;
 
           await ctx.db.patch(oldCampusId, {
             metrics: {
@@ -431,13 +580,15 @@ export const updateUser = mutation({
           const teachers = await ctx.db
             .query("users")
             .withIndex("by_campus_active", (q) =>
-              q.eq("campusId", newCampusId).eq("isActive", true)
+              q.eq("campusId", newCampusId).eq("isActive", true),
             )
             .filter((q) => q.eq(q.field("role"), "teacher"))
             .collect();
 
           const totalTeachers = teachers.length;
-          const activeTeachers = teachers.filter((t) => t.status === "active").length;
+          const activeTeachers = teachers.filter(
+            (t) => t.status === "active",
+          ).length;
 
           await ctx.db.patch(newCampusId, {
             metrics: {
@@ -467,20 +618,18 @@ export const updateUserWithClerk = action({
       phone: v.optional(v.string()),
       avatarStorageId: v.optional(v.union(v.id("_storage"), v.null())), // Allow null to delete image
       campusId: v.optional(v.union(v.id("campuses"), v.null())), // Allow null to unassign campus
-      status: v.optional(v.union(
-        v.literal("active"),
-        v.literal("inactive"),
-        v.literal("on_leave"),
-        v.literal("terminated")
-      )),
+      status: v.optional(
+        v.union(
+          v.literal("active"),
+          v.literal("inactive"),
+          v.literal("on_leave"),
+          v.literal("terminated"),
+        ),
+      ),
     }),
   },
   handler: async (ctx, args) => {
-    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-
-    if (!clerkSecretKey) {
-      throw new Error("CLERK_SECRET_KEY not configured in environment variables");
-    }
+    const clerkSecretKey = getClerkSecretKeyOrThrow();
 
     // Get the user to find their Clerk ID
     const user = await ctx.runQuery(api.users.getUser, { userId: args.userId });
@@ -492,14 +641,17 @@ export const updateUserWithClerk = action({
     // Don't sync if user has temporary Clerk ID
     if (user.clerkId.startsWith("temp_")) {
       // Just update in Convex
-      await ctx.runMutation(api.users.updateUser, { userId: args.userId, updates: args.updates });
+      await ctx.runMutation(api.users.updateUser, {
+        userId: args.userId,
+        updates: args.updates,
+      });
       return;
     }
 
     try {
       // Prepare Clerk update payload for basic fields and metadata
-      const clerkUpdates: any = {};
-      const publicMetadataUpdates: any = {};
+      const clerkUpdates: ClerkUserPatchPayload = {};
+      const publicMetadataUpdates: Record<string, unknown> = {};
 
       if (args.updates.firstName) {
         clerkUpdates.first_name = args.updates.firstName;
@@ -524,42 +676,15 @@ export const updateUserWithClerk = action({
 
       // Add public_metadata to updates if there are changes
       if (Object.keys(publicMetadataUpdates).length > 0) {
-        // First get current public_metadata to merge with new values
-        const currentUserResponse = await fetch(`https://api.clerk.com/v1/users/${user.clerkId}`, {
-          headers: {
-            Authorization: `Bearer ${clerkSecretKey}`,
-          },
-        });
-
-        if (currentUserResponse.ok) {
-          const currentUser = await currentUserResponse.json();
-          clerkUpdates.public_metadata = {
-            ...currentUser.public_metadata,
-            ...publicMetadataUpdates,
-          };
-        } else {
-          // If we can't get current metadata, just set what we have
-          clerkUpdates.public_metadata = publicMetadataUpdates;
-        }
+        clerkUpdates.public_metadata = await mergeClerkPublicMetadata(
+          user.clerkId,
+          publicMetadataUpdates,
+        );
       }
 
       // Update basic fields in Clerk if there are changes
       if (Object.keys(clerkUpdates).length > 0) {
-        const clerkResponse = await fetch(`https://api.clerk.com/v1/users/${user.clerkId}`, {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${clerkSecretKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(clerkUpdates),
-        });
-
-        if (!clerkResponse.ok) {
-          const errorData = await clerkResponse.json();
-          console.error("Failed to update user in Clerk:", errorData);
-          throw new Error(`Failed to update user in Clerk: ${errorData.errors?.[0]?.message || "Unknown error"}`);
-        }
-
+        await patchClerkUser(user.clerkId, clerkUpdates);
       }
 
       // Update profile image in Clerk if changed or deleted
@@ -567,16 +692,15 @@ export const updateUserWithClerk = action({
         if (args.updates.avatarStorageId === null) {
           // Delete image from Clerk
           try {
-            const deleteImageResponse = await fetch(
+            await fetch(
               `https://api.clerk.com/v1/users/${user.clerkId}/profile_image`,
               {
-                method: 'DELETE',
+                method: "DELETE",
                 headers: {
                   Authorization: `Bearer ${clerkSecretKey}`,
                 },
-              }
+              },
             );
-
           } catch (imageError) {
             console.error("Error deleting image from Clerk:", imageError);
             // No lanzar error - continuar con la actualización
@@ -584,8 +708,9 @@ export const updateUserWithClerk = action({
         } else {
           // Upload new image to Clerk
           try {
-            const imageUrl = await ctx.storage.getUrl(args.updates.avatarStorageId);
-
+            const imageUrl = await ctx.storage.getUrl(
+              args.updates.avatarStorageId,
+            );
 
             if (imageUrl) {
               // Download the image from Convex storage
@@ -594,17 +719,17 @@ export const updateUserWithClerk = action({
 
               // Upload to Clerk using multipart/form-data
               const formData = new FormData();
-              formData.append('file', imageBlob, 'avatar.png');
+              formData.append("file", imageBlob, "avatar.png");
 
-              const uploadImageResponse = await fetch(
+              await fetch(
                 `https://api.clerk.com/v1/users/${user.clerkId}/profile_image`,
                 {
-                  method: 'POST',
+                  method: "POST",
                   headers: {
                     Authorization: `Bearer ${clerkSecretKey}`,
                   },
                   body: formData,
-                }
+                },
               );
             }
           } catch (imageError) {
@@ -615,8 +740,10 @@ export const updateUserWithClerk = action({
       }
 
       // Update in Convex
-      await ctx.runMutation(api.users.updateUser, { userId: args.userId, updates: args.updates });
-
+      await ctx.runMutation(api.users.updateUser, {
+        userId: args.userId,
+        updates: args.updates,
+      });
     } catch (error) {
       console.error("Error updating user with Clerk:", error);
       throw error;
@@ -653,13 +780,15 @@ export const removeTeacherFromCampus = mutation({
         const teachers = await ctx.db
           .query("users")
           .withIndex("by_campus_active", (q) =>
-            q.eq("campusId", oldCampusId).eq("isActive", true)
+            q.eq("campusId", oldCampusId).eq("isActive", true),
           )
           .filter((q) => q.eq(q.field("role"), "teacher"))
           .collect();
 
         const totalTeachers = teachers.length;
-        const activeTeachers = teachers.filter((t) => t.status === "active").length;
+        const activeTeachers = teachers.filter(
+          (t) => t.status === "active",
+        ).length;
 
         await ctx.db.patch(oldCampusId, {
           metrics: {
@@ -712,9 +841,12 @@ export const deleteUserAvatar = mutation({
     if (user.avatarStorageId) {
       try {
         await ctx.storage.delete(user.avatarStorageId);
-      } catch (error) {
+      } catch {
         // File might already be deleted, just log and continue
-        console.warn("Avatar storage file not found, might already be deleted:", user.avatarStorageId);
+        console.warn(
+          "Avatar storage file not found, might already be deleted:",
+          user.avatarStorageId,
+        );
       }
     }
 
@@ -737,12 +869,14 @@ export const createTeacher = mutation({
     phone: v.optional(v.string()),
     avatarStorageId: v.optional(v.id("_storage")),
     campusId: v.optional(v.id("campuses")),
-    status: v.optional(v.union(
-      v.literal("active"),
-      v.literal("inactive"),
-      v.literal("on_leave"),
-      v.literal("terminated")
-    )),
+    status: v.optional(
+      v.union(
+        v.literal("active"),
+        v.literal("inactive"),
+        v.literal("on_leave"),
+        v.literal("terminated"),
+      ),
+    ),
     createdBy: v.id("users"),
   },
   handler: async (ctx, args) => {
@@ -773,13 +907,15 @@ export const createTeacher = mutation({
         const teachers = await ctx.db
           .query("users")
           .withIndex("by_campus_active", (q) =>
-            q.eq("campusId", args.campusId!).eq("isActive", true)
+            q.eq("campusId", args.campusId!).eq("isActive", true),
           )
           .filter((q) => q.eq(q.field("role"), "teacher"))
           .collect();
 
         const totalTeachers = teachers.length;
-        const activeTeachers = teachers.filter((t) => t.status === "active").length;
+        const activeTeachers = teachers.filter(
+          (t) => t.status === "active",
+        ).length;
 
         await ctx.db.patch(args.campusId, {
           metrics: {
@@ -817,8 +953,11 @@ export const deleteUser = mutation({
     if (user.avatarStorageId) {
       try {
         await ctx.storage.delete(user.avatarStorageId);
-      } catch (error) {
-        console.warn("Avatar storage file not found, might already be deleted:", user.avatarStorageId);
+      } catch {
+        console.warn(
+          "Avatar storage file not found, might already be deleted:",
+          user.avatarStorageId,
+        );
       }
     }
 
@@ -832,13 +971,15 @@ export const deleteUser = mutation({
         const teachers = await ctx.db
           .query("users")
           .withIndex("by_campus_active", (q) =>
-            q.eq("campusId", campusId).eq("isActive", true)
+            q.eq("campusId", campusId).eq("isActive", true),
           )
           .filter((q) => q.eq(q.field("role"), "teacher"))
           .collect();
 
         const totalTeachers = teachers.length;
-        const activeTeachers = teachers.filter((t) => t.status === "active").length;
+        const activeTeachers = teachers.filter(
+          (t) => t.status === "active",
+        ).length;
 
         await ctx.db.patch(campusId, {
           metrics: {
@@ -866,21 +1007,29 @@ export const upsertFromClerk = internalMutation({
   async handler(ctx, { data }) {
     // Extract user data from Clerk webhook
     // Clerk puede enviar el email de varias formas
-    const email = data.email_addresses?.[0]?.email_address ||
+    const email =
+      data.email_addresses?.[0]?.email_address ||
       data.primary_email_address_id ||
       `user_${data.id}@temp.clerk`;
 
     const firstName = data.first_name || "";
     const lastName = data.last_name || "";
-    const imageUrl = data.image_url;
-
     // Extract additional data from public_metadata (set by createTeacherWithClerk)
-    const publicMetadata = data.public_metadata || {};
-    const role = publicMetadata.role || "teacher";
-    const campusId = publicMetadata.campusId || undefined;
-    const phone = publicMetadata.phone || undefined;
-    const avatarStorageId = publicMetadata.avatarStorageId || undefined;
-    const status = publicMetadata.status || "active";
+    const publicMetadata = data.public_metadata ?? {};
+    const role = isUserRole(publicMetadata.role)
+      ? publicMetadata.role
+      : "teacher";
+    const campusId = publicMetadata.campusId as Id<"campuses"> | undefined;
+    const phone =
+      typeof publicMetadata.phone === "string"
+        ? publicMetadata.phone
+        : undefined;
+    const avatarStorageId = publicMetadata.avatarStorageId as
+      | Id<"_storage">
+      | undefined;
+    const status = isUserStatus(publicMetadata.status)
+      ? publicMetadata.status
+      : "active";
 
     // Check if user already exists in our database
     const existingUser = await userByClerkId(ctx, data.id);
@@ -927,8 +1076,11 @@ export const deleteFromClerk = internalMutation({
       if (user.avatarStorageId) {
         try {
           await ctx.storage.delete(user.avatarStorageId);
-        } catch (error) {
-          console.warn("Avatar storage file not found, might already be deleted:", user.avatarStorageId);
+        } catch {
+          console.warn(
+            "Avatar storage file not found, might already be deleted:",
+            user.avatarStorageId,
+          );
         }
       }
 
@@ -936,7 +1088,7 @@ export const deleteFromClerk = internalMutation({
       await ctx.db.delete(user._id);
     } else {
       console.warn(
-        `⚠️ Can't delete user, there is none for Clerk user ID: ${clerkUserId}`
+        `⚠️ Can't delete user, there is none for Clerk user ID: ${clerkUserId}`,
       );
     }
   },
@@ -952,7 +1104,9 @@ export const deleteUserWithClerk = action({
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
 
     if (!clerkSecretKey) {
-      throw new Error("CLERK_SECRET_KEY not configured in environment variables");
+      throw new Error(
+        "CLERK_SECRET_KEY not configured in environment variables",
+      );
     }
 
     // Get the user to find their Clerk ID
@@ -971,22 +1125,26 @@ export const deleteUserWithClerk = action({
 
     try {
       // Delete user from Clerk
-      const clerkResponse = await fetch(`https://api.clerk.com/v1/users/${user.clerkId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${clerkSecretKey}`,
+      const clerkResponse = await fetch(
+        `https://api.clerk.com/v1/users/${user.clerkId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${clerkSecretKey}`,
+          },
         },
-      });
+      );
 
       if (!clerkResponse.ok) {
         const errorData = await clerkResponse.json();
         console.error("Failed to delete user from Clerk:", errorData);
-        throw new Error(`Failed to delete user from Clerk: ${errorData.errors?.[0]?.message || "Unknown error"}`);
+        throw new Error(
+          `Failed to delete user from Clerk: ${errorData.errors?.[0]?.message || "Unknown error"}`,
+        );
       }
 
       // Note: The Clerk webhook will automatically delete the user from Convex
       // via the deleteFromClerk internal mutation
-
     } catch (error) {
       console.error("Error deleting user with Clerk:", error);
       throw error;
@@ -998,108 +1156,80 @@ export const deleteUserWithClerk = action({
 // HELPER FUNCTIONS
 // ============================================================================
 
-/**
- * Create teacher in both Clerk and Convex
- * This action creates the user in Clerk first, then stores it in Convex
- */
-export const createTeacherWithClerk = action({
-  args: {
-    firstName: v.string(),
-    lastName: v.string(),
-    email: v.string(),
-    phone: v.optional(v.string()),
-    avatarStorageId: v.optional(v.id("_storage")),
-    campusId: v.optional(v.id("campuses")),
-    status: v.optional(v.union(
-      v.literal("active"),
-      v.literal("inactive"),
-      v.literal("on_leave"),
-      v.literal("terminated")
-    )),
-  },
-  handler: async (ctx, args): Promise<{ clerkId: string; invitationSent: boolean }> => {
-    // Get Clerk secret key from environment
-    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+async function createManagedUserWithClerk(
+  ctx: ActionCtx,
+  args: ManagedUserCreateArgs,
+): Promise<{ clerkId: string; invitationSent: boolean }> {
+  const clerkSecretKey = getClerkSecretKeyOrThrow();
 
-    if (!clerkSecretKey) {
-      throw new Error("CLERK_SECRET_KEY not configured in environment variables");
+  try {
+    const clerkResponse = await fetch("https://api.clerk.com/v1/users", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${clerkSecretKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email_address: [args.email],
+        first_name: args.firstName,
+        last_name: args.lastName,
+        public_metadata: {
+          role: args.role,
+          campusId: args.campusId,
+          phone: args.phone,
+          avatarStorageId: args.avatarStorageId,
+          status: args.status || "active",
+        },
+        skip_password_checks: true,
+        skip_password_requirement: true,
+      }),
+    });
+
+    if (!clerkResponse.ok) {
+      const errorData = await clerkResponse.json();
+      console.error("Clerk API error:", errorData);
+      throw new Error(
+        `Failed to create user in Clerk: ${errorData.errors?.[0]?.message || "Unknown error"}`,
+      );
     }
 
-    try {
-      // Step 1: Create user in Clerk with public_metadata
-      const clerkResponse = await fetch("https://api.clerk.com/v1/users", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${clerkSecretKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email_address: [args.email],
-          first_name: args.firstName,
-          last_name: args.lastName,
-          public_metadata: {
-            role: "teacher",
-            campusId: args.campusId,
-            phone: args.phone,
-            avatarStorageId: args.avatarStorageId,
-            status: args.status || "active",
-          },
-          skip_password_checks: true,
-          skip_password_requirement: true,
-          // Crear sin contraseña - el usuario la configurará cuando acepte la invitación
-        }),
-      });
+    const clerkUser = await clerkResponse.json();
 
-      if (!clerkResponse.ok) {
-        const errorData = await clerkResponse.json();
-        console.error("Clerk API error:", errorData);
-        throw new Error(`Failed to create user in Clerk: ${errorData.errors?.[0]?.message || "Unknown error"}`);
-      }
+    if (args.avatarStorageId) {
+      try {
+        const imageUrl = await ctx.storage.getUrl(args.avatarStorageId);
 
-      const clerkUser = await clerkResponse.json();
+        if (imageUrl) {
+          const imageResponse = await fetch(imageUrl);
+          const imageBlob = await imageResponse.blob();
+          const formData = new FormData();
 
-      // Step 2: Upload profile image to Clerk if provided
-      if (args.avatarStorageId) {
-        try {
-          // Get the image URL from Convex storage
-          const imageUrl = await ctx.storage.getUrl(args.avatarStorageId);
+          formData.append("file", imageBlob, "avatar.png");
 
-          if (imageUrl) {
-            // Download the image from Convex storage
-            const imageResponse = await fetch(imageUrl);
-            const imageBlob = await imageResponse.blob();
-
-            // Upload to Clerk using multipart/form-data
-            const formData = new FormData();
-            formData.append('file', imageBlob, 'avatar.png');
-
-            const uploadImageResponse = await fetch(
-              `https://api.clerk.com/v1/users/${clerkUser.id}/profile_image`,
-              {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${clerkSecretKey}`,
-                },
-                body: formData,
-              }
-            );
-
-          } else {
-            console.warn("Could not generate URL for avatar storage ID:", args.avatarStorageId);
-          }
-        } catch (imageError) {
-          console.error("Error uploading image to Clerk:", imageError);
-          // No lanzar error - continuar con la creación del usuario
+          await fetch(
+            `https://api.clerk.com/v1/users/${clerkUser.id}/profile_image`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${clerkSecretKey}`,
+              },
+              body: formData,
+            },
+          );
+        } else {
+          console.warn(
+            "Could not generate URL for avatar storage ID:",
+            args.avatarStorageId,
+          );
         }
+      } catch (imageError) {
+        console.error("Error uploading image to Clerk:", imageError);
       }
+    }
 
-      // Step 3: Create user in Convex database
-      // REMOVED - Let the webhook create the user in Convex
-      // The webhook will read public_metadata and create the user with all fields
-
-      // Step 4: Send invitation email via Clerk
-      // Crear un "magic link" para que el usuario configure su cuenta
-      const invitationResponse = await fetch(`https://api.clerk.com/v1/invitations`, {
+    const invitationResponse = await fetch(
+      "https://api.clerk.com/v1/invitations",
+      {
         method: "POST",
         headers: {
           Authorization: `Bearer ${clerkSecretKey}`,
@@ -1108,28 +1238,84 @@ export const createTeacherWithClerk = action({
         body: JSON.stringify({
           email_address: args.email,
           public_metadata: {
-            role: "teacher",
+            role: args.role,
           },
           redirect_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/sign-in`,
         }),
-      });
+      },
+    );
 
-      if (!invitationResponse.ok) {
-        console.warn("Failed to send invitation, but user was created:", await invitationResponse.json());
-        // No lanzar error - el usuario fue creado exitosamente
-      } else {
-        console.log("Invitation sent successfully to:", args.email);
-      }
-
-      return {
-        clerkId: clerkUser.id,
-        invitationSent: invitationResponse.ok
-      };
-
-    } catch (error) {
-      console.error("Error creating teacher with Clerk:", error);
-      throw error;
+    if (!invitationResponse.ok) {
+      console.warn(
+        "Failed to send invitation, but user was created:",
+        await invitationResponse.json(),
+      );
+    } else {
+      console.log("Invitation sent successfully to:", args.email);
     }
+
+    return {
+      clerkId: clerkUser.id,
+      invitationSent: invitationResponse.ok,
+    };
+  } catch (error) {
+    console.error("Error creating user with Clerk:", error);
+    throw error;
+  }
+}
+
+/**
+ * Create a managed user in Clerk.
+ * The Convex user record is created by the Clerk webhook.
+ */
+export const createUserWithClerk = action({
+  args: {
+    firstName: v.string(),
+    lastName: v.string(),
+    email: v.string(),
+    role: managedUserRoleValidator,
+    phone: v.optional(v.string()),
+    avatarStorageId: v.optional(v.id("_storage")),
+    campusId: v.optional(v.id("campuses")),
+    status: v.optional(
+      v.union(
+        v.literal("active"),
+        v.literal("inactive"),
+        v.literal("on_leave"),
+        v.literal("terminated"),
+      ),
+    ),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ clerkId: string; invitationSent: boolean }> => {
+    return await createManagedUserWithClerk(ctx, args);
+  },
+});
+
+export const createTeacherWithClerk = action({
+  args: {
+    firstName: v.string(),
+    lastName: v.string(),
+    email: v.string(),
+    phone: v.optional(v.string()),
+    avatarStorageId: v.optional(v.id("_storage")),
+    campusId: v.optional(v.id("campuses")),
+    status: v.optional(
+      v.union(
+        v.literal("active"),
+        v.literal("inactive"),
+        v.literal("on_leave"),
+        v.literal("terminated"),
+      ),
+    ),
+  },
+  handler: async (ctx, args) => {
+    return await createManagedUserWithClerk(ctx, {
+      ...args,
+      role: "teacher",
+    });
   },
 });
 

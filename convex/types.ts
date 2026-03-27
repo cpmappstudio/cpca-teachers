@@ -8,7 +8,7 @@
 /**
  * User role type for the application
  */
-export type UserRole = "teacher" | "admin" | "superadmin";
+export type UserRole = "teacher" | "principal" | "admin" | "superadmin";
 
 /**
  * User status type

@@ -36,7 +36,7 @@ import {
   GraduationCap,
   GripVertical,
 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import Image from "next/image";
 import { useQuery, useMutation } from "convex/react";
 import { useUser } from "@clerk/nextjs";
@@ -47,7 +47,11 @@ import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { EntityDialog } from "@/components/ui/entity-dialog";
 import { campusStatusOptions } from "@/lib/location-data";
-import { countries, getStatesByCountry, getCitiesByCountryAndState } from "@/lib/countries-data";
+import {
+  countries,
+  getStatesByCountry,
+  getCitiesByCountryAndState,
+} from "@/lib/countries-data";
 import { Badge } from "@/components/ui/badge";
 import {
   DndContext,
@@ -84,7 +88,11 @@ interface SortableGradeBadgeProps {
   onRemove: (index: number) => void;
 }
 
-function SortableGradeBadge({ grade, index, onRemove }: SortableGradeBadgeProps) {
+function SortableGradeBadge({
+  grade,
+  index,
+  onRemove,
+}: SortableGradeBadgeProps) {
   const {
     attributes,
     listeners,
@@ -123,10 +131,13 @@ function SortableGradeBadge({ grade, index, onRemove }: SortableGradeBadgeProps)
           {grade.code}
         </span>
         <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded flex-shrink-0">
-          {grade.numberOfGroups} {grade.numberOfGroups === 1 ? 'group' : 'groups'}
+          {grade.numberOfGroups}{" "}
+          {grade.numberOfGroups === 1 ? "group" : "groups"}
         </span>
         {grade.category && (
-          <span className="text-xs text-muted-foreground flex-shrink-0">• {grade.category}</span>
+          <span className="text-xs text-muted-foreground flex-shrink-0">
+            • {grade.category}
+          </span>
         )}
         <button
           type="button"
@@ -198,30 +209,129 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
   const [newGradeName, setNewGradeName] = useState("");
   const [newGradeCode, setNewGradeCode] = useState("");
   const [newGradeCategory, setNewGradeCategory] = useState<string>("");
-  const [newGradeNumberOfGroups, setNewGradeNumberOfGroups] = useState<number>(1);
+  const [newGradeNumberOfGroups, setNewGradeNumberOfGroups] =
+    useState<number>(1);
   const [useGradeTemplate, setUseGradeTemplate] = useState(false);
 
   // Grade template - Standard US education system
   const gradeTemplate: Grade[] = [
     // Pre-K
-    { name: "Pre-K", code: "PK", level: 0, category: "prekinder", numberOfGroups: 1, isActive: true },
+    {
+      name: "Pre-K",
+      code: "PK",
+      level: 0,
+      category: "prekinder",
+      numberOfGroups: 1,
+      isActive: true,
+    },
     // Kindergarten
-    { name: "Kinder", code: "K", level: 1, category: "kinder", numberOfGroups: 2, isActive: true },
+    {
+      name: "Kinder",
+      code: "K",
+      level: 1,
+      category: "kinder",
+      numberOfGroups: 2,
+      isActive: true,
+    },
     // Elementary Grades
-    { name: "1st Grade", code: "01", level: 2, category: "elementary", numberOfGroups: 6, isActive: true },
-    { name: "2nd Grade", code: "02", level: 3, category: "elementary", numberOfGroups: 6, isActive: true },
-    { name: "3rd Grade", code: "03", level: 4, category: "elementary", numberOfGroups: 6, isActive: true },
-    { name: "4th Grade", code: "04", level: 5, category: "elementary", numberOfGroups: 6, isActive: true },
-    { name: "5th Grade", code: "05", level: 6, category: "elementary", numberOfGroups: 6, isActive: true },
+    {
+      name: "1st Grade",
+      code: "01",
+      level: 2,
+      category: "elementary",
+      numberOfGroups: 6,
+      isActive: true,
+    },
+    {
+      name: "2nd Grade",
+      code: "02",
+      level: 3,
+      category: "elementary",
+      numberOfGroups: 6,
+      isActive: true,
+    },
+    {
+      name: "3rd Grade",
+      code: "03",
+      level: 4,
+      category: "elementary",
+      numberOfGroups: 6,
+      isActive: true,
+    },
+    {
+      name: "4th Grade",
+      code: "04",
+      level: 5,
+      category: "elementary",
+      numberOfGroups: 6,
+      isActive: true,
+    },
+    {
+      name: "5th Grade",
+      code: "05",
+      level: 6,
+      category: "elementary",
+      numberOfGroups: 6,
+      isActive: true,
+    },
     // Middle School Grades
-    { name: "6th Grade", code: "06", level: 7, category: "middle", numberOfGroups: 6, isActive: true },
-    { name: "7th Grade", code: "07", level: 8, category: "middle", numberOfGroups: 6, isActive: true },
-    { name: "8th Grade", code: "08", level: 9, category: "middle", numberOfGroups: 6, isActive: true },
+    {
+      name: "6th Grade",
+      code: "06",
+      level: 7,
+      category: "middle",
+      numberOfGroups: 6,
+      isActive: true,
+    },
+    {
+      name: "7th Grade",
+      code: "07",
+      level: 8,
+      category: "middle",
+      numberOfGroups: 6,
+      isActive: true,
+    },
+    {
+      name: "8th Grade",
+      code: "08",
+      level: 9,
+      category: "middle",
+      numberOfGroups: 6,
+      isActive: true,
+    },
     // High School Grades
-    { name: "9th Grade", code: "09", level: 10, category: "high", numberOfGroups: 6, isActive: true },
-    { name: "10th Grade", code: "10", level: 11, category: "high", numberOfGroups: 6, isActive: true },
-    { name: "11th Grade", code: "11", level: 12, category: "high", numberOfGroups: 6, isActive: true },
-    { name: "12th Grade", code: "12", level: 13, category: "high", numberOfGroups: 6, isActive: true },
+    {
+      name: "9th Grade",
+      code: "09",
+      level: 10,
+      category: "high",
+      numberOfGroups: 6,
+      isActive: true,
+    },
+    {
+      name: "10th Grade",
+      code: "10",
+      level: 11,
+      category: "high",
+      numberOfGroups: 6,
+      isActive: true,
+    },
+    {
+      name: "11th Grade",
+      code: "11",
+      level: 12,
+      category: "high",
+      numberOfGroups: 6,
+      isActive: true,
+    },
+    {
+      name: "12th Grade",
+      code: "12",
+      level: 13,
+      category: "high",
+      numberOfGroups: 6,
+      isActive: true,
+    },
   ];
 
   // Setup drag and drop sensors
@@ -229,7 +339,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
 
   // Grade categories
@@ -241,23 +351,52 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
     { value: "high", label: "High School" },
   ];
 
-  // Query para obtener usuarios que pueden ser directores (admins y superadmins)
-  const potentialDirectors = useQuery(api.admin.getPotentialDirectors);
-  const selectedDirector = potentialDirectors?.find(
-    (director) => director._id === selectedDirectorId,
+  const potentialPrincipals = useQuery(api.admin.getPotentialDirectors);
+  const legacyPrincipal = useQuery(
+    api.users.getUser,
+    campus?.directorId ? { userId: campus.directorId } : "skip",
+  );
+  const principalOptions = useMemo(() => {
+    if (!potentialPrincipals) return potentialPrincipals;
+    if (
+      legacyPrincipal &&
+      !potentialPrincipals.some(
+        (principal) => principal._id === legacyPrincipal._id,
+      )
+    ) {
+      return [
+        {
+          _id: legacyPrincipal._id,
+          fullName: legacyPrincipal.fullName,
+          email: legacyPrincipal.email,
+          role: legacyPrincipal.role,
+          campusId: legacyPrincipal.campusId,
+        },
+        ...potentialPrincipals,
+      ];
+    }
+    return potentialPrincipals;
+  }, [legacyPrincipal, potentialPrincipals]);
+  const selectedPrincipal = principalOptions?.find(
+    (principal) => principal._id === selectedDirectorId,
   );
 
   // Get existing campus image URL if editing
   const existingImageUrl = useQuery(
     api.campuses.getImageUrl,
-    campus?.campusImageStorageId ? { storageId: campus.campusImageStorageId } : "skip"
+    campus?.campusImageStorageId
+      ? { storageId: campus.campusImageStorageId }
+      : "skip",
   );
 
   // Get available states based on selected country
   const availableStates = getStatesByCountry(selectedCountry);
 
   // Get available cities based on selected country and state
-  const availableCities = getCitiesByCountryAndState(selectedCountry, selectedState);
+  const availableCities = getCitiesByCountryAndState(
+    selectedCountry,
+    selectedState,
+  );
 
   // Sync grades state when campus prop changes (only on initial load or campus change)
   // Don't sync during editing to preserve local changes
@@ -332,7 +471,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
 
     // Check for duplicate code
     const codeExists = grades.some(
-      (grade) => grade.code.toLowerCase() === newGradeCode.trim().toLowerCase()
+      (grade) => grade.code.toLowerCase() === newGradeCode.trim().toLowerCase(),
     );
 
     if (codeExists) {
@@ -346,7 +485,13 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
       name: newGradeName.trim(),
       code: newGradeCode.trim(),
       level: grades.length, // Level is based on current position
-      category: newGradeCategory as "prekinder" | "kinder" | "elementary" | "middle" | "high" | undefined,
+      category: newGradeCategory as
+        | "prekinder"
+        | "kinder"
+        | "elementary"
+        | "middle"
+        | "high"
+        | undefined,
       numberOfGroups: newGradeNumberOfGroups,
       isActive: true,
     };
@@ -500,7 +645,12 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
             name: string;
             code: string;
             level: number;
-            category?: "prekinder" | "kinder" | "elementary" | "middle" | "high";
+            category?:
+              | "prekinder"
+              | "kinder"
+              | "elementary"
+              | "middle"
+              | "high";
             numberOfGroups: number;
             isActive: boolean;
           }>;
@@ -526,7 +676,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
           // Send null instead of undefined to properly unassign director
           updates.directorId = selectedDirectorId || null;
           if (selectedDirectorId) {
-            const director = potentialDirectors?.find(
+            const director = principalOptions?.find(
               (d) => d._id === selectedDirectorId,
             );
             if (director) {
@@ -583,15 +733,16 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
         if (JSON.stringify(grades) !== JSON.stringify(campus.grades || [])) {
           // Always send the grades array, even if empty
           // Ensure numberOfGroups has a default value of 1 if undefined
-          updates.grades = grades.map(grade => ({
+          updates.grades = grades.map((grade) => ({
             ...grade,
-            numberOfGroups: grade.numberOfGroups ?? 1
+            numberOfGroups: grade.numberOfGroups ?? 1,
           }));
         }
 
         // Solo hacer la actualización si hay cambios o si se eliminó la imagen
         const hasChanges = Object.keys(updates).length > 0;
-        const imageWasDeleted = deleteExistingImage && campus.campusImageStorageId;
+        const imageWasDeleted =
+          deleteExistingImage && campus.campusImageStorageId;
 
         if (hasChanges || imageWasDeleted) {
           // Only call update if there are field changes
@@ -646,7 +797,12 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
             name: string;
             code: string;
             level: number;
-            category?: "prekinder" | "kinder" | "elementary" | "middle" | "high";
+            category?:
+              | "prekinder"
+              | "kinder"
+              | "elementary"
+              | "middle"
+              | "high";
             numberOfGroups: number;
             isActive: boolean;
           }>;
@@ -666,7 +822,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
         }
 
         if (selectedDirectorId) {
-          const director = potentialDirectors?.find(
+          const director = principalOptions?.find(
             (d) => d._id === selectedDirectorId,
           );
           campusData.directorId = selectedDirectorId;
@@ -696,9 +852,9 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
         // Grades (solo si hay al menos un grado)
         if (grades.length > 0) {
           // Ensure numberOfGroups has a default value of 1 if undefined
-          campusData.grades = grades.map(grade => ({
+          campusData.grades = grades.map((grade) => ({
             ...grade,
-            numberOfGroups: grade.numberOfGroups ?? 1
+            numberOfGroups: grade.numberOfGroups ?? 1,
           }));
         }
 
@@ -875,12 +1031,15 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                 <Label>Principal</Label>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="w-full justify-between">
-                      {selectedDirector ? (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-between"
+                    >
+                      {selectedPrincipal ? (
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4" />
                           <span className="font-medium">
-                            {selectedDirector.fullName}
+                            {selectedPrincipal.fullName}
                           </span>
                         </div>
                       ) : (
@@ -894,7 +1053,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                   <DropdownMenuContent className="w-80" align="start">
                     <DropdownMenuLabel>Available Principals</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    {potentialDirectors?.length === 0 ? (
+                    {principalOptions?.length === 0 ? (
                       <DropdownMenuItem disabled>
                         No Principals available
                       </DropdownMenuItem>
@@ -910,12 +1069,12 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                           </div>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        {potentialDirectors?.map((director) => (
+                        {principalOptions?.map((principal) => (
                           <DropdownMenuItem
-                            key={director._id}
-                            onClick={() => setSelectedDirectorId(director._id)}
+                            key={principal._id}
+                            onClick={() => setSelectedDirectorId(principal._id)}
                             className={
-                              selectedDirectorId === director._id
+                              selectedDirectorId === principal._id
                                 ? "bg-accent"
                                 : ""
                             }
@@ -924,14 +1083,14 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                               <div className="flex items-center gap-2">
                                 <User className="h-4 w-4" />
                                 <span className="font-medium">
-                                  {director.fullName}
+                                  {principal.fullName}
                                 </span>
                                 <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                                  {director.role}
+                                  {principal.role}
                                 </span>
                               </div>
                               <span className="text-sm text-muted-foreground ml-6">
-                                {director.email}
+                                {principal.email}
                               </span>
                             </div>
                           </DropdownMenuItem>
@@ -940,7 +1099,7 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
-                {potentialDirectors === undefined && (
+                {principalOptions === undefined && (
                   <div className="text-sm text-muted-foreground">
                     Loading available Principals...
                   </div>
@@ -951,7 +1110,9 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
 
           {/* Grades Section */}
           <div className="space-y-4">
-            <h4 className="text-sm font-medium border-b pb-2">Grades Offered</h4>
+            <h4 className="text-sm font-medium border-b pb-2">
+              Grades Offered
+            </h4>
             <div className="grid gap-4">
               {/* Use Grade Template Checkbox - Only show when creating */}
               {!isEditing && (
@@ -969,7 +1130,8 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                       Use standard grade template
                     </label>
                     <p className="text-sm text-muted-foreground">
-                      Load all standard grades from Pre-K to 12th grade (75 grades total)
+                      Load all standard grades from Pre-K to 12th grade (75
+                      grades total)
                     </p>
                   </div>
                 </div>
@@ -978,7 +1140,9 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
               {/* Display existing grades with drag & drop */}
               {grades.length > 0 && (
                 <div className="space-y-3 overflow-hidden">
-                  <Label>Current Grades ({grades.length}) - Drag to reorder</Label>
+                  <Label>
+                    Current Grades ({grades.length}) - Drag to reorder
+                  </Label>
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -1051,13 +1215,16 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                       min="1"
                       max="20"
                       value={newGradeNumberOfGroups}
-                      onChange={(e) => setNewGradeNumberOfGroups(parseInt(e.target.value) || 1)}
+                      onChange={(e) =>
+                        setNewGradeNumberOfGroups(parseInt(e.target.value) || 1)
+                      }
                       placeholder="1"
                     />
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Groups: Number of sections for this grade (e.g., 3 groups means 01-1, 01-2, 01-3)
+                  Groups: Number of sections for this grade (e.g., 3 groups
+                  means 01-1, 01-2, 01-3)
                 </p>
                 <Button
                   type="button"
@@ -1112,8 +1279,8 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                     {isEditing ? "Upload New Image" : "Upload Campus Image"}
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    Choose a square image that represents your campus. Recommended
-                    size: 400x400px or larger.
+                    Choose a square image that represents your campus.
+                    Recommended size: 400x400px or larger.
                   </p>
                 </div>
 
@@ -1140,17 +1307,20 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                     </Button>
                   )}
 
-                  {existingImageUrl && !deleteExistingImage && !imagePreview && isEditing && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleDeleteExistingImage}
-                      className="gap-2 text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete Current Image
-                    </Button>
-                  )}
+                  {existingImageUrl &&
+                    !deleteExistingImage &&
+                    !imagePreview &&
+                    isEditing && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleDeleteExistingImage}
+                        className="gap-2 text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete Current Image
+                      </Button>
+                    )}
                 </div>
 
                 {selectedImage && (
@@ -1197,7 +1367,11 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-3">
                   <Label htmlFor="state">
-                    {selectedCountry === "HN" ? "Department" : selectedCountry === "PR" ? "Municipality" : "State"}
+                    {selectedCountry === "HN"
+                      ? "Department"
+                      : selectedCountry === "PR"
+                        ? "Municipality"
+                        : "State"}
                   </Label>
                   <SelectDropdown
                     options={availableStates}
@@ -1208,7 +1382,13 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                       setSelectedCity("");
                     }}
                     placeholder={`Select ${selectedCountry === "HN" ? "department" : selectedCountry === "PR" ? "municipality" : "state"}...`}
-                    label={selectedCountry === "HN" ? "Departments" : selectedCountry === "PR" ? "Municipalities" : "States"}
+                    label={
+                      selectedCountry === "HN"
+                        ? "Departments"
+                        : selectedCountry === "PR"
+                          ? "Municipalities"
+                          : "States"
+                    }
                     disabled={availableStates.length === 0}
                   />
                 </div>
@@ -1224,7 +1404,9 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
                         : "Select state first"
                     }
                     label={
-                      availableCities.length > 0 ? "Available Cities" : undefined
+                      availableCities.length > 0
+                        ? "Available Cities"
+                        : undefined
                     }
                     disabled={availableCities.length === 0}
                   />
@@ -1267,8 +1449,8 @@ export function CampusDialog({ campus, trigger }: CampusDialogProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the campus
-              &quot;{campus?.name}&quot; and remove all associated data.
+              This action cannot be undone. This will permanently delete the
+              campus &quot;{campus?.name}&quot; and remove all associated data.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

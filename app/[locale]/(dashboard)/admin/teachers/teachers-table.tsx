@@ -48,7 +48,8 @@ import {
 import type { UserStatus } from "@/convex/types";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/admin/users/user-avatar";
+import { UserStatusBadge } from "@/components/admin/users/user-status-badge";
 
 // Tipo para los datos de profesores
 export type Teacher = {
@@ -63,26 +64,6 @@ export type Teacher = {
   progressAvg: number;
   status: UserStatus;
 };
-
-// Component to display teacher avatar with query
-function TeacherAvatar({ teacher }: { teacher: Teacher }) {
-  const avatarUrl = useQuery(
-    api.users.getAvatarUrl,
-    teacher.avatarStorageId ? { storageId: teacher.avatarStorageId } : "skip",
-  );
-
-  const initials =
-    `${teacher.firstName?.charAt(0) || ""}${teacher.lastName?.charAt(0) || ""}`.toUpperCase();
-
-  return (
-    <Avatar className="h-8 w-8 lg:h-10 lg:w-10">
-      {avatarUrl && <AvatarImage src={avatarUrl} alt={teacher.fullName} />}
-      <AvatarFallback className="bg-deep-koamaru/10 text-deep-koamaru text-xs lg:text-sm font-medium">
-        {initials}
-      </AvatarFallback>
-    </Avatar>
-  );
-}
 
 export const columns: ColumnDef<Teacher>[] = [
   {
@@ -103,7 +84,12 @@ export const columns: ColumnDef<Teacher>[] = [
       const teacher = row.original;
       return (
         <div className="flex items-center gap-3 py-1">
-          <TeacherAvatar teacher={teacher} />
+          <UserAvatar
+            fullName={teacher.fullName}
+            avatarStorageId={teacher.avatarStorageId}
+            firstName={teacher.firstName}
+            lastName={teacher.lastName}
+          />
           <div className="space-y-2">
             <div className="font-medium text-sm lg:text-base">
               {row.getValue("fullName")}
@@ -116,7 +102,7 @@ export const columns: ColumnDef<Teacher>[] = [
                     {teacher.campus}
                   </Badge>
                 )}
-                <TeacherStatusBadge status={teacher.status} />
+                <UserStatusBadge status={teacher.status} />
               </div>
             </div>
           </div>
@@ -239,7 +225,7 @@ export const columns: ColumnDef<Teacher>[] = [
     },
     cell: ({ row }) => (
       <div className="hidden lg:block py-1">
-        <TeacherStatusBadge status={row.original.status} />
+        <UserStatusBadge status={row.original.status} />
       </div>
     ),
     meta: {
@@ -671,25 +657,5 @@ export function TeachersTable() {
         </div>
       </div>
     </div>
-  );
-}
-
-function TeacherStatusBadge({ status }: { status: UserStatus }) {
-  const styles: Record<UserStatus, string> = {
-    active: "bg-emerald-500/10 text-emerald-700",
-    inactive: "bg-gray-500/15 text-gray-700",
-    on_leave: "bg-amber-500/15 text-amber-700",
-    terminated: "bg-rose-500/20 text-rose-700",
-  };
-
-  const capitalize = (str: string) =>
-    str.charAt(0).toUpperCase() + str.slice(1);
-
-  return (
-    <Badge
-      className={`rounded-full px-3 py-0.5 text-xs font-medium inline-flex ${styles[status] ?? styles.inactive}`}
-    >
-      {capitalize(status.replace("_", " "))}
-    </Badge>
   );
 }
